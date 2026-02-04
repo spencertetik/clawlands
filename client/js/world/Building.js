@@ -13,32 +13,58 @@ class Building {
         // Building properties
         this.name = this.getDefaultName();
         
-        // Door dimensions
-        this.doorWidth = 16;
+        // Door dimensions (per building type based on sprite analysis)
+        this.doorWidth = this.getDoorWidth();
         this.doorHeight = 20;
         
         // Door position offset from building left edge (custom per building type)
         this.doorOffsetX = this.getDoorOffsetX();
+        
+        // Door Y offset from building bottom (most doors are at ground level)
+        this.doorOffsetY = this.getDoorOffsetY();
+    }
+    
+    // Get door width based on sprite analysis
+    getDoorWidth() {
+        const widths = {
+            'inn': 16,        // Wide entrance
+            'shop': 12,       // Medium entrance  
+            'house': 10,      // Narrow door
+            'lighthouse': 10, // Narrow door
+            'dock': 16,
+            'temple': 14,
+            'market': 16
+        };
+        return widths[this.type] || 12;
     }
     
     // Get door X offset from building left edge (based on sprite analysis)
     getDoorOffsetX() {
-        // These values place the 16px door centered on each building
-        // Formula: (buildingWidth - doorWidth) / 2
-        // Inn: 96px → (96-16)/2 = 40
-        // Shop: 72px → (72-16)/2 = 28
-        // House: 48px → (48-16)/2 = 16
-        // Lighthouse: 48px → (48-16)/2 = 16
+        // Values measured from actual sprite pixels
         const offsets = {
             'inn': 40,        // Centered in 96px width
-            'shop': 28,       // Centered in 72px width
-            'house': 16,      // Centered in 48px width
-            'lighthouse': 16, // Centered in 48px width
+            'shop': 30,       // Centered in 72px width
+            'house': 19,      // Centered, measured ~20px from left
+            'lighthouse': 19, // Centered, measured ~19-20px from left
             'dock': 16,
             'temple': 24,
             'market': 40
         };
-        return offsets[this.type] || (this.width - this.doorWidth) / 2;
+        return offsets[this.type] || Math.floor((this.width - this.doorWidth) / 2);
+    }
+    
+    // Get door Y offset from bottom of building (0 = at ground, positive = higher up)
+    getDoorOffsetY() {
+        const offsets = {
+            'inn': 0,         // Door at ground level
+            'shop': 0,        // Door at ground level
+            'house': 1,       // Door at ground level
+            'lighthouse': 5,  // Door is 4-6px up from bottom (on foundation)
+            'dock': 0,
+            'temple': 0,
+            'market': 0
+        };
+        return offsets[this.type] || 0;
     }
 
     // Get default pixel dimensions based on type (used when no sprite)
@@ -85,7 +111,8 @@ class Building {
     // Get the door bounds in world coordinates
     getDoorBounds() {
         const doorX = this.x + this.doorOffsetX;
-        const doorY = this.y + this.height - this.doorHeight;
+        // Door Y position: building bottom minus door height, plus any Y offset
+        const doorY = this.y + this.height - this.doorHeight - this.doorOffsetY;
         return {
             x: doorX,
             y: doorY,
@@ -94,25 +121,26 @@ class Building {
         };
     }
 
-    // Get the trigger zone (area in front of building that triggers entry)
-    // Balanced zone - close to door but forgiving enough to hit
+    // Get the trigger zone (area in front of door that triggers entry)
+    // Positioned to match the actual door location
     getTriggerZone() {
         const door = this.getDoorBounds();
+        const doorBottom = this.y + this.height - this.doorOffsetY;
         return {
-            x: door.x - 8,  // 8px wider on each side
-            y: this.y + this.height - 6, // Starts 6px above building bottom (into doorway)
-            width: this.doorWidth + 16, // 32px total width
-            height: 24 // 6px into building + 18px below
+            x: door.x - 4,  // 4px wider on each side
+            y: doorBottom - 4, // Starts 4px into doorway
+            width: this.doorWidth + 8, // Door width + 8px margin
+            height: 16 // 4px into building + 12px below
         };
     }
     
     // Get doormat bounds (for rendering the welcome mat)
-    // Positioned directly below the door, outside the building
+    // Positioned directly in front of the door
     getDoormatBounds() {
         const door = this.getDoorBounds();
         return {
             x: door.x - 2,
-            y: this.y + this.height, // Start at building bottom (outside)
+            y: this.y + this.height - this.doorOffsetY, // At the base of the door
             width: this.doorWidth + 4,
             height: 8
         };
@@ -120,26 +148,20 @@ class Building {
 
     // Check if a point is inside the building (for collision)
     checkCollision(worldX, worldY) {
-        // Extended collision zone - includes building plus area above it
-        // This prevents players from walking "on top" of buildings
-        const collisionTop = this.y - 8; // Extend collision 8px above building
-        
-        // First check if point is within extended building bounds
+        // Check if point is within building bounds
         if (worldX < this.x || worldX >= this.x + this.width ||
-            worldY < collisionTop || worldY >= this.y + this.height) {
+            worldY < this.y || worldY >= this.y + this.height) {
             return false; // Outside building, no collision
         }
 
         // Check if point is within the door (no collision there)
-        // Door only applies at the actual building level, not above
         const door = this.getDoorBounds();
-        if (worldY >= this.y && // Only check door at building level
-            worldX >= door.x && worldX < door.x + door.width &&
+        if (worldX >= door.x && worldX < door.x + door.width &&
             worldY >= door.y && worldY < door.y + door.height) {
             return false; // In doorway, no collision
         }
 
-        // Inside building (or above it) but not in door = collision
+        // Inside building but not in door = collision
         return true;
     }
 
@@ -316,61 +338,50 @@ class Building {
 
     // Render debug info (collision box, door, trigger zone)
     renderDebug(ctx, camera, scale) {
-        // Extended collision zone (magenta, semi-transparent fill)
-        const collisionTop = this.y - 8;
-        const cx = (this.x - camera.x) * scale;
-        const cy = (collisionTop - camera.y) * scale;
-        const collisionHeight = this.height + 8;
-        ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
-        ctx.fillRect(cx, cy, this.width * scale, collisionHeight * scale);
-        ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(cx, cy, this.width * scale, collisionHeight * scale);
-
-        // Building sprite bounds (red outline)
+        // Building collision bounds (red fill + outline)
         const bx = (this.x - camera.x) * scale;
         const by = (this.y - camera.y) * scale;
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+        ctx.fillRect(bx, by, this.width * scale, this.height * scale);
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
         ctx.lineWidth = 2;
         ctx.strokeRect(bx, by, this.width * scale, this.height * scale);
 
-        // Door area (green fill)
+        // Door area (green fill) - where you can walk through
         const door = this.getDoorBounds();
         const dx = (door.x - camera.x) * scale;
         const dy = (door.y - camera.y) * scale;
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
         ctx.fillRect(dx, dy, door.width * scale, door.height * scale);
-        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+        ctx.strokeStyle = 'rgba(0, 255, 0, 1)';
+        ctx.lineWidth = 2;
         ctx.strokeRect(dx, dy, door.width * scale, door.height * scale);
 
-        // Doormat area (cyan)
+        // Doormat area (cyan) - visual mat position
         const mat = this.getDoormatBounds();
         const mx = (mat.x - camera.x) * scale;
         const my = (mat.y - camera.y) * scale;
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
         ctx.fillRect(mx, my, mat.width * scale, mat.height * scale);
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+        ctx.strokeRect(mx, my, mat.width * scale, mat.height * scale);
 
-        // Trigger zone (yellow outline)
+        // Trigger zone (yellow dashed) - enter building area
         const trigger = this.getTriggerZone();
         const tx = (trigger.x - camera.x) * scale;
         const ty = (trigger.y - camera.y) * scale;
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+        ctx.strokeStyle = 'rgba(255, 255, 0, 1)';
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(tx, ty, trigger.width * scale, trigger.height * scale);
         ctx.setLineDash([]);
 
         // Building name label
-        ctx.fillStyle = '#ff0';
+        ctx.fillStyle = '#fff';
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.font = `bold ${6 * scale}px monospace`;
-        ctx.strokeText(this.name, bx, by - 4 * scale);
-        ctx.fillText(this.name, bx, by - 4 * scale);
-        
-        // Legend for this building
-        ctx.font = `${4 * scale}px monospace`;
-        ctx.fillStyle = '#f0f';
-        ctx.fillText('COLLISION', cx + 2, cy + 4 * scale);
+        ctx.lineWidth = 3;
+        ctx.font = `bold ${5 * scale}px monospace`;
+        ctx.strokeText(this.name, bx, by - 2 * scale);
+        ctx.fillText(this.name, bx, by - 2 * scale);
     }
 }
