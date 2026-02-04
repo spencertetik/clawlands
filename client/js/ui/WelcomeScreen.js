@@ -233,19 +233,29 @@ class WelcomeScreen {
      */
     quickStartGame() {
         // Use saved character or create a default one
-        let savedCharacter = localStorage.getItem('clawworld_character');
-        if (!savedCharacter) {
+        let savedData = localStorage.getItem('clawworld_character');
+        let character;
+        
+        if (savedData) {
+            character = JSON.parse(savedData);
+        } else {
             // Create default character
-            savedCharacter = JSON.stringify({
+            character = {
                 species: 'lobster',
                 color: 'red',
                 name: 'Player'
-            });
-            localStorage.setItem('clawworld_character', savedCharacter);
+            };
+            localStorage.setItem('clawworld_character', JSON.stringify(character));
         }
         
-        // Start the game immediately
-        this.startGame();
+        // Skip all UI and start game directly
+        this.setGameVisibility(true);
+        if (this.onComplete) {
+            this.onComplete({ 
+                config: { species: character.species, color: character.color },
+                name: character.name 
+            });
+        }
     }
 
     /**
