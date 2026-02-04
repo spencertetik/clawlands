@@ -93,14 +93,14 @@ class CollisionSystem {
             }
         }
         
-        // Check collision with remote players
+        // Check collision with remote players (smaller hitbox for more forgiving collision)
         if (this.remotePlayers) {
             for (const [id, remote] of this.remotePlayers) {
-                // remote.position is top-left of collision box (16x24)
-                const remoteWidth = 16;
-                const remoteHeight = 24;
-                const remoteX = remote.position.x;
-                const remoteY = remote.position.y;
+                // Use smaller collision box (8x12) centered on player for more forgiving collision
+                const remoteWidth = 8;
+                const remoteHeight = 12;
+                const remoteX = remote.position.x + 4; // Center the smaller box
+                const remoteY = remote.position.y + 6;
                 
                 // Check AABB collision
                 if (!(x + width < remoteX ||
