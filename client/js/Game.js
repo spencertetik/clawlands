@@ -2214,9 +2214,11 @@ class Game {
         
         console.log(`🏝️ Spawning player on island at ${centerX}, ${centerY} (size: ${size})`);
 
-        // Find a clear area near the center of the island
+        // Collect all safe spawn positions, then pick one randomly
+        const safeSpots = [];
+        
         // Search in expanding circles, checking 16 angles per radius
-        for (let radius = 3; radius < size - 1; radius++) {
+        for (let radius = 3; radius < Math.min(size - 1, 8); radius++) {
             for (let angle = 0; angle < 16; angle++) {
                 const angleRad = (angle / 16) * 2 * Math.PI;
                 const testCol = centerX + Math.floor(Math.cos(angleRad) * radius);
@@ -2228,17 +2230,23 @@ class Game {
 
                 // Check if this position is safe (on sand, not in building)
                 if (this.isPositionSafe(worldX, worldY)) {
-                    console.log(`✅ Found safe spawn at tile (${testCol}, ${testRow})`);
-                    return { x: worldX, y: worldY };
+                    safeSpots.push({ x: worldX, y: worldY, col: testCol, row: testRow });
                 }
             }
+        }
+
+        // Pick a random safe spot (using Math.random for true randomness per player)
+        if (safeSpots.length > 0) {
+            const spot = safeSpots[Math.floor(Math.random() * safeSpots.length)];
+            console.log(`✅ Found safe spawn at tile (${spot.col}, ${spot.row}) - picked from ${safeSpots.length} options`);
+            return { x: spot.x, y: spot.y };
         }
 
         // Fallback: search the entire island randomly
         console.log('⚠️ Spiral search failed, trying random positions...');
         for (let attempts = 0; attempts < 100; attempts++) {
-            const testCol = centerX + Math.floor((this.seededRandom() - 0.5) * size * 1.5);
-            const testRow = centerY + Math.floor((this.seededRandom() - 0.5) * size * 1.5);
+            const testCol = centerX + Math.floor((Math.random() - 0.5) * size * 1.5);
+            const testRow = centerY + Math.floor((Math.random() - 0.5) * size * 1.5);
             const worldX = (testCol * tileSize) + (tileSize / 2);
             const worldY = (testRow * tileSize) + (tileSize / 2);
             
@@ -2248,11 +2256,11 @@ class Game {
             }
         }
 
-        // Last resort: island center
-        console.log('⚠️ Could not find clear spawn area, using island center');
+        // Last resort: island center with small random offset
+        console.log('⚠️ Could not find clear spawn area, using island center with offset');
         return {
-            x: (centerX * tileSize) + (tileSize / 2),
-            y: (centerY * tileSize) + (tileSize / 2)
+            x: (centerX * tileSize) + (tileSize / 2) + (Math.random() - 0.5) * tileSize * 3,
+            y: (centerY * tileSize) + (tileSize / 2) + (Math.random() - 0.5) * tileSize * 3
         };
     }
 }
