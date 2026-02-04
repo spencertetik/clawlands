@@ -332,7 +332,7 @@ body.fullscreen-mode #frame-screen {
 }
 
 body.fullscreen-mode .music-hint {
-    top: 8px;
+    top: 12px;
     right: 60px;
 }
 
