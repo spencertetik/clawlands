@@ -103,8 +103,9 @@ class Game {
         this.lastExitTime = 0; // Cooldown to prevent immediate re-entry after exiting
         this.lastEntryTime = 0; // Cooldown to prevent immediate exit after entering
 
-        // Debug mode (off by default, toggle with backtick key)
-        this.debugMode = false;
+        // Debug mode (off by default, toggle with backtick key, or ?debug=true URL param)
+        const urlParams = new URLSearchParams(window.location.search);
+        this.debugMode = urlParams.get('debug') === 'true';
         this.useNumberedTileset = false;
 
         // Character customization
