@@ -218,11 +218,34 @@ class WelcomeScreen {
         
         // Check for bot mode query param - skip mode selection
         const params = new URLSearchParams(window.location.search);
-        if (params.get('botMode') === 'true' || params.get('mode') === 'agent') {
+        if (params.get('quickStart') === 'true') {
+            // Skip everything and go straight to game with default character
+            this.quickStartGame();
+        } else if (params.get('botMode') === 'true' || params.get('mode') === 'agent') {
             this.showAgentWaiting();
         } else {
             this.showModeSelection();
         }
+    }
+    
+    /**
+     * Quick start - skip all menus and go straight to game
+     */
+    quickStartGame() {
+        // Use saved character or create a default one
+        let savedCharacter = localStorage.getItem('clawworld_character');
+        if (!savedCharacter) {
+            // Create default character
+            savedCharacter = JSON.stringify({
+                species: 'lobster',
+                color: 'red',
+                name: 'Player'
+            });
+            localStorage.setItem('clawworld_character', savedCharacter);
+        }
+        
+        // Start the game immediately
+        this.startGame();
     }
 
     /**
