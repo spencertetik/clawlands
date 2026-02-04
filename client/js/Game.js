@@ -2159,26 +2159,44 @@ class Game {
     }
 
     // Check if a position is safe to spawn (on sand, not in water or building)
+    // Now checks a larger area to ensure player has room to move
     isPositionSafe(x, y) {
         try {
             const tileSize = CONSTANTS.TILE_SIZE;
-            const col = Math.floor(x / tileSize);
-            const row = Math.floor(y / tileSize);
+            
+            // Check multiple points around the position to ensure room to move
+            const checkPoints = [
+                { x: x, y: y },
+                { x: x - tileSize, y: y },
+                { x: x + tileSize, y: y },
+                { x: x, y: y - tileSize },
+                { x: x, y: y + tileSize },
+            ];
+            
+            for (const point of checkPoints) {
+                const col = Math.floor(point.x / tileSize);
+                const row = Math.floor(point.y / tileSize);
 
-            // Check bounds
-            if (!this.worldMap || col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) {
-                return false;
+                // Check bounds
+                if (!this.worldMap || col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) {
+                    return false;
+                }
+
+                // Check if it's land (terrainMap: 0 = land, 1 = water)
+                if (this.worldMap.terrainMap && this.worldMap.terrainMap[row] && this.worldMap.terrainMap[row][col] !== 0) {
+                    return false;
+                }
             }
 
-            // Check if it's land (terrainMap: 0 = land, 1 = water)
-            if (this.worldMap.terrainMap && this.worldMap.terrainMap[row] && this.worldMap.terrainMap[row][col] !== 0) {
-                return false;
-            }
-
-            // Check if there's a building collision here (buildings may not be initialized yet)
+            // Check if there's a building collision here or nearby
             if (this.buildings && this.buildings.length > 0) {
                 for (const building of this.buildings) {
-                    if (building.checkCollision(x, y)) {
+                    // Check a larger area around spawn point
+                    if (building.checkCollision(x, y) ||
+                        building.checkCollision(x - tileSize, y) ||
+                        building.checkCollision(x + tileSize, y) ||
+                        building.checkCollision(x, y - tileSize) ||
+                        building.checkCollision(x, y + tileSize)) {
                         return false;
                     }
                 }
