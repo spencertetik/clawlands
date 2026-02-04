@@ -107,12 +107,12 @@ class Building {
     }
     
     // Get doormat bounds (for rendering the welcome mat)
-    // Positioned directly at door threshold for visual grounding
+    // Positioned directly below the door, outside the building
     getDoormatBounds() {
         const door = this.getDoorBounds();
         return {
             x: door.x - 2,
-            y: this.y + this.height - 2, // Tight to building bottom
+            y: this.y + this.height, // Start at building bottom (outside)
             width: this.doorWidth + 4,
             height: 8
         };
@@ -120,20 +120,26 @@ class Building {
 
     // Check if a point is inside the building (for collision)
     checkCollision(worldX, worldY) {
-        // First check if point is within building bounds
+        // Extended collision zone - includes building plus area above it
+        // This prevents players from walking "on top" of buildings
+        const collisionTop = this.y - 8; // Extend collision 8px above building
+        
+        // First check if point is within extended building bounds
         if (worldX < this.x || worldX >= this.x + this.width ||
-            worldY < this.y || worldY >= this.y + this.height) {
+            worldY < collisionTop || worldY >= this.y + this.height) {
             return false; // Outside building, no collision
         }
 
         // Check if point is within the door (no collision there)
+        // Door only applies at the actual building level, not above
         const door = this.getDoorBounds();
-        if (worldX >= door.x && worldX < door.x + door.width &&
+        if (worldY >= this.y && // Only check door at building level
+            worldX >= door.x && worldX < door.x + door.width &&
             worldY >= door.y && worldY < door.y + door.height) {
             return false; // In doorway, no collision
         }
 
-        // Inside building but not in door = collision
+        // Inside building (or above it) but not in door = collision
         return true;
     }
 
@@ -310,31 +316,61 @@ class Building {
 
     // Render debug info (collision box, door, trigger zone)
     renderDebug(ctx, camera, scale) {
-        // Building bounds (red)
+        // Extended collision zone (magenta, semi-transparent fill)
+        const collisionTop = this.y - 8;
+        const cx = (this.x - camera.x) * scale;
+        const cy = (collisionTop - camera.y) * scale;
+        const collisionHeight = this.height + 8;
+        ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
+        ctx.fillRect(cx, cy, this.width * scale, collisionHeight * scale);
+        ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx, cy, this.width * scale, collisionHeight * scale);
+
+        // Building sprite bounds (red outline)
         const bx = (this.x - camera.x) * scale;
         const by = (this.y - camera.y) * scale;
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
         ctx.lineWidth = 2;
         ctx.strokeRect(bx, by, this.width * scale, this.height * scale);
 
-        // Door area (green)
+        // Door area (green fill)
         const door = this.getDoorBounds();
         const dx = (door.x - camera.x) * scale;
         const dy = (door.y - camera.y) * scale;
         ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
         ctx.fillRect(dx, dy, door.width * scale, door.height * scale);
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+        ctx.strokeRect(dx, dy, door.width * scale, door.height * scale);
 
-        // Trigger zone (yellow)
+        // Doormat area (cyan)
+        const mat = this.getDoormatBounds();
+        const mx = (mat.x - camera.x) * scale;
+        const my = (mat.y - camera.y) * scale;
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+        ctx.fillRect(mx, my, mat.width * scale, mat.height * scale);
+
+        // Trigger zone (yellow outline)
         const trigger = this.getTriggerZone();
         const tx = (trigger.x - camera.x) * scale;
         const ty = (trigger.y - camera.y) * scale;
         ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
         ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
         ctx.strokeRect(tx, ty, trigger.width * scale, trigger.height * scale);
+        ctx.setLineDash([]);
 
-        // Building name (for debug only)
+        // Building name label
         ctx.fillStyle = '#ff0';
-        ctx.font = `${8 * scale}px monospace`;
-        ctx.fillText(this.name, bx, by - 4);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.font = `bold ${6 * scale}px monospace`;
+        ctx.strokeText(this.name, bx, by - 4 * scale);
+        ctx.fillText(this.name, bx, by - 4 * scale);
+        
+        // Legend for this building
+        ctx.font = `${4 * scale}px monospace`;
+        ctx.fillStyle = '#f0f';
+        ctx.fillText('COLLISION', cx + 2, cy + 4 * scale);
     }
 }
