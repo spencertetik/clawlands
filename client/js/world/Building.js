@@ -136,16 +136,26 @@ class Building {
     
     // Get doormat bounds (for rendering the welcome mat)
     // Mat rendered on GROUND layer (0), building on BUILDING_BASE layer (2)
-    // Mat needs to be positioned where the door visually is in the sprite
+    // Mat needs to be positioned at the door - which varies by building type
     getDoormatBounds() {
         const door = this.getDoorBounds();
-        // Move mat WAY up into the building to test positioning
-        // If this disappears behind building, we know the coordinates are right
-        const matY = this.y + this.height - 40; // 40px up from building bottom (should be mid-building)
+        
+        // Door visual position varies by building type
+        // These offsets position the mat at the visible door in each sprite
+        const matOffsets = {
+            'inn': 24,        // Inn door is ~24px from sprite bottom
+            'shop': 16,       // Shop door is ~16px from sprite bottom
+            'house': 12,      // House door is ~12px from sprite bottom
+            'lighthouse': 20, // Lighthouse door is ~20px from sprite bottom
+            'dock': 8,
+            'temple': 16,
+            'market': 20
+        };
+        const offset = matOffsets[this.type] || 16;
         
         return {
             x: door.x - 2,
-            y: matY,
+            y: this.y + this.height - offset - 8, // Position mat at door level
             width: this.doorWidth + 4,
             height: 8
         };
