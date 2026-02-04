@@ -484,8 +484,8 @@ class RemotePlayer {
         const spriteDir = dirMap[this.direction] || this.direction || 'south';
         const sprite = this.sprites[spriteDir] || this.sprites['south'];
         
-        // Sprite dimensions (16x24 pixels, scaled)
-        const spriteW = 16 * scale;
+        // Sprite dimensions (24x24 pixels, scaled)
+        const spriteW = 24 * scale;
         const spriteH = 24 * scale;
         
         // Draw shadow
