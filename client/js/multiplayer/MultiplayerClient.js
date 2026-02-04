@@ -170,25 +170,37 @@ class MultiplayerClient {
         if (!this.connected || !this.game.player) return;
 
         const player = this.game.player;
+        const config = this.game.characterConfig || {};
+        
         // Get character name - try multiple sources
         const charName = this.game.characterName || 
+                        config.name ||
                         this.game.customizationData?.name ||
                         player.name || 
                         'Adventurer';
         
-        // Get species from player or customization data
-        const species = player.species || 
+        // Get species from characterConfig or customization data
+        const species = config.species || 
+                       player.species || 
                        this.game.customizationData?.species ||
                        'lobster';
         
-        console.log(`🎮 Joining multiplayer as: ${charName} (${species})`);
-        console.log(`   game.characterName = ${this.game.characterName}`);
+        // Get color from characterConfig (hueShift maps to color name)
+        const colorMap = {
+            0: 'red', 30: 'orange', 50: 'yellow', 120: 'green',
+            170: 'teal', 200: 'blue', 270: 'purple', 320: 'pink'
+        };
+        const hueShift = config.hueShift || 0;
+        const color = colorMap[hueShift] || player.colorName || 'red';
+        
+        console.log(`🎮 Joining multiplayer as: ${charName} (${species}, ${color})`);
+        console.log(`   characterConfig:`, config);
         
         this.send({
             type: 'join',
             name: charName,
             species: species,
-            color: player.colorName || 'red',
+            color: color,
             x: player.position.x,
             y: player.position.y
         });

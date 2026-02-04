@@ -310,6 +310,9 @@ body.fullscreen-mode #frame-wrapper {
 body.fullscreen-mode #frame-scene {
     width: 100vw;
     height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     aspect-ratio: unset;
 }
 
@@ -318,11 +321,13 @@ body.fullscreen-mode #frame-art {
 }
 
 body.fullscreen-mode #frame-screen {
-    position: absolute;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
+    position: relative;
+    left: unset !important;
+    top: unset !important;
+    /* Maintain square aspect ratio, fit within viewport */
+    width: min(100vw, 100vh) !important;
+    height: min(100vw, 100vh) !important;
+    aspect-ratio: 1 / 1;
     border-radius: 0;
 }
 
