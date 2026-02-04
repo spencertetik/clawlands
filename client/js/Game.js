@@ -101,6 +101,7 @@ class Game {
         this.assetsLoaded = false;
         this.isTransitioning = false;
         this.lastExitTime = 0; // Cooldown to prevent immediate re-entry after exiting
+        this.lastEntryTime = 0; // Cooldown to prevent immediate exit after entering
 
         // Debug mode (off by default, toggle with backtick key)
         this.debugMode = false;
@@ -375,17 +376,20 @@ class Game {
         if (this.currentLocation !== 'interior') return;
         if (this.isTransitioning) return;
         if (this.dialogSystem && this.dialogSystem.isOpen()) return;
+        
+        // Entry cooldown - prevent immediate exit after entering (1 second)
+        if (this.lastEntryTime && Date.now() - this.lastEntryTime < 1000) return;
 
         const exitTile = this.worldMap?.meta?.exitTile;
         if (!exitTile) return;
         
-        // Check if player is near exit tile (very forgiving to prevent getting stuck)
+        // Check if player is near exit tile (forgiving but not too much)
         const pos = this.getPlayerTilePosition();
         const colDist = Math.abs(pos.col - exitTile.col);
         const rowDist = exitTile.row - pos.row; // Positive = above exit
         
-        // Exit if within 1 column AND within 1 row of exit (or on it)
-        const nearDoor = colDist <= 1 && rowDist >= -1 && rowDist <= 1;
+        // Exit if within 1 column AND on exit row or 1 below it
+        const nearDoor = colDist <= 1 && rowDist >= -1 && rowDist <= 0;
         
         if (nearDoor) {
             console.log(`🚪 Auto-exiting building`);
@@ -926,6 +930,9 @@ class Game {
         const spawnRow = Math.max(1, exitTile.row - 1);
         this.placePlayerAtTile(exitTile.col, spawnRow);
         this.player.direction = CONSTANTS.DIRECTION.UP;
+        
+        // Set entry time to prevent immediate exit
+        this.lastEntryTime = Date.now();
         
         console.log(`🏠 Entered ${building.name}`);
         
