@@ -302,14 +302,17 @@ class RemotePlayer {
         this.name = data.name;
         this.species = data.species || 'lobster';
         this.color = data.color || 'red';
+        this.hueShift = this.getHueShiftFromColor(this.color);
         
         this.position = { x: data.x || 0, y: data.y || 0 };
         this.targetPosition = { x: data.x || 0, y: data.y || 0 };
         this.direction = data.direction || 'south';
         this.isMoving = false;
         
-        // Sprites for each direction
+        // Sprites for each direction (will be hue-shifted)
         this.sprites = {};
+        this.rawSprites = {}; // Original unshifted sprites
+        this.spritesReady = false;
         this.currentSprite = null;
         this.animFrame = 0;
         this.animTimer = 0;
@@ -320,17 +323,99 @@ class RemotePlayer {
         this.loadSprites();
     }
 
+    getHueShiftFromColor(colorName) {
+        const colorMap = {
+            'red': 0,
+            'orange': 30,
+            'yellow': 50,
+            'green': 120,
+            'teal': 170,
+            'blue': 200,
+            'purple': 270,
+            'pink': 320
+        };
+        return colorMap[colorName?.toLowerCase()] || 0;
+    }
+
     loadSprites() {
         const basePath = `assets/sprites/characters/${this.species}`;
         const directions = ['south', 'north', 'east', 'west'];
+        let loadedCount = 0;
         
         directions.forEach(dir => {
-            this.sprites[dir] = new Image();
-            this.sprites[dir].src = `${basePath}/${dir}.png`;
+            const img = new Image();
+            img.onload = () => {
+                loadedCount++;
+                // Apply hue shift when sprite loads
+                this.sprites[dir] = this.applyHueShift(img);
+                if (loadedCount === directions.length) {
+                    this.spritesReady = true;
+                    this.currentSprite = this.sprites['south'];
+                }
+            };
+            img.src = `${basePath}/${dir}.png`;
+            this.rawSprites[dir] = img;
         });
+    }
+
+    applyHueShift(image) {
+        if (this.hueShift === 0) return image;
         
-        // Set initial sprite
-        this.currentSprite = this.sprites['south'];
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+            if (a === 0) continue;
+            
+            // Convert to HSL
+            const max = Math.max(r, g, b) / 255;
+            const min = Math.min(r, g, b) / 255;
+            const l = (max + min) / 2;
+            
+            if (max === min) continue; // Gray, skip
+            
+            const d = max - min;
+            const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            
+            let h;
+            const rn = r/255, gn = g/255, bn = b/255;
+            if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+            else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+            else h = ((rn - gn) / d + 4) / 6;
+            
+            // Only shift reddish colors
+            if (h > 0.1 && h < 0.9) continue;
+            
+            // Apply shift
+            h = (h + this.hueShift / 360) % 1;
+            
+            // Convert back to RGB
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            };
+            
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            
+            data[i] = Math.round(hue2rgb(p, q, h + 1/3) * 255);
+            data[i+1] = Math.round(hue2rgb(p, q, h) * 255);
+            data[i+2] = Math.round(hue2rgb(p, q, h - 1/3) * 255);
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        return canvas;
     }
 
     updatePosition(x, y, direction, isMoving) {
@@ -397,8 +482,13 @@ class RemotePlayer {
         ctx.ellipse(screenX, screenY, 8 * scale, 4 * scale, 0, 0, Math.PI * 2);
         ctx.fill();
         
-        // Draw sprite if loaded
-        if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+        // Draw sprite if loaded (sprite may be Image or Canvas)
+        const spriteReady = sprite && (
+            (sprite instanceof HTMLCanvasElement) ||
+            (sprite.complete && sprite.naturalWidth > 0)
+        );
+        
+        if (spriteReady) {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(
                 sprite,
