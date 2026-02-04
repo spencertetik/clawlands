@@ -135,15 +135,13 @@ class Building {
     }
     
     // Get doormat bounds (for rendering the welcome mat)
-    // Positioned RIGHT at the door - inside the building sprite at door level
+    // Mat rendered on GROUND layer (0), building on BUILDING_BASE layer (2)
+    // Mat needs to be positioned where the door visually is in the sprite
     getDoormatBounds() {
         const door = this.getDoorBounds();
-        // Mat should be at the very bottom of the building, overlapping the door
-        // Building bottom = this.y + this.height
-        // We want mat to be INSIDE the building, at the door
-        const matY = this.y + this.height - 12; // 12px up from building bottom
-        
-        console.log(`[${this.name}] building: y=${this.y}, h=${this.height}, bottom=${this.y + this.height}, matY=${matY}`);
+        // Move mat WAY up into the building to test positioning
+        // If this disappears behind building, we know the coordinates are right
+        const matY = this.y + this.height - 40; // 40px up from building bottom (should be mid-building)
         
         return {
             x: door.x - 2,
