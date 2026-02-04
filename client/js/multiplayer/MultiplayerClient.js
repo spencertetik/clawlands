@@ -475,9 +475,16 @@ class RemotePlayer {
         // Get display scale
         const scale = window.CONSTANTS?.DISPLAY_SCALE || 4;
         
-        // Calculate screen position
-        const screenX = (this.position.x - (camera?.x || 0)) * scale;
-        const screenY = (this.position.y - (camera?.y || 0)) * scale;
+        // Position is top-left of collision box (16x24)
+        // Convert to feet position (bottom-center) for rendering
+        const collisionW = 16;
+        const collisionH = 24;
+        const feetX = this.position.x + collisionW / 2;
+        const feetY = this.position.y + collisionH;
+        
+        // Calculate screen position from feet
+        const screenX = (feetX - (camera?.x || 0)) * scale;
+        const screenY = (feetY - (camera?.y || 0)) * scale;
         
         // Get correct sprite for direction
         const dirMap = { 'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east' };
