@@ -324,10 +324,10 @@ body.fullscreen-mode #frame-screen {
     position: relative;
     left: unset !important;
     top: unset !important;
-    /* Maintain square aspect ratio, fit within viewport */
-    width: min(100vw, 100vh) !important;
-    height: min(100vw, 100vh) !important;
-    aspect-ratio: 1 / 1;
+    /* Maintain 5:4 aspect ratio (640x512), fit within viewport */
+    width: min(100vw, calc(100vh * 1.25)) !important;
+    height: min(100vh, calc(100vw * 0.8)) !important;
+    aspect-ratio: 5 / 4;
     border-radius: 0;
 }
 
