@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Terrain Map</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .grid { display: inline-block; }
+        .cell { 
+            display: inline-block; 
+            width: 20px; 
+            height: 20px; 
+            text-align: center;
+            line-height: 20px;
+            font-size: 10px;
+        }
+        .water { background: #3498db; color: white; }
+        .sand { background: #f4d03f; color: black; }
+    </style>
+</head>
+<body>
+    <h2>Terrain Map (0=sand, 1=water)</h2>
+    <div id="terrain"></div>
+    <h2>Tile IDs</h2>
+    <div id="tiles"></div>
+    
+    <script>
+        const tilesWide = 30;
+        const tilesHigh = 30;
+        
+        // Create terrain map (same as WorldMap.js)
+        const terrainMap = [];
+        for (let row = 0; row < tilesHigh; row++) {
+            terrainMap[row] = [];
+            for (let col = 0; col < tilesWide; col++) {
+                // Water at edges
+                if (row < 3 || row >= tilesHigh - 3 || col < 2 || col >= tilesWide - 2) {
+                    terrainMap[row][col] = 1; // Water
+                } else {
+                    terrainMap[row][col] = 0; // Sand
+                }
+            }
+        }
+        
+        // Display terrain
+        let terrainHTML = '<div class="grid">';
+        for (let row = 0; row < tilesHigh; row++) {
+            for (let col = 0; col < tilesWide; col++) {
+                const val = terrainMap[row][col];
+                const cls = val === 1 ? 'water' : 'sand';
+                terrainHTML += `<div class="cell ${cls}">${val}</div>`;
+            }
+            terrainHTML += '<br>';
+        }
+        terrainHTML += '</div>';
+        document.getElementById('terrain').innerHTML = terrainHTML;
+        
+        // Count
+        let waterCount = 0, sandCount = 0;
+        for (let row = 0; row < tilesHigh; row++) {
+            for (let col = 0; col < tilesWide; col++) {
+                if (terrainMap[row][col] === 1) waterCount++;
+                else sandCount++;
+            }
+        }
+        document.body.innerHTML += `<p>Water tiles: ${waterCount}, Sand tiles: ${sandCount}</p>`;
+    </script>
+</body>
+</html>

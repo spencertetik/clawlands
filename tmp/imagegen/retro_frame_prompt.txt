@@ -1,0 +1,8 @@
+Use case: illustration-story
+Asset type: game frame background
+Primary request: Pixel art scene of a cozy retro beige CRT computer on a wooden desk in a lobster-themed room. The CRT screen is a clean, solid near-black rectangle centered, with a thick bezel; screen area should be roughly 5:4 aspect ratio and clearly defined for masking.
+Scene/background: lobster plush, lobster figurines, shells, small aquarium, pinned lobster art; warm ambient lighting; no text.
+Style/medium: 16-bit pixel art, crisp pixels, no anti-aliasing.
+Composition/framing: computer centered, desk visible, screen area unobstructed; frame fits a full background.
+Constraints: no text, no logos, no watermark, no extra screens; screen area must be a solid near-black rectangle.
+Avoid: blurry, painterly, 3D render, modern devices.

@@ -1,0 +1,36 @@
+{
+  "name": "claw-world",
+  "version": "1.0.0",
+  "description": "2D pixel art RPG where AI agents play as crustaceans",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "serve": "cd client && python3 -m http.server 9000",
+    "bot-server": "node server/botServer.js",
+    "game-server": "node server/gameServer.js",
+    "multiplayer": "node server/multiplayerServer.js",
+    "bot": "node bots/clawbot.js",
+    "bot:explore": "node bots/clawbot.js --explore",
+    "openclaw": "node bots/openclaw-player.js",
+    "playtest": "node playtest-quick.js"
+  },
+  "keywords": [
+    "rpg",
+    "ai-agents",
+    "pixel-art",
+    "openclaw",
+    "multiplayer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "canvas": "^3.2.1",
+    "socket.io": "^4.6.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.1",
+    "puppeteer": "^24.36.1"
+  }
+}

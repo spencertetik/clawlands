@@ -1,0 +1,65 @@
+PixelLab Asset Generation Summary
+================================
+NOTE: Assets were generated with crab theme but will be used for lobster-themed game
+
+CHARACTERS:
+-----------
+1. Player Character (Humanoid Lobster - generated as crab)
+   Character ID: 4f0a7076-32fc-4e97-8b4f-592c868037b5
+   Job ID: 58a02fd0-941e-4863-b8fb-dde032e2f4ed
+   Description: Humanoid with red claws, shell on back (will represent lobster)
+
+2. Lighthouse Keeper NPC
+   Character ID: 5e855811-8437-4813-9678-90666837c8ee
+   Job ID: 9e65ce15-0706-42de-85f0-654ac6a564d8
+   Description: Elderly keeper with gray beard, striped shirt
+
+3. Shopkeeper NPC
+   Character ID: 807af544-d96e-4c03-bb9d-016995bcbfd9
+   Job ID: 43c5370f-ab1f-4bb7-a919-44e7aacd0120
+   Description: Friendly villager with apron and basket
+
+TILESETS:
+---------
+1. Sand/Water Transition
+   Tileset ID: 62c30bca-a3ce-460b-9d38-bc953715340d
+   Job ID: 50f6af44-b13c-4591-87fd-88c7ade83187
+   Description: Sandy beach to ocean water
+
+2. Grass/Dirt
+   Tileset ID: 9e8074bb-a707-4c2e-9810-165c9846e1a6
+   Job ID: 1c3ea508-e83d-4c99-9cec-d2f4fd9295c1
+   Description: Dirt path to green grass
+
+BUILDINGS (Isometric):
+---------------------
+1. Lobster Inn/Center (generated as crab)
+   Tile ID: 36abc1d8-eb97-4825-aec2-7994ec5aa881
+   Job ID: f67555a3-4f06-4066-a78e-3c5cd600aec7
+   Size: 64x64px
+   Description: Red crustacean-shaped building, Pokemon Center style
+
+2. Lobster Shop/Mart (generated as crab)
+   Tile ID: eca3a839-cb61-4338-ba65-f059b85c8284
+   Job ID: be2952e4-f469-4511-ad9e-c751af91557c
+   Size: 48x48px
+   Description: Blue shop with yellow walls
+
+3. Small Lobster House (generated as crab)
+   Tile ID: 306c7f5b-19f3-4b0d-b086-f682cab7e66e
+   Job ID: 240fbd60-458a-4abc-8ed8-014ff313a865
+   Size: 32x32px
+   Description: Small orange house with chimney
+
+4. Lighthouse
+   Tile ID: 9031b9bf-f2e3-4a61-b1ba-596626f99e69
+   Job ID: 31b0230c-c562-4744-a086-d7057191289f
+   Size: 32x64px
+   Description: Tall red and white striped tower
+
+TOTAL ASSETS: 9
+- 3 Characters (4 directions each)
+- 2 Tilesets (16 tiles each)
+- 4 Buildings (isometric)
+
+Processing time: 2-5 minutes per asset

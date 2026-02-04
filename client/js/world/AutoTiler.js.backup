@@ -1,0 +1,90 @@
+// AutoTiler for PixelLab Wang tilesets
+// Maps corner terrain to exact tile IDs from tileset JSON
+class AutoTiler {
+    constructor() {
+        // Direct mapping from corner states to tile IDs
+        // Format: "NW,NE,SW,SE" where lower=sand, upper=water
+        this.cornerToTile = {
+            'lower,lower,lower,lower': 0,   // All sand
+            'lower,lower,lower,upper': 1,   // SE water
+            'lower,lower,upper,lower': 2,   // SW water
+            'lower,lower,upper,upper': 3,   // S water
+            'lower,upper,lower,lower': 4,   // NE water
+            'lower,upper,lower,upper': 5,   // E water (NE+SE)
+            'lower,upper,upper,lower': 6,   // Diagonal NE+SW
+            'lower,upper,upper,upper': 7,   // NE+S water
+            'upper,lower,lower,lower': 8,   // NW water
+            'upper,lower,lower,upper': 9,   // Diagonal NW+SE
+            'upper,lower,upper,lower': 10,  // W water (NW+SW)
+            'upper,lower,upper,upper': 11,  // NW+S water
+            'upper,upper,lower,lower': 12,  // N water (NW+NE)
+            'upper,upper,lower,upper': 13,  // N+SE water
+            'upper,upper,upper,lower': 14,  // NW+NE+SW water
+            'upper,upper,upper,upper': 15   // All water
+        };
+    }
+
+    /**
+     * Auto-tile an entire layer
+     * @param {Array<Array<number>>} terrainMap - 2D array (0=sand, 1=water)
+     * @param {number} tilesWide - Width
+     * @param {number} tilesHigh - Height
+     * @returns {Array<Array<number>>} Tile ID map
+     */
+    autoTileLayer(terrainMap, tilesWide, tilesHigh) {
+        const tileLayer = [];
+
+        // Helper to check terrain type
+        const getTerrain = (col, row) => {
+            if (row < 0 || row >= tilesHigh || col < 0 || col >= tilesWide) {
+                return 0; // Out of bounds = sand
+            }
+            return terrainMap[row][col];
+        };
+
+        // Process each tile position
+        for (let row = 0; row < tilesHigh; row++) {
+            tileLayer[row] = [];
+            for (let col = 0; col < tilesWide; col++) {
+                const currentTerrain = getTerrain(col, row);
+
+                // If this tile is sand, use all-sand tile
+                if (currentTerrain === 0) {
+                    tileLayer[row][col] = 0; // All sand
+                    continue;
+                }
+
+                // This tile is water - determine which water tile based on neighbors
+                // Check which neighbors are also water
+                const n = getTerrain(col, row - 1) === 1;
+                const e = getTerrain(col + 1, row) === 1;
+                const s = getTerrain(col, row + 1) === 1;
+                const w = getTerrain(col - 1, row) === 1;
+
+                const nw_diag = getTerrain(col - 1, row - 1) === 1;
+                const ne_diag = getTerrain(col + 1, row - 1) === 1;
+                const sw_diag = getTerrain(col - 1, row + 1) === 1;
+                const se_diag = getTerrain(col + 1, row + 1) === 1;
+
+                // For water tiles: corner is 'upper' (water) if both edges AND diagonal are water
+                // Otherwise corner is 'lower' (shows sand edge)
+                const nw = (n && w && nw_diag) ? 'upper' : 'lower';
+                const ne = (n && e && ne_diag) ? 'upper' : 'lower';
+                const sw = (s && w && sw_diag) ? 'upper' : 'lower';
+                const se = (s && e && se_diag) ? 'upper' : 'lower';
+
+                const key = `${nw},${ne},${sw},${se}`;
+                const tileId = this.cornerToTile[key];
+
+                if (tileId === undefined) {
+                    console.warn(`No tile found for corners: ${key} at (${col},${row})`);
+                    tileLayer[row][col] = 15; // Default to all water
+                } else {
+                    tileLayer[row][col] = tileId;
+                }
+            }
+        }
+
+        return tileLayer;
+    }
+}

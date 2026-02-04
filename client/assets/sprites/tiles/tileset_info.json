@@ -1,0 +1,20 @@
+{
+  "sand_water": {
+    "tile_count": 16,
+    "tile_size": {
+      "width": 16,
+      "height": 16
+    },
+    "columns": 4,
+    "rows": 4
+  },
+  "grass_dirt": {
+    "tile_count": 16,
+    "tile_size": {
+      "width": 16,
+      "height": 16
+    },
+    "columns": 4,
+    "rows": 4
+  }
+}
