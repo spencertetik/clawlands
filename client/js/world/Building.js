@@ -138,9 +138,16 @@ class Building {
     // Positioned RIGHT at the door - inside the building sprite at door level
     getDoormatBounds() {
         const door = this.getDoorBounds();
+        // Mat should be at the very bottom of the building, overlapping the door
+        // Building bottom = this.y + this.height
+        // We want mat to be INSIDE the building, at the door
+        const matY = this.y + this.height - 12; // 12px up from building bottom
+        
+        console.log(`[${this.name}] building: y=${this.y}, h=${this.height}, bottom=${this.y + this.height}, matY=${matY}`);
+        
         return {
             x: door.x - 2,
-            y: door.y + door.height - 10, // Inside the door area, near bottom
+            y: matY,
             width: this.doorWidth + 4,
             height: 8
         };
