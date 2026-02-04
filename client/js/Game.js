@@ -379,12 +379,15 @@ class Game {
         const exitTile = this.worldMap?.meta?.exitTile;
         if (!exitTile) return;
         
-        // Check if player is on or adjacent to exit tile
+        // Check if player is near exit tile (very forgiving to prevent getting stuck)
         const pos = this.getPlayerTilePosition();
-        const onExitTile = pos.col === exitTile.col && pos.row === exitTile.row;
-        const nearExitTile = Math.abs(pos.col - exitTile.col) <= 1 && pos.row >= exitTile.row - 1;
+        const colDist = Math.abs(pos.col - exitTile.col);
+        const rowDist = exitTile.row - pos.row; // Positive = above exit
         
-        if (onExitTile || (nearExitTile && pos.row === exitTile.row)) {
+        // Exit if within 1 column AND within 1 row of exit (or on it)
+        const nearDoor = colDist <= 1 && rowDist >= -1 && rowDist <= 1;
+        
+        if (nearDoor) {
             console.log(`🚪 Auto-exiting building`);
             this.exitBuilding();
         }

@@ -93,21 +93,39 @@ class CollisionSystem {
             }
         }
         
-        // Check collision with remote players (smaller hitbox for more forgiving collision)
-        if (this.remotePlayers) {
+        // Check collision with remote players (very forgiving - players can push through)
+        // Only block if player is trying to move INTO another player, not if already overlapping
+        if (this.remotePlayers && this.player) {
+            const playerCenterX = this.player.position.x + this.player.width / 2;
+            const playerCenterY = this.player.position.y + this.player.height / 2;
+            
             for (const [id, remote] of this.remotePlayers) {
-                // Use smaller collision box (8x12) centered on player for more forgiving collision
-                const remoteWidth = 8;
-                const remoteHeight = 12;
-                const remoteX = remote.position.x + 4; // Center the smaller box
-                const remoteY = remote.position.y + 6;
+                // Use very small collision box (6x6) centered on remote player
+                const remoteWidth = 6;
+                const remoteHeight = 6;
+                const remoteCenterX = remote.position.x + 8;
+                const remoteCenterY = remote.position.y + 12;
+                const remoteX = remoteCenterX - remoteWidth / 2;
+                const remoteY = remoteCenterY - remoteHeight / 2;
                 
-                // Check AABB collision
+                // Check if already overlapping (don't block - let them escape)
+                const currentlyOverlapping = !(
+                    this.player.position.x + this.player.width < remote.position.x ||
+                    this.player.position.x > remote.position.x + 16 ||
+                    this.player.position.y + this.player.height < remote.position.y ||
+                    this.player.position.y > remote.position.y + 24
+                );
+                
+                if (currentlyOverlapping) {
+                    continue; // Already overlapping, let them move to escape
+                }
+                
+                // Check AABB collision with small hitbox
                 if (!(x + width < remoteX ||
                       x > remoteX + remoteWidth ||
                       y + height < remoteY ||
                       y > remoteY + remoteHeight)) {
-                    return true; // Collision with remote player
+                    return true; // Would collide with remote player
                 }
             }
         }
