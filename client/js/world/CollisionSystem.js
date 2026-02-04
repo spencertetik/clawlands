@@ -96,11 +96,11 @@ class CollisionSystem {
         // Check collision with remote players
         if (this.remotePlayers) {
             for (const [id, remote] of this.remotePlayers) {
-                // Create bounds for remote player (16x24 sprite, collision at feet)
-                const remoteWidth = 12;
-                const remoteHeight = 8;
-                const remoteX = remote.position.x - remoteWidth / 2;
-                const remoteY = remote.position.y - remoteHeight;
+                // remote.position is top-left of collision box (16x24)
+                const remoteWidth = 16;
+                const remoteHeight = 24;
+                const remoteX = remote.position.x;
+                const remoteY = remote.position.y;
                 
                 // Check AABB collision
                 if (!(x + width < remoteX ||
