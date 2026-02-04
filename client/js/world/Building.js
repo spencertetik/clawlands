@@ -135,12 +135,12 @@ class Building {
     }
     
     // Get doormat bounds (for rendering the welcome mat)
-    // Positioned to overlap with door bottom - visually in front of door
+    // Positioned RIGHT at the door - inside the building sprite at door level
     getDoormatBounds() {
         const door = this.getDoorBounds();
         return {
             x: door.x - 2,
-            y: door.y + door.height - 6, // Overlaps bottom 6px of door area
+            y: door.y + door.height - 10, // Inside the door area, near bottom
             width: this.doorWidth + 4,
             height: 8
         };
