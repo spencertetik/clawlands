@@ -7,8 +7,9 @@ redirects = []
 [functions."*"]
 
 [build]
-publish = "/Users/spencertetik/.claude/projects/lobster-rpg/client"
-publishOrigin = "default"
+publish = "/Users/spencertetik/.claude/projects/lobster-rpg/client/client"
+publishOrigin = "config"
+base = "/Users/spencertetik/.claude/projects/lobster-rpg/client"
 
 [build.environment]
 
