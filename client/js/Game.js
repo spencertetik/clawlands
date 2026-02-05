@@ -2299,11 +2299,13 @@ class Game {
                 const b1 = islandBuildings[i];
                 const b2 = islandBuildings[i + 1];
                 
-                // Get door positions (bottom center of buildings)
-                const x1 = Math.floor((b1.x + b1.width / 2) / tileSize);
-                const y1 = Math.floor((b1.y + b1.height) / tileSize);
-                const x2 = Math.floor((b2.x + b2.width / 2) / tileSize);
-                const y2 = Math.floor((b2.y + b2.height) / tileSize);
+                // Get actual door positions (center of door, just below door)
+                const door1 = b1.getDoorBounds();
+                const door2 = b2.getDoorBounds();
+                const x1 = Math.floor((door1.x + door1.width / 2) / tileSize);
+                const y1 = Math.floor((door1.y + door1.height + tileSize / 2) / tileSize); // Just below door
+                const x2 = Math.floor((door2.x + door2.width / 2) / tileSize);
+                const y2 = Math.floor((door2.y + door2.height + tileSize / 2) / tileSize); // Just below door
                 
                 // Create L-shaped path (go horizontal then vertical)
                 this.createPathSegment(x1, y1, x2, y1); // Horizontal
@@ -2311,11 +2313,12 @@ class Game {
                 pathCount++;
             }
             
-            // Also create a path from the center of the island toward the main area
+            // Also create a path from the first building's door toward island center
             if (islandBuildings.length > 0) {
                 const centerBuilding = islandBuildings[0];
-                const bx = Math.floor((centerBuilding.x + centerBuilding.width / 2) / tileSize);
-                const by = Math.floor((centerBuilding.y + centerBuilding.height) / tileSize);
+                const door = centerBuilding.getDoorBounds();
+                const bx = Math.floor((door.x + door.width / 2) / tileSize);
+                const by = Math.floor((door.y + door.height + tileSize / 2) / tileSize); // Just below door
                 
                 // Path toward island center
                 this.createPathSegment(bx, by, island.x, by);
