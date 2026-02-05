@@ -504,8 +504,8 @@ class Game {
             // Check if in view
             if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) continue;
             
-            // Try to use sprite if decoration loader is available
-            const sprite = this.decorationLoader?.getSprite(decor.type);
+            // Try to use sprite - check attached sprite first, then decoration loader
+            const sprite = decor.sprite || this.decorationLoader?.getSprite(decor.type);
             
             if (sprite) {
                 // Add sprite drawing to render layer system
@@ -1001,7 +1001,8 @@ class Game {
         this.collisionSystem.clearBuildings();
         this.buildings = [];
         this.signs = [];
-        this.decorations = []; // No decorations indoors
+        // Create interior furniture decorations
+        this.decorations = this.createInteriorFurniture(interiorConfig);
 
         // Spawn interior NPCs
         this.npcs = this.createInteriorNPCs(building.type, interiorMap);
@@ -1168,6 +1169,49 @@ class Game {
         }
 
         return base;
+    }
+
+    // Create furniture decorations from interior config using sprite assets
+    createInteriorFurniture(config) {
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const furniture = [];
+        
+        // Map tile IDs to furniture sprite types
+        const idToType = {
+            3: 'barrel',      // counter/crate -> barrel
+            4: 'bed',
+            5: 'rug',
+            6: 'plant_pot',
+            7: 'table'
+        };
+        
+        for (const decor of (config.decorations || [])) {
+            const spriteType = idToType[decor.id];
+            if (!spriteType) continue;
+            
+            const def = InteriorLoader.FURNITURE[spriteType];
+            if (!def) continue;
+            
+            // Get sprite from interior loader
+            const sprite = this.interiorLoader.getSprite(spriteType);
+            
+            // Position at tile center (adjusted for sprite size)
+            const x = decor.col * tileSize + (tileSize - (def.width || 16)) / 2;
+            const y = decor.row * tileSize + tileSize - (def.height || 16);
+            
+            furniture.push({
+                x,
+                y,
+                type: spriteType,
+                width: def.width || 16,
+                height: def.height || 16,
+                sprite: sprite,
+                layer: CONSTANTS.LAYER.GROUND_DECORATION
+            });
+        }
+        
+        console.log(`🪑 Created ${furniture.length} interior furniture pieces`);
+        return furniture;
     }
 
     // Create NPCs for a given interior
