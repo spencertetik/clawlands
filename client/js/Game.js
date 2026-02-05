@@ -497,23 +497,25 @@ class Game {
     renderDecorations() {
         if (!this.decorations || this.decorations.length === 0) return;
         
-        const ctx = this.renderer.ctx;
-        
         for (const decor of this.decorations) {
             // Check if in view
             if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) continue;
-            
-            // Convert world coords to screen coords
-            const screenX = decor.x - this.camera.position.x;
-            const screenY = decor.y - this.camera.position.y;
             
             // Try to use sprite if decoration loader is available
             const sprite = this.decorationLoader?.getSprite(decor.type);
             
             if (sprite) {
-                // Draw sprite - scale to decoration size
-                ctx.imageSmoothingEnabled = false;
-                ctx.drawImage(sprite, screenX, screenY, decor.width, decor.height);
+                // Add sprite drawing to render layer system
+                const x = decor.x;
+                const y = decor.y;
+                const w = decor.width;
+                const h = decor.height;
+                const img = sprite;
+                
+                this.renderer.addToLayer(CONSTANTS.LAYER.GROUND_DECORATION, (ctx) => {
+                    ctx.imageSmoothingEnabled = false;
+                    ctx.drawImage(img, x, y, w, h);
+                });
             } else {
                 // Fallback to colored rectangles for types without sprites
                 switch (decor.type) {
