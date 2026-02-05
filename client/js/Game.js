@@ -25,9 +25,10 @@ class Game {
         // Create ClawWorld archipelago with larger, more distinct islands
         const islands = this.worldMap.createClawWorldArchipelago({
             seed: 12345,
-            islandCount: 8,
+            islandCount: 10,  // More islands!
             minIslandSize: 14,
-            maxIslandSize: 25
+            maxIslandSize: 28,
+            bridgeChance: 0.9  // More bridges between islands
         });
         this.outdoorMap = this.worldMap;
 
@@ -1272,8 +1273,9 @@ class Game {
                             const x = col * tileSize + tileSize / 2 - CONSTANTS.CHARACTER_WIDTH / 2;
                             const y = row * tileSize + tileSize - CONSTANTS.CHARACTER_HEIGHT;
                             const npc = new NPC(x, y, npcType.name, npcType.dialog);
-                            // Enable wandering for some outdoor NPCs (50% chance)
-                            npc.canWander = this.seededRandom() > 0.5;
+                            // Enable wandering for ALL outdoor NPCs
+                            npc.canWander = true;
+                            npc.wanderRadius = 32 + Math.floor(this.seededRandom() * 32); // 2-4 tiles
                             // Load sprite for NPC
                             this.loadNPCSprite(npc);
                             this.npcs.push(npc);
@@ -1944,35 +1946,62 @@ class Game {
             }
         }
 
-        // Place additional buildings on other islands
-        for (let i = 1; i < sortedIslands.length && i < 4; i++) {
+        // Place additional buildings on other islands (more buildings per island!)
+        const secondaryBuildingTypes = [
+            { type: 'house', name: 'Beach Hut' },
+            { type: 'house', name: 'Shell Cottage' },
+            { type: 'shop', name: 'Tide Shop' },
+            { type: 'house', name: 'Driftwood Cabin' }
+        ];
+        
+        for (let i = 1; i < sortedIslands.length; i++) {
             const island = sortedIslands[i];
             if (island.size < 8) continue;
             
-            const houseSprite = this.assetLoader.getImage('building_house_base');
-            const houseWidth = houseSprite ? Math.ceil(houseSprite.width / tileSize) : 3;
-            const houseHeight = houseSprite ? Math.ceil(houseSprite.height / tileSize) : 3;
+            // Place 1-2 buildings per secondary island based on size
+            const numBuildings = island.size > 12 ? 2 : 1;
+            const islandPlacedPositions = [];
             
-            const pos = this.findBuildingLocation(island, houseWidth, houseHeight + 2);
-            if (pos) {
-                const house = new Building(
-                    pos.col * tileSize,
-                    pos.row * tileSize,
-                    'house',
-                    houseSprite
+            for (let b = 0; b < numBuildings; b++) {
+                const buildingConfig = secondaryBuildingTypes[(i + b) % secondaryBuildingTypes.length];
+                const sprite = this.assetLoader.getImage(`building_${buildingConfig.type}_base`);
+                const pixelWidth = sprite ? sprite.width : 48;
+                const pixelHeight = sprite ? sprite.height : 48;
+                const buildingWidth = Math.ceil(pixelWidth / tileSize);
+                const buildingHeight = Math.ceil(pixelHeight / tileSize);
+                
+                const pos = this.findBuildingLocationAvoidingOthers(
+                    island, 
+                    buildingWidth, 
+                    buildingHeight + 2,
+                    islandPlacedPositions
                 );
-                house.name = `Island Cottage ${i}`;
-                this.buildings.push(house);
-                this.collisionSystem.addBuilding(house);
-                this.worldMap.clearDecorationRect(pos.col, pos.row, houseWidth, houseHeight);
                 
-                const signX = pos.col * tileSize + house.width + 4;
-                const signY = (pos.row + houseHeight - 1) * tileSize;
-                this.signs.push(new Sign(signX, signY, house.name));
-                
-                console.log(`  🏠 Placed ${house.name} on island ${i + 1}`);
+                if (pos) {
+                    islandPlacedPositions.push({ col: pos.col, row: pos.row, width: buildingWidth, height: buildingHeight + 2 });
+                    
+                    const building = new Building(
+                        pos.col * tileSize,
+                        pos.row * tileSize,
+                        buildingConfig.type,
+                        sprite
+                    );
+                    building.name = `${buildingConfig.name} ${i}`;
+                    this.buildings.push(building);
+                    this.collisionSystem.addBuilding(building);
+                    this.worldMap.clearDecorationRect(pos.col, pos.row, buildingWidth, buildingHeight);
+                    
+                    const signX = pos.col * tileSize + building.width + 4;
+                    const signY = (pos.row + buildingHeight - 1) * tileSize;
+                    this.signs.push(new Sign(signX, signY, building.name));
+                    
+                    console.log(`  🏠 Placed ${building.name} on island ${i + 1}`);
+                }
             }
         }
+        
+        // Generate paths connecting buildings on each island
+        this.generatePaths(sortedIslands);
 
         this.outdoorBuildings = [...this.buildings];
         this.outdoorSigns = [...this.signs];
@@ -1990,6 +2019,122 @@ class Game {
         this.ensurePlayerNotStuck();
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.chronicleStones.length} chronicle stones`);
+    }
+
+    // Generate paths connecting buildings on islands
+    generatePaths(islands) {
+        const tileSize = CONSTANTS.TILE_SIZE;
+        
+        // Group buildings by which island they're on
+        const buildingsByIsland = new Map();
+        
+        for (const building of this.buildings) {
+            const buildingCenterX = (building.x + building.width / 2) / tileSize;
+            const buildingCenterY = (building.y + building.height / 2) / tileSize;
+            
+            // Find which island this building is on
+            let closestIsland = null;
+            let closestDist = Infinity;
+            
+            for (const island of islands) {
+                const dist = Math.sqrt(
+                    (buildingCenterX - island.x) ** 2 + 
+                    (buildingCenterY - island.y) ** 2
+                );
+                if (dist < closestDist && dist < island.size + 5) {
+                    closestDist = dist;
+                    closestIsland = island;
+                }
+            }
+            
+            if (closestIsland) {
+                if (!buildingsByIsland.has(closestIsland.id)) {
+                    buildingsByIsland.set(closestIsland.id, []);
+                }
+                buildingsByIsland.get(closestIsland.id).push(building);
+            }
+        }
+        
+        // Create paths on each island
+        let pathCount = 0;
+        for (const [islandId, islandBuildings] of buildingsByIsland) {
+            if (islandBuildings.length < 2) continue;
+            
+            const island = islands.find(i => i.id === islandId);
+            if (!island) continue;
+            
+            // Connect buildings in a simple chain
+            for (let i = 0; i < islandBuildings.length - 1; i++) {
+                const b1 = islandBuildings[i];
+                const b2 = islandBuildings[i + 1];
+                
+                // Get door positions (bottom center of buildings)
+                const x1 = Math.floor((b1.x + b1.width / 2) / tileSize);
+                const y1 = Math.floor((b1.y + b1.height) / tileSize);
+                const x2 = Math.floor((b2.x + b2.width / 2) / tileSize);
+                const y2 = Math.floor((b2.y + b2.height) / tileSize);
+                
+                // Create L-shaped path (go horizontal then vertical)
+                this.createPathSegment(x1, y1, x2, y1); // Horizontal
+                this.createPathSegment(x2, y1, x2, y2); // Vertical
+                pathCount++;
+            }
+            
+            // Also create a path from the center of the island toward the main area
+            if (islandBuildings.length > 0) {
+                const centerBuilding = islandBuildings[0];
+                const bx = Math.floor((centerBuilding.x + centerBuilding.width / 2) / tileSize);
+                const by = Math.floor((centerBuilding.y + centerBuilding.height) / tileSize);
+                
+                // Path toward island center
+                this.createPathSegment(bx, by, island.x, by);
+                this.createPathSegment(island.x, by, island.x, island.y);
+                pathCount++;
+            }
+        }
+        
+        console.log(`🛤️ Created ${pathCount} path segments connecting buildings`);
+    }
+    
+    // Create a path segment between two points
+    createPathSegment(x1, y1, x2, y2) {
+        const dx = Math.sign(x2 - x1);
+        const dy = Math.sign(y2 - y1);
+        
+        let x = x1;
+        let y = y1;
+        
+        // Horizontal segment
+        while (x !== x2) {
+            this.setPathTile(x, y);
+            x += dx;
+        }
+        
+        // Vertical segment
+        while (y !== y2) {
+            this.setPathTile(x, y);
+            y += dy;
+        }
+        
+        // Final tile
+        this.setPathTile(x2, y2);
+    }
+    
+    // Set a tile as a path
+    setPathTile(col, row) {
+        // Only set path on land tiles (not water)
+        if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return;
+        
+        const groundTile = this.worldMap.groundLayer[row]?.[col];
+        if (groundTile === 1) return; // Don't put path on water
+        
+        // Use a path/dirt tile (ID 3 or similar)
+        // Paths use different decoration tiles
+        if (!this.worldMap.decorationLayer[row]) return;
+        
+        // Mark as path using a decoration (small stones/pebbles look)
+        // We'll use the existing decoration system with a path-like appearance
+        this.worldMap.decorationLayer[row][col] = 30; // Path decoration tile
     }
 
     // Create Chronicle Stones on an island
