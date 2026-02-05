@@ -131,6 +131,14 @@ class DecorationLoader {
             height: 12,
             collision: null,
             ground: true
+        },
+        // Path tile (ground layer, no collision)
+        dirt_path: {
+            path: 'assets/sprites/decorations/dirt_path.png',
+            width: 16,
+            height: 16,
+            collision: null,
+            ground: true
         }
     };
 

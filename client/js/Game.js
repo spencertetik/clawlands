@@ -2362,19 +2362,31 @@ class Game {
         const groundTile = this.worldMap.groundLayer[row]?.[col];
         if (groundTile === 1) return; // Don't put path on water
         
+        // Check if path tile already exists at this position (avoid duplicates)
         const tileSize = CONSTANTS.TILE_SIZE;
         const worldX = col * tileSize;
         const worldY = row * tileSize;
         
-        // Add path tile as decoration
-        this.decorations.push({
-            x: worldX,
-            y: worldY,
-            type: 'path',
-            color: '#a08060', // Darker dirt color for visibility
-            width: tileSize,
-            height: tileSize
-        });
+        const existing = this.decorations.find(d => 
+            d.type === 'dirt_path' && d.x === worldX && d.y === worldY
+        );
+        if (existing) return;
+        
+        // Use DecorationLoader to create proper sprite-based path tile
+        if (this.decorationLoader) {
+            const pathDecor = this.decorationLoader.createDecoration('dirt_path', worldX, worldY);
+            this.decorations.push(pathDecor);
+        } else {
+            // Fallback to colored rectangle
+            this.decorations.push({
+                x: worldX,
+                y: worldY,
+                type: 'path',
+                color: '#a08060',
+                width: tileSize,
+                height: tileSize
+            });
+        }
     }
 
     // Create Chronicle Stones on an island
