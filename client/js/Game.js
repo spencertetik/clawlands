@@ -504,8 +504,8 @@ class Game {
             if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) continue;
             
             // Convert world coords to screen coords
-            const screenX = decor.x - this.camera.x;
-            const screenY = decor.y - this.camera.y;
+            const screenX = decor.x - this.camera.position.x;
+            const screenY = decor.y - this.camera.position.y;
             
             // Try to use sprite if decoration loader is available
             const sprite = this.decorationLoader?.getSprite(decor.type);
