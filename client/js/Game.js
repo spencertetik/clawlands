@@ -54,6 +54,9 @@ class Game {
 
         // Asset loader
         this.assetLoader = new AssetLoader();
+        
+        // Decoration sprite loader
+        this.decorationLoader = new DecorationLoader();
 
         // Find spawn location on first island
         const spawnLocation = this.findPlayerSpawnLocation(islands);
@@ -490,107 +493,66 @@ class Game {
         ctx.restore();
     }
     
-    // Render decorations (plants, shells, rocks)
+    // Render decorations (plants, shells, rocks) - uses sprites when available
     renderDecorations() {
         if (!this.decorations || this.decorations.length === 0) return;
+        
+        const ctx = this.renderer.ctx;
         
         for (const decor of this.decorations) {
             // Check if in view
             if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) continue;
             
-            // Draw based on type
-            switch (decor.type) {
-                case 'palm':
-                    // Trunk
-                    this.renderer.drawRect(
-                        decor.x + decor.width/2 - 2, decor.y + decor.height/2,
-                        4, decor.height/2,
-                        '#8b4513', CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    // Leaves (top)
-                    this.renderer.drawRect(
-                        decor.x, decor.y,
-                        decor.width, decor.height/2,
-                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    break;
-                    
-                case 'bush':
-                case 'grass':
-                    // Simple oval shape using stacked rectangles
-                    this.renderer.drawRect(
-                        decor.x + 1, decor.y,
-                        decor.width - 2, decor.height,
-                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    this.renderer.drawRect(
-                        decor.x, decor.y + 2,
-                        decor.width, decor.height - 4,
-                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    break;
-                    
-                case 'flower':
-                    // Center
-                    this.renderer.drawRect(
-                        decor.x + 1, decor.y + 1,
-                        decor.width - 2, decor.height - 2,
-                        '#ffff00', CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    // Petals
-                    this.renderer.drawRect(
-                        decor.x, decor.y,
-                        decor.width, decor.height,
-                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    break;
-                    
-                case 'path':
-                    // Dirt path tile - VERY visible brown
-                    this.renderer.drawRect(
-                        decor.x, decor.y,
-                        decor.width, decor.height,
-                        '#8B6914', CONSTANTS.LAYER.GROUND  // Dark golden brown
-                    );
-                    // Dark border for visibility
-                    this.renderer.drawRect(
-                        decor.x, decor.y,
-                        decor.width, 2,
-                        '#5C4A0F', CONSTANTS.LAYER.GROUND
-                    );
-                    this.renderer.drawRect(
-                        decor.x, decor.y + decor.height - 2,
-                        decor.width, 2,
-                        '#5C4A0F', CONSTANTS.LAYER.GROUND
-                    );
-                    this.renderer.drawRect(
-                        decor.x, decor.y,
-                        2, decor.height,
-                        '#5C4A0F', CONSTANTS.LAYER.GROUND
-                    );
-                    this.renderer.drawRect(
-                        decor.x + decor.width - 2, decor.y,
-                        2, decor.height,
-                        '#5C4A0F', CONSTANTS.LAYER.GROUND
-                    );
-                    break;
-                    
-                case 'shell':
-                case 'rock':
-                case 'coral':
-                default:
-                    // Simple rectangle with shadow
-                    this.renderer.drawRect(
-                        decor.x + 1, decor.y + decor.height - 1,
-                        decor.width, 2,
-                        'rgba(0,0,0,0.2)', CONSTANTS.LAYER.GROUND
-                    );
-                    this.renderer.drawRect(
-                        decor.x, decor.y,
-                        decor.width, decor.height,
-                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
-                    );
-                    break;
+            // Convert world coords to screen coords
+            const screenX = decor.x - this.camera.x;
+            const screenY = decor.y - this.camera.y;
+            
+            // Try to use sprite if decoration loader is available
+            const sprite = this.decorationLoader?.getSprite(decor.type);
+            
+            if (sprite) {
+                // Draw sprite - scale to decoration size
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(sprite, screenX, screenY, decor.width, decor.height);
+            } else {
+                // Fallback to colored rectangles for types without sprites
+                switch (decor.type) {
+                    case 'palm':
+                        // Trunk
+                        this.renderer.drawRect(
+                            decor.x + decor.width/2 - 2, decor.y + decor.height/2,
+                            4, decor.height/2,
+                            '#8b4513', CONSTANTS.LAYER.GROUND_DECORATION
+                        );
+                        // Leaves
+                        this.renderer.drawRect(
+                            decor.x, decor.y,
+                            decor.width, decor.height/2,
+                            decor.color || '#2d5a27', CONSTANTS.LAYER.GROUND_DECORATION
+                        );
+                        break;
+                        
+                    case 'path':
+                        // Dirt path tile
+                        this.renderer.drawRect(
+                            decor.x, decor.y,
+                            decor.width, decor.height,
+                            '#8B6914', CONSTANTS.LAYER.GROUND
+                        );
+                        // Border
+                        this.renderer.drawRect(decor.x, decor.y, decor.width, 1, '#5C4A0F', CONSTANTS.LAYER.GROUND);
+                        this.renderer.drawRect(decor.x, decor.y + decor.height - 1, decor.width, 1, '#5C4A0F', CONSTANTS.LAYER.GROUND);
+                        break;
+                        
+                    default:
+                        // Generic colored rectangle fallback
+                        this.renderer.drawRect(
+                            decor.x, decor.y,
+                            decor.width, decor.height,
+                            decor.color || '#808080', CONSTANTS.LAYER.GROUND_DECORATION
+                        );
+                        break;
+                }
             }
         }
     }
@@ -1412,15 +1374,19 @@ class Game {
         // Don't clear - paths were already added by generatePaths()
         // this.decorations = [];
         
-        // Decoration types with colors and sizes
+        // Decoration types with sizes matching our sprites
         const decorTypes = [
-            { type: 'palm', color: '#2d5a27', width: 12, height: 16 },
-            { type: 'bush', color: '#3d7a37', width: 10, height: 8 },
-            { type: 'flower', color: '#e85d75', width: 6, height: 6 },
-            { type: 'shell', color: '#f5deb3', width: 5, height: 4 },
-            { type: 'rock', color: '#808080', width: 8, height: 6 },
-            { type: 'grass', color: '#4a8c3f', width: 8, height: 10 },
-            { type: 'coral', color: '#ff7f50', width: 7, height: 8 },
+            { type: 'palm', width: 24, height: 48 },      // Palm tree (taller)
+            { type: 'bush', width: 16, height: 14 },     // Green bush
+            { type: 'bush_flower', width: 18, height: 15 }, // Flowering bush
+            { type: 'seagrass', width: 20, height: 16 }, // Seagrass clump
+            { type: 'fern', width: 18, height: 16 },     // Fern plant
+            { type: 'shell_pink', width: 11, height: 10 }, // Pink shell
+            { type: 'shell_spiral', width: 10, height: 10 }, // Spiral shell
+            { type: 'rock', width: 13, height: 10 },     // Gray rock
+            { type: 'starfish', width: 10, height: 10 }, // Starfish
+            { type: 'coral', width: 10, height: 10 },    // Coral piece
+            { type: 'driftwood', width: 12, height: 6 }, // Driftwood
         ];
         
         for (const island of islands) {
@@ -1765,6 +1731,13 @@ class Game {
                     console.log('✅ Loaded interior tileset');
                 }
 
+                // Load decoration sprites
+                this.decorationLoader.load().then(() => {
+                    console.log('🌴 Decoration sprites loaded');
+                }).catch(err => {
+                    console.warn('Failed to load some decoration sprites:', err);
+                });
+                
                 // Now create buildings with loaded sprites
                 if (this.pendingIslands) {
                     this.createClawWorldBuildings(this.pendingIslands);
