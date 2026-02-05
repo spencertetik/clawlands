@@ -1424,7 +1424,8 @@ class Game {
         // this.decorations = [];
         
         // Decoration types with sizes matching our sprites
-        const decorTypes = [
+        // Common decorations (high spawn weight)
+        const commonDecorTypes = [
             { type: 'palm', width: 24, height: 48 },      // Palm tree (taller)
             { type: 'bush', width: 16, height: 14 },     // Green bush
             { type: 'bush_flower', width: 18, height: 15 }, // Flowering bush
@@ -1437,6 +1438,19 @@ class Game {
             { type: 'coral', width: 10, height: 10 },    // Coral piece
             { type: 'driftwood', width: 12, height: 6 }, // Driftwood
         ];
+        
+        // Rare/special decorations (low spawn chance)
+        const rareDecorTypes = [
+            { type: 'treasure_chest', width: 18, height: 14 },
+            { type: 'lobster_statue', width: 20, height: 20 },
+            { type: 'wooden_sign', width: 16, height: 14 },
+            { type: 'anchor', width: 10, height: 16 },
+            { type: 'campfire', width: 13, height: 15 },
+            { type: 'fishing_net', width: 20, height: 18 },
+            { type: 'message_bottle', width: 11, height: 16 },
+        ];
+        
+        // Combined pool selection happens per-decoration below (90% common, 10% rare)
         
         for (const island of islands) {
             // Number of decorations based on island size
@@ -1469,8 +1483,10 @@ class Game {
                 }
                 if (tooClose) continue;
                 
-                // Pick random decoration type
-                const decorType = decorTypes[Math.floor(this.seededRandom() * decorTypes.length)];
+                // Pick random decoration type (90% common, 10% rare)
+                const useRare = this.seededRandom() < 0.1;
+                const pool = useRare ? rareDecorTypes : commonDecorTypes;
+                const decorType = pool[Math.floor(this.seededRandom() * pool.length)];
                 
                 this.decorations.push({
                     x: worldX + this.seededRandom() * tileSize,

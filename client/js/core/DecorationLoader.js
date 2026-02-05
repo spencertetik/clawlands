@@ -75,6 +75,48 @@ class DecorationLoader {
             height: 6,
             collision: null
         },
+        treasure_chest: {
+            path: 'assets/sprites/decorations/treasure_chest.png',
+            width: 18,
+            height: 14,
+            collision: { width: 14, height: 8, offsetY: 6 }
+        },
+        lobster_statue: {
+            path: 'assets/sprites/decorations/lobster_statue.png',
+            width: 20,
+            height: 20,
+            collision: { width: 16, height: 12, offsetY: 8 }
+        },
+        wooden_sign: {
+            path: 'assets/sprites/decorations/wooden_sign.png',
+            width: 16,
+            height: 14,
+            collision: { width: 8, height: 4, offsetY: 10 }
+        },
+        anchor: {
+            path: 'assets/sprites/decorations/anchor.png',
+            width: 10,
+            height: 16,
+            collision: { width: 8, height: 6, offsetY: 10 }
+        },
+        campfire: {
+            path: 'assets/sprites/decorations/campfire.png',
+            width: 13,
+            height: 15,
+            collision: { width: 10, height: 8, offsetY: 7 }
+        },
+        fishing_net: {
+            path: 'assets/sprites/decorations/fishing_net.png',
+            width: 20,
+            height: 18,
+            collision: null
+        },
+        message_bottle: {
+            path: 'assets/sprites/decorations/message_bottle.png',
+            width: 11,
+            height: 16,
+            collision: null
+        },
         // Ground decorations (rendered below entities)
         flower: {
             path: 'assets/sprites/decorations/bush_flower.png',
