@@ -84,6 +84,10 @@ class Game {
         // NPCs (active for current map)
         this.npcs = [];
         this.outdoorNPCs = [];
+        
+        // Decorations (plants, shells, rocks)
+        this.decorations = [];
+        this.outdoorDecorations = [];
 
         // Dialog system
         this.dialogSystem = new DialogSystem();
@@ -426,6 +430,9 @@ class Game {
             }
         }
 
+        // Render decorations (plants, shells, rocks)
+        this.renderDecorations();
+        
         // Render NPCs
         for (const npc of this.npcs) {
             npc.render(this.renderer);
@@ -481,6 +488,81 @@ class Game {
         ctx.fillText(this.characterName, screenX, screenY);
         
         ctx.restore();
+    }
+    
+    // Render decorations (plants, shells, rocks)
+    renderDecorations() {
+        if (!this.decorations || this.decorations.length === 0) return;
+        
+        for (const decor of this.decorations) {
+            // Check if in view
+            if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) continue;
+            
+            // Draw based on type
+            switch (decor.type) {
+                case 'palm':
+                    // Trunk
+                    this.renderer.drawRect(
+                        decor.x + decor.width/2 - 2, decor.y + decor.height/2,
+                        4, decor.height/2,
+                        '#8b4513', CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    // Leaves (top)
+                    this.renderer.drawRect(
+                        decor.x, decor.y,
+                        decor.width, decor.height/2,
+                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    break;
+                    
+                case 'bush':
+                case 'grass':
+                    // Simple oval shape using stacked rectangles
+                    this.renderer.drawRect(
+                        decor.x + 1, decor.y,
+                        decor.width - 2, decor.height,
+                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    this.renderer.drawRect(
+                        decor.x, decor.y + 2,
+                        decor.width, decor.height - 4,
+                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    break;
+                    
+                case 'flower':
+                    // Center
+                    this.renderer.drawRect(
+                        decor.x + 1, decor.y + 1,
+                        decor.width - 2, decor.height - 2,
+                        '#ffff00', CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    // Petals
+                    this.renderer.drawRect(
+                        decor.x, decor.y,
+                        decor.width, decor.height,
+                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    break;
+                    
+                case 'shell':
+                case 'rock':
+                case 'coral':
+                default:
+                    // Simple rectangle with shadow
+                    this.renderer.drawRect(
+                        decor.x + 1, decor.y + decor.height - 1,
+                        decor.width, 2,
+                        'rgba(0,0,0,0.2)', CONSTANTS.LAYER.GROUND
+                    );
+                    this.renderer.drawRect(
+                        decor.x, decor.y,
+                        decor.width, decor.height,
+                        decor.color, CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    break;
+            }
+        }
     }
 
     // Show hint when player can interact with something
@@ -922,6 +1004,7 @@ class Game {
         this.collisionSystem.clearBuildings();
         this.buildings = [];
         this.signs = [];
+        this.decorations = []; // No decorations indoors
 
         // Spawn interior NPCs
         this.npcs = this.createInteriorNPCs(building.type, interiorMap);
@@ -977,6 +1060,9 @@ class Game {
         // Restore outdoor NPCs
         this.npcs = this.outdoorNPCs ? [...this.outdoorNPCs] : [];
         this.collisionSystem.setNPCs(this.npcs);
+        
+        // Restore outdoor decorations
+        this.decorations = this.outdoorDecorations ? [...this.outdoorDecorations] : [];
 
         if (this.outdoorReturnTile) {
             const col = Math.min(this.outdoorMap.width - 1, Math.max(0, this.outdoorReturnTile.col));
@@ -1287,6 +1373,70 @@ class Game {
         }
 
         console.log(`🦀 Created ${this.npcs.length} outdoor NPCs`);
+    }
+    
+    // Create decorations (plants, shells, rocks) on islands
+    createDecorations(islands) {
+        const tileSize = CONSTANTS.TILE_SIZE;
+        this.decorations = [];
+        
+        // Decoration types with colors and sizes
+        const decorTypes = [
+            { type: 'palm', color: '#2d5a27', width: 12, height: 16 },
+            { type: 'bush', color: '#3d7a37', width: 10, height: 8 },
+            { type: 'flower', color: '#e85d75', width: 6, height: 6 },
+            { type: 'shell', color: '#f5deb3', width: 5, height: 4 },
+            { type: 'rock', color: '#808080', width: 8, height: 6 },
+            { type: 'grass', color: '#4a8c3f', width: 8, height: 10 },
+            { type: 'coral', color: '#ff7f50', width: 7, height: 8 },
+        ];
+        
+        for (const island of islands) {
+            // Number of decorations based on island size
+            const numDecorations = Math.floor(island.size * 2);
+            
+            for (let i = 0; i < numDecorations; i++) {
+                // Random position within island
+                const angle = this.seededRandom() * Math.PI * 2;
+                const radius = this.seededRandom() * island.size * 0.85;
+                
+                const col = Math.floor(island.x + Math.cos(angle) * radius);
+                const row = Math.floor(island.y + Math.sin(angle) * radius);
+                
+                // Check if on land
+                if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) continue;
+                const groundTile = this.worldMap.groundLayer[row]?.[col];
+                if (groundTile === 1) continue; // Skip water
+                
+                // Check not too close to buildings
+                const worldX = col * tileSize;
+                const worldY = row * tileSize;
+                let tooClose = false;
+                for (const building of this.buildings) {
+                    const dx = worldX - (building.x + building.width / 2);
+                    const dy = worldY - (building.y + building.height / 2);
+                    if (Math.sqrt(dx*dx + dy*dy) < 40) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (tooClose) continue;
+                
+                // Pick random decoration type
+                const decorType = decorTypes[Math.floor(this.seededRandom() * decorTypes.length)];
+                
+                this.decorations.push({
+                    x: worldX + this.seededRandom() * tileSize,
+                    y: worldY + this.seededRandom() * tileSize,
+                    type: decorType.type,
+                    color: decorType.color,
+                    width: decorType.width,
+                    height: decorType.height
+                });
+            }
+        }
+        
+        console.log(`🌿 Created ${this.decorations.length} decorations`);
     }
 
     // Load sprite for an NPC based on their species
@@ -2014,11 +2164,15 @@ class Game {
         this.createOutdoorNPCs(islands);
         this.outdoorNPCs = [...this.npcs];
         this.collisionSystem.setNPCs(this.npcs);
+        
+        // Create decorations (plants, shells, rocks)
+        this.createDecorations(islands);
+        this.outdoorDecorations = [...this.decorations];
 
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
 
-        console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.chronicleStones.length} chronicle stones`);
+        console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
     }
 
     // Generate paths connecting buildings on islands
