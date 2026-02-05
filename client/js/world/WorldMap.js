@@ -559,13 +559,9 @@ class WorldMap {
             name: options.name || 'Interior'
         };
 
-        // Optional decoration placements
-        const decorations = options.decorations || [];
-        for (let decor of decorations) {
-            if (!decor) continue;
-            const entry = { tileset: 'interior', id: decor.id };
-            this.setTile(this.decorationLayer, decor.col, decor.row, entry);
-        }
+        // Note: Decoration placements are now handled by Game.createInteriorFurniture()
+        // which renders them as sprite objects instead of tiles.
+        // This avoids duplicate rendering and allows for proper sprite-based furniture.
 
         console.log(`✅ Interior created: ${this.meta.name} (${tilesWide}x${tilesHigh})`);
     }
