@@ -57,6 +57,9 @@ class Game {
         
         // Decoration sprite loader
         this.decorationLoader = new DecorationLoader();
+        
+        // Interior furniture sprite loader
+        this.interiorLoader = new InteriorLoader();
 
         // Find spawn location on first island
         const spawnLocation = this.findPlayerSpawnLocation(islands);
@@ -1738,6 +1741,13 @@ class Game {
                     console.log('🌴 Decoration sprites loaded');
                 }).catch(err => {
                     console.warn('Failed to load some decoration sprites:', err);
+                });
+                
+                // Load interior furniture sprites
+                this.interiorLoader.load().then(() => {
+                    console.log('🪑 Interior sprites loaded');
+                }).catch(err => {
+                    console.warn('Failed to load some interior sprites:', err);
                 });
                 
                 // Now create buildings with loaded sprites
