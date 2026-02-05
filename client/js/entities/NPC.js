@@ -63,9 +63,9 @@ class NPC extends Entity {
                 const newX = this.position.x + moveX;
                 const newY = this.position.y + moveY;
                 
-                // Check collision before moving
+                // Check collision before moving (use smaller hitbox for NPCs)
                 const canMove = !collisionSystem || !collisionSystem.checkCollision(
-                    newX, newY, this.width, this.height
+                    newX + 4, newY + 8, this.width - 8, this.height - 8
                 );
                 
                 if (canMove) {

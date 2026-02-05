@@ -546,22 +546,32 @@ class Game {
                     break;
                     
                 case 'path':
-                    // Dirt/sand path tile
+                    // Dirt path tile - VERY visible brown
                     this.renderer.drawRect(
                         decor.x, decor.y,
                         decor.width, decor.height,
-                        decor.color, CONSTANTS.LAYER.GROUND
+                        '#8B6914', CONSTANTS.LAYER.GROUND  // Dark golden brown
                     );
-                    // Add some texture with darker edges
+                    // Dark border for visibility
                     this.renderer.drawRect(
                         decor.x, decor.y,
-                        decor.width, 1,
-                        'rgba(0,0,0,0.1)', CONSTANTS.LAYER.GROUND
+                        decor.width, 2,
+                        '#5C4A0F', CONSTANTS.LAYER.GROUND
                     );
                     this.renderer.drawRect(
-                        decor.x, decor.y + decor.height - 1,
-                        decor.width, 1,
-                        'rgba(0,0,0,0.1)', CONSTANTS.LAYER.GROUND
+                        decor.x, decor.y + decor.height - 2,
+                        decor.width, 2,
+                        '#5C4A0F', CONSTANTS.LAYER.GROUND
+                    );
+                    this.renderer.drawRect(
+                        decor.x, decor.y,
+                        2, decor.height,
+                        '#5C4A0F', CONSTANTS.LAYER.GROUND
+                    );
+                    this.renderer.drawRect(
+                        decor.x + decor.width - 2, decor.y,
+                        2, decor.height,
+                        '#5C4A0F', CONSTANTS.LAYER.GROUND
                     );
                     break;
                     
@@ -1382,6 +1392,7 @@ class Game {
                             // Enable wandering for ALL outdoor NPCs
                             npc.canWander = true;
                             npc.wanderRadius = 32 + Math.floor(this.seededRandom() * 32); // 2-4 tiles
+                            console.log(`🚶 ${npc.name} can wander (radius: ${npc.wanderRadius}px)`);
                             // Load sprite for NPC
                             this.loadNPCSprite(npc);
                             this.npcs.push(npc);
@@ -2268,7 +2279,7 @@ class Game {
             }
         }
         
-        console.log(`🛤️ Created ${pathCount} path segments connecting buildings`);
+        console.log(`🛤️ Created ${pathCount} path segments connecting buildings (${this.decorations.length} path tiles)`);
     }
     
     // Create a path segment between two points
