@@ -545,6 +545,26 @@ class Game {
                     );
                     break;
                     
+                case 'path':
+                    // Dirt/sand path tile
+                    this.renderer.drawRect(
+                        decor.x, decor.y,
+                        decor.width, decor.height,
+                        decor.color, CONSTANTS.LAYER.GROUND
+                    );
+                    // Add some texture with darker edges
+                    this.renderer.drawRect(
+                        decor.x, decor.y,
+                        decor.width, 1,
+                        'rgba(0,0,0,0.1)', CONSTANTS.LAYER.GROUND
+                    );
+                    this.renderer.drawRect(
+                        decor.x, decor.y + decor.height - 1,
+                        decor.width, 1,
+                        'rgba(0,0,0,0.1)', CONSTANTS.LAYER.GROUND
+                    );
+                    break;
+                    
                 case 'shell':
                 case 'rock':
                 case 'coral':
@@ -2274,7 +2294,7 @@ class Game {
         this.setPathTile(x2, y2);
     }
     
-    // Set a tile as a path
+    // Set a tile as a path - add to decorations array for rendering
     setPathTile(col, row) {
         // Only set path on land tiles (not water)
         if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return;
@@ -2282,13 +2302,19 @@ class Game {
         const groundTile = this.worldMap.groundLayer[row]?.[col];
         if (groundTile === 1) return; // Don't put path on water
         
-        // Use a path/dirt tile (ID 3 or similar)
-        // Paths use different decoration tiles
-        if (!this.worldMap.decorationLayer[row]) return;
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const worldX = col * tileSize;
+        const worldY = row * tileSize;
         
-        // Mark as path using a decoration (small stones/pebbles look)
-        // We'll use the existing decoration system with a path-like appearance
-        this.worldMap.decorationLayer[row][col] = 30; // Path decoration tile
+        // Add path tile as decoration
+        this.decorations.push({
+            x: worldX,
+            y: worldY,
+            type: 'path',
+            color: '#c4a574', // Sandy dirt color
+            width: tileSize,
+            height: tileSize
+        });
     }
 
     // Create Chronicle Stones on an island

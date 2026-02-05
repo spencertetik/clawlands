@@ -20,9 +20,9 @@ class NPC extends Entity {
         
         // Wandering behavior
         this.canWander = false; // Set to true for wandering NPCs
-        this.wanderTimer = 0;
-        this.wanderInterval = 2000 + Math.random() * 3000; // 2-5 seconds between moves
-        this.wanderSpeed = 30; // Slower than player
+        this.wanderTimer = Math.random() * 1000; // Start with some randomness so not all sync
+        this.wanderInterval = 1000 + Math.random() * 2000; // 1-3 seconds between moves (faster)
+        this.wanderSpeed = 40; // Faster movement (was 30)
         this.isMoving = false;
         this.moveTarget = null;
         this.homePosition = { x, y }; // Remember spawn position
@@ -106,6 +106,15 @@ class NPC extends Entity {
         
         this.moveTarget = { x: targetX, y: targetY };
         this.isMoving = true;
+        
+        // Update direction immediately when starting to move
+        const dx = targetX - this.position.x;
+        const dy = targetY - this.position.y;
+        if (Math.abs(dx) > Math.abs(dy)) {
+            this.direction = dx > 0 ? 'east' : 'west';
+        } else {
+            this.direction = dy > 0 ? 'south' : 'north';
+        }
     }
     
     // Check if player would collide with this NPC

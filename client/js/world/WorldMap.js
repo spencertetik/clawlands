@@ -280,10 +280,12 @@ class WorldMap {
                 }
             }
 
-            if (bestConnection && Math.random() < bridgeChance) {
+            if (bestConnection) {
+                // Always create bridges to ensure all islands are connected
                 const island1 = islands[bestConnection.connected];
                 const island2 = islands[bestConnection.unconnected];
                 this.createBridge(terrainMap, island1, island2);
+                console.log(`🌉 Bridge: Island ${bestConnection.connected} → Island ${bestConnection.unconnected}`);
             }
 
             connected.add(bestConnection.unconnected);
