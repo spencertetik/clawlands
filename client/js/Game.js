@@ -2299,17 +2299,23 @@ class Game {
                 const b1 = islandBuildings[i];
                 const b2 = islandBuildings[i + 1];
                 
-                // Get actual door positions (center of door, just below door)
+                // Get actual door positions - path ends right at the door
                 const door1 = b1.getDoorBounds();
                 const door2 = b2.getDoorBounds();
                 const x1 = Math.floor((door1.x + door1.width / 2) / tileSize);
-                const y1 = Math.floor((door1.y + door1.height + tileSize / 2) / tileSize); // Just below door
+                const y1Door = Math.floor((door1.y + door1.height) / tileSize); // Right at door
+                const y1Path = y1Door + 1; // One tile below door for main path
                 const x2 = Math.floor((door2.x + door2.width / 2) / tileSize);
-                const y2 = Math.floor((door2.y + door2.height + tileSize / 2) / tileSize); // Just below door
+                const y2Door = Math.floor((door2.y + door2.height) / tileSize); // Right at door
+                const y2Path = y2Door + 1; // One tile below door for main path
                 
-                // Create L-shaped path (go horizontal then vertical)
-                this.createPathSegment(x1, y1, x2, y1); // Horizontal
-                this.createPathSegment(x2, y1, x2, y2); // Vertical
+                // Create path segment from door to path level (doorstep)
+                this.createPathSegment(x1, y1Door, x1, y1Path);
+                this.createPathSegment(x2, y2Door, x2, y2Path);
+                
+                // Create L-shaped path connecting buildings
+                this.createPathSegment(x1, y1Path, x2, y1Path); // Horizontal
+                this.createPathSegment(x2, y1Path, x2, y2Path); // Vertical
                 pathCount++;
             }
             
@@ -2318,11 +2324,15 @@ class Game {
                 const centerBuilding = islandBuildings[0];
                 const door = centerBuilding.getDoorBounds();
                 const bx = Math.floor((door.x + door.width / 2) / tileSize);
-                const by = Math.floor((door.y + door.height + tileSize / 2) / tileSize); // Just below door
+                const byDoor = Math.floor((door.y + door.height) / tileSize); // Right at door
+                const byPath = byDoor + 1; // One tile below
+                
+                // Path from door down to path level
+                this.createPathSegment(bx, byDoor, bx, byPath);
                 
                 // Path toward island center
-                this.createPathSegment(bx, by, island.x, by);
-                this.createPathSegment(island.x, by, island.x, island.y);
+                this.createPathSegment(bx, byPath, island.x, byPath);
+                this.createPathSegment(island.x, byPath, island.x, island.y);
                 pathCount++;
             }
         }

@@ -175,7 +175,7 @@ class DecorationLoader {
                     }
                 };
                 
-                img.src = def.path;
+                img.src = `${def.path}?v=${Date.now()}`;
             }
         });
 
