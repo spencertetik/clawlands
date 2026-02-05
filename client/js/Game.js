@@ -1398,7 +1398,8 @@ class Game {
     // Create decorations (plants, shells, rocks) on islands
     createDecorations(islands) {
         const tileSize = CONSTANTS.TILE_SIZE;
-        this.decorations = [];
+        // Don't clear - paths were already added by generatePaths()
+        // this.decorations = [];
         
         // Decoration types with colors and sizes
         const decorTypes = [
@@ -2311,7 +2312,7 @@ class Game {
             x: worldX,
             y: worldY,
             type: 'path',
-            color: '#c4a574', // Sandy dirt color
+            color: '#a08060', // Darker dirt color for visibility
             width: tileSize,
             height: tileSize
         });
