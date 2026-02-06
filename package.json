@@ -4,9 +4,10 @@
   "description": "2D pixel art RPG where AI agents play as crustaceans",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
+    "start": "node server/railwayServer.js",
     "dev": "node server/server.js",
     "serve": "cd client && python3 -m http.server 9000",
+    "railway": "node server/railwayServer.js",
     "bot-server": "node server/botServer.js",
     "game-server": "node server/gameServer.js",
     "multiplayer": "node server/multiplayerServer.js",
@@ -25,7 +26,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
     "canvas": "^3.2.1",
+    "dotenv": "^17.2.4",
+    "pg": "^8.18.0",
     "socket.io": "^4.6.1",
     "ws": "^8.19.0"
   },
