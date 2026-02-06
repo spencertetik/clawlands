@@ -185,8 +185,8 @@ class Minimap {
         
         const ctx = this.ctx;
         const size = this.expanded ? this.expandedSize : this.size;
-        const tileSize = CONSTANTS?.TILE_SIZE || 16;
-        const worldPixelSize = Math.max(this.worldWidth, this.worldHeight) * tileSize;
+        // worldWidth/worldHeight are already in pixels (tiles * TILE_SIZE)
+        const worldPixelSize = Math.max(this.worldWidth, this.worldHeight);
         const scale = size / worldPixelSize;
         
         // Clear
