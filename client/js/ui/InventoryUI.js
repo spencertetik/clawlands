@@ -1,5 +1,6 @@
 // InventoryUI.js - HTML overlay inventory panel
-// Toggle with I/TAB, styled with red terminal theme
+// Toggle with I key, styled with red terminal theme
+// Shows item sprites with emoji fallback, rarity borders, slot count
 
 class InventoryUI {
     constructor(inventorySystem) {
@@ -10,7 +11,11 @@ class InventoryUI {
         this.panel = null;
         this.slotsContainer = null;
         this.detailPanel = null;
+        this.slotCountLabel = null;
         this.slotElements = [];
+        
+        // Sprite image cache: itemId -> { img, loaded }
+        this.spriteCache = {};
         
         this.buildUI();
         this.setupKeyBindings();
@@ -22,6 +27,31 @@ class InventoryUI {
     }
     
     buildUI() {
+        // Inject CSS animation
+        if (!document.getElementById('inventory-ui-styles')) {
+            const style = document.createElement('style');
+            style.id = 'inventory-ui-styles';
+            style.textContent = `
+                @keyframes inventoryFadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes inventoryFadeOut {
+                    from { opacity: 1; }
+                    to { opacity: 0; }
+                }
+                @keyframes inventoryPanelIn {
+                    from { opacity: 0; transform: scale(0.92) translateY(12px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+                @keyframes inventoryPanelOut {
+                    from { opacity: 1; transform: scale(1) translateY(0); }
+                    to { opacity: 0; transform: scale(0.92) translateY(12px); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
         // Full-screen overlay (click to close)
         this.overlay = document.createElement('div');
         this.overlay.id = 'inventory-overlay';
@@ -53,20 +83,51 @@ class InventoryUI {
             user-select: none;
         `;
         
+        // Header row: title + close hint
+        const header = document.createElement('div');
+        header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+        
         // Title
         const title = document.createElement('div');
         title.style.cssText = `
-            text-align: center;
             font-size: 16px;
             font-weight: bold;
             color: #c43a24;
             letter-spacing: 3px;
-            margin-bottom: 12px;
             text-transform: uppercase;
             text-shadow: 0 0 8px rgba(196, 58, 36, 0.4);
         `;
-        title.textContent = '🎒 INVENTORY';
-        this.panel.appendChild(title);
+        title.textContent = 'INVENTORY';
+        header.appendChild(title);
+        
+        // Close hint (top right)
+        const closeHint = document.createElement('div');
+        closeHint.style.cssText = `
+            font-size: 10px;
+            color: #8a7068;
+            letter-spacing: 0.5px;
+        `;
+        closeHint.textContent = 'Press I to close';
+        header.appendChild(closeHint);
+        
+        this.panel.appendChild(header);
+        
+        // Slot count label
+        this.slotCountLabel = document.createElement('div');
+        this.slotCountLabel.style.cssText = `
+            text-align: right;
+            font-size: 11px;
+            color: #8a7068;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        `;
+        this.slotCountLabel.textContent = '0/20 slots';
+        this.panel.appendChild(this.slotCountLabel);
         
         // Slots grid (4x5)
         this.slotsContainer = document.createElement('div');
@@ -85,14 +146,14 @@ class InventoryUI {
                 width: 62px;
                 height: 62px;
                 background: rgba(138, 112, 104, 0.15);
-                border: 1px solid rgba(138, 112, 104, 0.3);
+                border: 2px solid rgba(138, 112, 104, 0.3);
                 border-radius: 4px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 position: relative;
                 cursor: pointer;
-                transition: border-color 0.15s, background 0.15s;
+                transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
                 font-size: 26px;
             `;
             
@@ -120,18 +181,6 @@ class InventoryUI {
         this.detailPanel.textContent = 'Hover over an item to see details';
         this.panel.appendChild(this.detailPanel);
         
-        // Close hint
-        const hint = document.createElement('div');
-        hint.style.cssText = `
-            text-align: center;
-            font-size: 11px;
-            color: #8a7068;
-            margin-top: 10px;
-            letter-spacing: 0.5px;
-        `;
-        hint.textContent = 'Press I or ESC to close';
-        this.panel.appendChild(hint);
-        
         this.overlay.appendChild(this.panel);
         document.body.appendChild(this.overlay);
     }
@@ -143,14 +192,11 @@ class InventoryUI {
             
             const key = e.key.toLowerCase();
             
-            if (key === 'i' || key === 'tab') {
+            if (key === 'i') {
                 // Don't toggle if dialog is open
-                const dialogOpen = document.getElementById('dialog-box')?.style.display !== 'none' &&
-                                   document.getElementById('dialog-box')?.style.display !== '';
+                const dialogBox = document.getElementById('dialog-box');
+                const dialogOpen = dialogBox && dialogBox.style.display !== 'none' && dialogBox.style.display !== '';
                 if (dialogOpen) return;
-                
-                // Don't toggle during welcome screen
-                if (document.querySelector('.welcome-screen')) return;
                 
                 e.preventDefault();
                 this.toggle();
@@ -176,30 +222,75 @@ class InventoryUI {
         this.visible = true;
         this.selectedSlot = -1;
         this.overlay.style.display = 'flex';
+        
+        // Fade in animation
+        this.overlay.style.animation = 'inventoryFadeIn 0.2s ease-out forwards';
+        this.panel.style.animation = 'inventoryPanelIn 0.25s ease-out forwards';
+        
         this.refresh();
     }
     
     hide() {
         if (!this.visible) return;
         this.visible = false;
-        this.overlay.style.display = 'none';
         this.selectedSlot = -1;
+        
+        // Fade out animation
+        this.overlay.style.animation = 'inventoryFadeOut 0.2s ease-in forwards';
+        this.panel.style.animation = 'inventoryPanelOut 0.2s ease-in forwards';
+        
+        setTimeout(() => {
+            if (!this.visible) {
+                this.overlay.style.display = 'none';
+            }
+        }, 220);
     }
     
     isOpen() {
         return this.visible;
     }
     
+    // Try to load a sprite image for an item, cache the result
+    getSpriteForItem(itemId) {
+        if (this.spriteCache[itemId]) {
+            return this.spriteCache[itemId];
+        }
+        
+        const entry = { img: null, loaded: false, failed: false };
+        this.spriteCache[itemId] = entry;
+        
+        const img = new Image();
+        img.onload = () => {
+            entry.img = img;
+            entry.loaded = true;
+            // Re-render if inventory is visible
+            if (this.visible) this.refresh();
+        };
+        img.onerror = () => {
+            entry.failed = true;
+            entry.loaded = true;
+        };
+        img.src = `assets/sprites/items/${itemId}.png`;
+        
+        return entry;
+    }
+    
     // Refresh all slot visuals from inventory data
     refresh() {
         if (!this.inventory) return;
         
-        const rarityColors = typeof RARITY_COLORS !== 'undefined' ? RARITY_COLORS : {
+        const rarityColors = {
             common: '#8a7068',
             uncommon: '#4ade80',
             rare: '#4a9eff',
-            legendary: '#f59e0b'
+            legendary: '#fbbf24'
         };
+        
+        // Update slot count
+        const usedSlots = this.inventory.getUsedSlots();
+        if (this.slotCountLabel) {
+            this.slotCountLabel.textContent = `${usedSlots}/20 slots`;
+        }
         
         for (let i = 0; i < 20; i++) {
             const slot = this.slotElements[i];
@@ -212,11 +303,27 @@ class InventoryUI {
                     
                     slot.innerHTML = '';
                     
-                    // Icon
-                    const icon = document.createElement('span');
-                    icon.textContent = itemDef.icon;
-                    icon.style.cssText = 'font-size: 26px; line-height: 1;';
-                    slot.appendChild(icon);
+                    // Try sprite image first, fall back to emoji
+                    const spriteEntry = this.getSpriteForItem(data.itemId);
+                    
+                    if (spriteEntry.loaded && spriteEntry.img && !spriteEntry.failed) {
+                        // Show sprite image
+                        const imgEl = document.createElement('img');
+                        imgEl.src = spriteEntry.img.src;
+                        imgEl.style.cssText = `
+                            width: 32px;
+                            height: 32px;
+                            image-rendering: pixelated;
+                            pointer-events: none;
+                        `;
+                        slot.appendChild(imgEl);
+                    } else {
+                        // Emoji fallback
+                        const icon = document.createElement('span');
+                        icon.textContent = itemDef.icon;
+                        icon.style.cssText = 'font-size: 26px; line-height: 1; pointer-events: none;';
+                        slot.appendChild(icon);
+                    }
                     
                     // Quantity badge (if > 1)
                     if (data.quantity > 1) {
@@ -230,6 +337,7 @@ class InventoryUI {
                             font-weight: bold;
                             color: #e8d5cc;
                             text-shadow: 0 0 3px #000, 0 0 3px #000;
+                            pointer-events: none;
                         `;
                         slot.appendChild(badge);
                     }
@@ -238,23 +346,25 @@ class InventoryUI {
                     slot.style.borderColor = rarityColor;
                     slot.style.background = `rgba(${this.hexToRgb(rarityColor)}, 0.08)`;
                 } else {
-                    slot.innerHTML = '';
-                    slot.style.borderColor = 'rgba(138, 112, 104, 0.3)';
-                    slot.style.background = 'rgba(138, 112, 104, 0.15)';
+                    this.clearSlot(slot);
                 }
             } else {
-                slot.innerHTML = '';
-                slot.style.borderColor = 'rgba(138, 112, 104, 0.3)';
-                slot.style.background = 'rgba(138, 112, 104, 0.15)';
+                this.clearSlot(slot);
             }
             
             // Highlight selected
             if (i === this.selectedSlot) {
-                slot.style.boxShadow = '0 0 8px rgba(196, 58, 36, 0.5)';
+                slot.style.boxShadow = '0 0 8px rgba(196, 58, 36, 0.5), inset 0 0 4px rgba(196, 58, 36, 0.15)';
             } else {
                 slot.style.boxShadow = 'none';
             }
         }
+    }
+    
+    clearSlot(slot) {
+        slot.innerHTML = '';
+        slot.style.borderColor = 'rgba(138, 112, 104, 0.3)';
+        slot.style.background = 'rgba(138, 112, 104, 0.15)';
     }
     
     onSlotHover(index) {
@@ -275,8 +385,14 @@ class InventoryUI {
             const itemDef = typeof ItemData !== 'undefined' ? ItemData[data.itemId] : null;
             if (itemDef) {
                 const rarityLabel = itemDef.rarity.charAt(0).toUpperCase() + itemDef.rarity.slice(1);
-                const rarityColors = typeof RARITY_COLORS !== 'undefined' ? RARITY_COLORS : {};
+                const rarityColors = {
+                    common: '#8a7068',
+                    uncommon: '#4ade80',
+                    rare: '#4a9eff',
+                    legendary: '#fbbf24'
+                };
                 const color = rarityColors[itemDef.rarity] || '#8a7068';
+                const categoryLabel = itemDef.category.charAt(0).toUpperCase() + itemDef.category.slice(1);
                 
                 this.detailPanel.innerHTML = `
                     <div style="color: ${color}; font-weight: bold; font-size: 13px; margin-bottom: 4px;">
@@ -284,7 +400,9 @@ class InventoryUI {
                         <span style="font-weight: normal; font-size: 10px; opacity: 0.7;">[${rarityLabel}]</span>
                     </div>
                     <div style="color: #e8d5cc; opacity: 0.85;">${itemDef.description}</div>
-                    ${data.quantity > 1 ? `<div style="color: #8a7068; margin-top: 4px; font-size: 11px;">Quantity: ${data.quantity}</div>` : ''}
+                    <div style="color: #8a7068; margin-top: 4px; font-size: 11px;">
+                        ${categoryLabel}${data.quantity > 1 ? ` · Qty: ${data.quantity}` : ''}
+                    </div>
                 `;
                 return;
             }
@@ -304,6 +422,7 @@ class InventoryUI {
 }
 
 // Export
+window.InventoryUI = InventoryUI;
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = InventoryUI;
 }

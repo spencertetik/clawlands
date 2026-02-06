@@ -112,6 +112,15 @@ class Game {
             console.log('🎒 Inventory system initialized');
         }
         
+        // Quest manager (unified fetch quests from ItemQuestData + QuestData)
+        this.questManager = typeof QuestManager !== 'undefined' ? new QuestManager('default') : null;
+        if (this.questManager) {
+            console.log('📦 Quest manager initialized');
+        }
+        
+        // Opened chest tracking (persisted per player)
+        this.openedChests = this.loadOpenedChests();
+        
         // World items (collectible pickups)
         this.worldItems = [];
         this.outdoorWorldItems = [];
@@ -316,6 +325,9 @@ class Game {
             // Update inventory storage key for this player
             if (this.inventorySystem) {
                 this.inventorySystem.setPlayerName(this.characterName);
+            }
+            if (this.questManager) {
+                this.questManager.setPlayerName(this.characterName);
             }
 
             this.customizationData.save({
@@ -1191,9 +1203,17 @@ class Game {
         // Interactive decoration (chests, statues, scrolls, etc.)
         if (this.currentLocation === 'outdoor') {
             const decor = this.findNearbyInteractiveDecoration();
-            if (decor && decor.lore) {
-                this.dialogSystem.show([decor.lore]);
-                return;
+            if (decor) {
+                // Treasure chests give random items
+                if (this.isChestDecoration(decor)) {
+                    this.openChest(decor);
+                    return;
+                }
+                // Other interactive decorations show lore
+                if (decor.lore) {
+                    this.dialogSystem.show([decor.lore]);
+                    return;
+                }
             }
         }
         
@@ -1243,6 +1263,122 @@ class Game {
             }
         }
         return null;
+    }
+
+    // Check if a decoration is a treasure chest
+    isChestDecoration(decor) {
+        if (!decor || !decor.type) return false;
+        const chestTypes = ['treasure_chest', 'treasure_chest2', 'chest1', 'chest2'];
+        return chestTypes.includes(decor.type);
+    }
+    
+    // Get a unique key for a chest to track opened state
+    getChestKey(decor) {
+        return `chest_${Math.round(decor.x)}_${Math.round(decor.y)}`;
+    }
+    
+    // Open a treasure chest: give random item based on rarity weights
+    openChest(decor) {
+        if (!this.inventorySystem) {
+            this.dialogSystem.show([decor.lore || 'An old chest. You can\'t open it right now.']);
+            return;
+        }
+        
+        const chestKey = this.getChestKey(decor);
+        
+        // Check if already opened
+        if (this.openedChests.has(chestKey)) {
+            this.dialogSystem.show(['The chest is empty. You\'ve already taken what was inside.']);
+            return;
+        }
+        
+        // Check if inventory is full
+        if (this.inventorySystem.isFull()) {
+            this.dialogSystem.show([
+                'You open the chest and see something glinting inside...',
+                'But your inventory is full! Make room and come back.'
+            ]);
+            return;
+        }
+        
+        // Pick a random item based on rarity weights
+        // Common: 50%, Uncommon: 30%, Rare: 15%, Legendary: 5%
+        const roll = Math.random();
+        let rarity;
+        if (roll < 0.50) rarity = 'common';
+        else if (roll < 0.80) rarity = 'uncommon';
+        else if (roll < 0.95) rarity = 'rare';
+        else rarity = 'legendary';
+        
+        // Get all items of this rarity
+        const candidates = [];
+        if (typeof ItemData !== 'undefined') {
+            for (const [id, item] of Object.entries(ItemData)) {
+                if (item.rarity === rarity) {
+                    candidates.push(id);
+                }
+            }
+        }
+        
+        // Fallback if no items of that rarity
+        if (candidates.length === 0) {
+            candidates.push('driftwood', 'sea_glass', 'coral_fragment');
+        }
+        
+        const chosenId = candidates[Math.floor(Math.random() * candidates.length)];
+        const itemDef = typeof ItemData !== 'undefined' ? ItemData[chosenId] : null;
+        
+        if (!itemDef) {
+            this.dialogSystem.show(['The chest is empty.']);
+            return;
+        }
+        
+        // Add to inventory
+        const added = this.inventorySystem.addItem(chosenId, 1);
+        if (added > 0) {
+            // Mark chest as opened
+            this.openedChests.add(chestKey);
+            this.saveOpenedChests();
+            
+            // Show dialog
+            const rarityLabel = itemDef.rarity !== 'common' ? ` It looks ${itemDef.rarity}!` : '';
+            this.dialogSystem.show([
+                'You pry open the old chest...',
+                `You found ${itemDef.icon} ${itemDef.name}!${rarityLabel}`
+            ]);
+            
+            // Toast notification too
+            if (typeof gameNotifications !== 'undefined') {
+                const rarityTag = itemDef.rarity !== 'common' ? ` [${itemDef.rarity}]` : '';
+                gameNotifications.success(`${itemDef.icon} Found ${itemDef.name}${rarityTag} in chest!`);
+            }
+            
+            // Continuity boost
+            if (this.continuitySystem) {
+                this.continuitySystem.addContinuity(2, `chest_${chosenId}`);
+            }
+        } else {
+            this.dialogSystem.show(['The chest is empty.']);
+        }
+    }
+    
+    // Load opened chests from localStorage
+    loadOpenedChests() {
+        try {
+            const saved = localStorage.getItem('clawworld_opened_chests');
+            return saved ? new Set(JSON.parse(saved)) : new Set();
+        } catch (e) {
+            return new Set();
+        }
+    }
+    
+    // Save opened chests to localStorage
+    saveOpenedChests() {
+        try {
+            localStorage.setItem('clawworld_opened_chests', JSON.stringify(Array.from(this.openedChests)));
+        } catch (e) {
+            console.warn('Failed to save opened chests:', e);
+        }
     }
 
     // Pick up a world item and add to inventory
@@ -1702,9 +1838,32 @@ class Game {
     
     // Handle item quest dialogue for an NPC
     // Returns dialogue array if quest applies, or null to fall through to normal dialogue
+    // Checks both ItemQuestData and QuestData via QuestManager
     handleItemQuestDialogue(npc) {
-        if (typeof getItemQuestForNPC === 'undefined') return null;
         if (!this.inventorySystem) return null;
+        
+        // Try QuestManager first (unified: covers both ItemQuestData + QuestData)
+        if (this.questManager) {
+            const result = this.questManager.checkNPCQuest(npc.name, this.inventorySystem);
+            if (result) {
+                // If it's completable, perform the exchange
+                if (result.type === 'completable' && result.questId) {
+                    this.questManager.tryCompleteQuest(result.questId, this.inventorySystem);
+                    
+                    // Continuity boost
+                    if (this.continuitySystem) {
+                        this.continuitySystem.addContinuity(5, `quest_${result.questId}`);
+                    }
+                    
+                    return result.dialog;
+                }
+                // Otherwise it's a regular dialog array
+                return result;
+            }
+        }
+        
+        // Legacy fallback: direct ItemQuestData lookup
+        if (typeof getItemQuestForNPC === 'undefined') return null;
         
         const quest = getItemQuestForNPC(npc.name);
         if (!quest) return null;
@@ -1725,12 +1884,10 @@ class Game {
         
         if (hasAllItems) {
             // Player has the items — complete the quest!
-            // Remove required items
             for (const req of quest.requires) {
                 this.inventorySystem.removeItem(req.itemId, req.qty);
             }
             
-            // Add reward items
             for (const reward of quest.rewards) {
                 const added = this.inventorySystem.addItem(reward.itemId, reward.qty);
                 if (added > 0) {
@@ -1741,13 +1898,11 @@ class Game {
                 }
             }
             
-            // Mark quest complete
             this.completedItemQuests.add(quest.id);
             if (typeof saveCompletedItemQuests !== 'undefined') {
                 saveCompletedItemQuests(this.completedItemQuests);
             }
             
-            // Continuity boost for completing a trade
             if (this.continuitySystem) {
                 this.continuitySystem.addContinuity(5, `item_quest_${quest.id}`);
             }
@@ -1759,7 +1914,6 @@ class Game {
             return quest.dialogComplete;
         }
         
-        // Check if player has interacted with this NPC before (show incomplete vs start)
         const ctx = this.npcMemory ? this.npcMemory.getDialogueContext(npc.name, 0) : null;
         const hasInteracted = ctx && ctx.timesSpoken > 0;
         
