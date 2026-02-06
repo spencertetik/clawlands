@@ -1025,16 +1025,9 @@ class Game {
         if (this.currentLocation === 'outdoor') {
             const waygate = this.findNearbyWaygate();
             if (waygate) {
-                console.log('🌀 Waygate interaction - active:', waygate.active, 'visibility:', waygate.visibility);
-                
-                // If gate is visible enough, use it
-                if (waygate.visibility > 0.5) {
-                    // Teleport immediately for now
-                    this.useWaygate(waygate);
-                } else {
-                    const continuity = this.continuitySystem ? this.continuitySystem.value : 0;
-                    this.dialogSystem.show(waygate.getDialog(continuity));
-                }
+                console.log('🌀 Waygate interaction - teleporting!');
+                // Always teleport for testing
+                this.useWaygate(waygate);
                 return;
             }
         }

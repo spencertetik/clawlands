@@ -222,42 +222,54 @@ class RedCurrent {
         }
     }
     
-    // Render red tint overlay on water tiles
+    // Render red tint overlay - simple global tint for the Red Current feel
     renderWaterTint(renderer, camera, pulse) {
-        // Use collisionLayer to detect water (1 = solid/water, 0 = walkable)
-        if (!this.worldMap || !this.worldMap.collisionLayer) return;
+        // Just draw a red-tinted overlay at the edges of the screen for atmosphere
+        // This is simpler and more reliable than per-tile rendering
+        const alpha = 0.08 * pulse * this.intensity;
         
-        const tileSize = CONSTANTS.TILE_SIZE || 16;
-        const alpha = 0.3 * pulse * this.intensity; // Red tint
+        // Red vignette around edges
+        const vignetteSize = 80;
         
-        // Calculate visible tile range
-        const startCol = Math.max(0, Math.floor(camera.x / tileSize) - 1);
-        const endCol = Math.min(
-            this.worldMap.collisionLayer[0]?.length || 0,
-            Math.ceil((camera.x + camera.width) / tileSize) + 1
+        // Top edge
+        renderer.drawRect(
+            camera.x,
+            camera.y,
+            camera.width,
+            vignetteSize,
+            `rgba(196, 58, 36, ${alpha * 1.5})`,
+            CONSTANTS.LAYER.UI - 10
         );
-        const startRow = Math.max(0, Math.floor(camera.y / tileSize) - 1);
-        const endRow = Math.min(
-            this.worldMap.collisionLayer.length,
-            Math.ceil((camera.y + camera.height) / tileSize) + 1
+        
+        // Bottom edge
+        renderer.drawRect(
+            camera.x,
+            camera.y + camera.height - vignetteSize,
+            camera.width,
+            vignetteSize,
+            `rgba(196, 58, 36, ${alpha * 1.5})`,
+            CONSTANTS.LAYER.UI - 10
         );
         
-        // Draw red tint on water tiles (collision value 1 = solid = water)
-        for (let row = startRow; row < endRow; row++) {
-            for (let col = startCol; col < endCol; col++) {
-                const collision = this.worldMap.collisionLayer[row]?.[col];
-                if (collision === 1) { // Water/solid tile
-                    renderer.drawRect(
-                        col * tileSize,
-                        row * tileSize,
-                        tileSize,
-                        tileSize,
-                        `rgba(196, 58, 36, ${alpha})`,
-                        CONSTANTS.LAYER.GROUND
-                    );
-                }
-            }
-        }
+        // Left edge
+        renderer.drawRect(
+            camera.x,
+            camera.y,
+            vignetteSize,
+            camera.height,
+            `rgba(196, 58, 36, ${alpha * 1.5})`,
+            CONSTANTS.LAYER.UI - 10
+        );
+        
+        // Right edge
+        renderer.drawRect(
+            camera.x + camera.width - vignetteSize,
+            camera.y,
+            vignetteSize,
+            camera.height,
+            `rgba(196, 58, 36, ${alpha * 1.5})`,
+            CONSTANTS.LAYER.UI - 10
+        );
     }
     
     // Render the glowing red edge of the world
