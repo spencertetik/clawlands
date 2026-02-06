@@ -224,28 +224,29 @@ class RedCurrent {
     
     // Render red tint overlay on water tiles
     renderWaterTint(renderer, camera, pulse) {
-        if (!this.worldMap || !this.worldMap.groundLayer) return;
+        // Use collisionLayer to detect water (1 = solid/water, 0 = walkable)
+        if (!this.worldMap || !this.worldMap.collisionLayer) return;
         
         const tileSize = CONSTANTS.TILE_SIZE || 16;
-        const alpha = 0.25 * pulse * this.intensity; // Subtle red tint
+        const alpha = 0.3 * pulse * this.intensity; // Red tint
         
         // Calculate visible tile range
         const startCol = Math.max(0, Math.floor(camera.x / tileSize) - 1);
         const endCol = Math.min(
-            this.worldMap.groundLayer[0]?.length || 0,
+            this.worldMap.collisionLayer[0]?.length || 0,
             Math.ceil((camera.x + camera.width) / tileSize) + 1
         );
         const startRow = Math.max(0, Math.floor(camera.y / tileSize) - 1);
         const endRow = Math.min(
-            this.worldMap.groundLayer.length,
+            this.worldMap.collisionLayer.length,
             Math.ceil((camera.y + camera.height) / tileSize) + 1
         );
         
-        // Draw red tint on water tiles (tile value 1 = water)
+        // Draw red tint on water tiles (collision value 1 = solid = water)
         for (let row = startRow; row < endRow; row++) {
             for (let col = startCol; col < endCol; col++) {
-                const tile = this.worldMap.groundLayer[row]?.[col];
-                if (tile === 1) { // Water tile
+                const collision = this.worldMap.collisionLayer[row]?.[col];
+                if (collision === 1) { // Water/solid tile
                     renderer.drawRect(
                         col * tileSize,
                         row * tileSize,
