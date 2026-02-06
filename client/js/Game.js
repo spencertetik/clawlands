@@ -119,6 +119,7 @@ class Game {
         this.dayNightCycle = typeof DayNightCycle !== 'undefined' ? new DayNightCycle() : null;
         
         if (this.redCurrent) {
+            this.redCurrent.setWorldMap(this.worldMap);
             console.log('🌊 Red Current initialized');
         }
         if (this.dayNightCycle) {
