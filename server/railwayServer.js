@@ -45,8 +45,9 @@ async function initDatabase() {
         return;
     }
 
+    let pool = null;
     try {
-        db = new Pool({
+        pool = new Pool({
             connectionString: process.env.DATABASE_URL,
             ssl: { rejectUnauthorized: false },
             connectionTimeoutMillis: 10000,
@@ -54,13 +55,23 @@ async function initDatabase() {
             max: 10
         });
 
+        // Catch pool-level errors so they don't crash the process
+        pool.on('error', (err) => {
+            console.error('⚠️ Database pool error:', err.message);
+        });
+
         // Test connection first
-        const client = await db.connect();
+        const client = await pool.connect();
         console.log('✅ Database connected');
         client.release();
+        db = pool;
     } catch (err) {
         console.error('⚠️ Database connection failed:', err.message);
         console.log('⚠️ Running without persistence');
+        // Destroy the pool so it doesn't emit unhandled errors
+        if (pool) {
+            pool.end().catch(() => {});
+        }
         db = null;
         return;
     }
