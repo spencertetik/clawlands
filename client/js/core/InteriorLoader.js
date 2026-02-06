@@ -1,4 +1,5 @@
-// InteriorLoader.js - Loads and manages interior furniture sprite assets
+// InteriorLoader.js - Loads and manages interior/furniture sprite assets
+// Updated 2026-02-05 with clean extracted sprites
 
 class InteriorLoader {
     constructor() {
@@ -7,89 +8,205 @@ class InteriorLoader {
         this.loadPromise = null;
     }
 
-    // Furniture definitions with their sprite paths and sizes
+    // Interior furniture definitions
     static FURNITURE = {
+        // === TABLES ===
         table: {
-            path: 'assets/sprites/interior/table.png',
-            width: 14,
-            height: 11,
-            collision: true
+            path: 'assets/sprites/interior/table_wooden.png',
+            width: 28, height: 24,
+            collision: { width: 24, height: 12, offsetY: 12 }
         },
+        table_long: {
+            path: 'assets/sprites/interior/table_long.png',
+            width: 32, height: 27,
+            collision: { width: 28, height: 14, offsetY: 13 }
+        },
+        table_round: {
+            path: 'assets/sprites/interior/table_round.png',
+            width: 28, height: 24,
+            collision: { width: 24, height: 12, offsetY: 12 }
+        },
+        
+        // === SEATING ===
         chair: {
-            path: 'assets/sprites/interior/chair.png',
-            width: 9,
-            height: 11,
-            collision: false
+            path: 'assets/sprites/interior/chair_1.png',
+            width: 19, height: 28,
+            collision: { width: 14, height: 10, offsetY: 18 }
         },
+        chair2: {
+            path: 'assets/sprites/interior/chair_2.png',
+            width: 18, height: 28,
+            collision: { width: 14, height: 10, offsetY: 18 }
+        },
+        couch: {
+            path: 'assets/sprites/interior/couch.png',
+            width: 32, height: 24,
+            collision: { width: 28, height: 14, offsetY: 10 }
+        },
+        bench: {
+            path: 'assets/sprites/interior/bench_wooden.png',
+            width: 27, height: 28,
+            collision: { width: 24, height: 10, offsetY: 18 }
+        },
+        bench_ornate: {
+            path: 'assets/sprites/interior/bench_ornate.png',
+            width: 26, height: 28,
+            collision: { width: 22, height: 10, offsetY: 18 }
+        },
+        stool: {
+            path: 'assets/sprites/interior/stool.png',
+            width: 32, height: 26,
+            collision: { width: 12, height: 8, offsetY: 18 }
+        },
+        
+        // === BEDS ===
         bed: {
             path: 'assets/sprites/interior/bed.png',
-            width: 18,
-            height: 16,
-            collision: true
+            width: 20, height: 32,
+            collision: { width: 18, height: 24, offsetY: 8 }
         },
-        barrel: {
-            path: 'assets/sprites/interior/barrel.png',
-            width: 10,
-            height: 11,
-            collision: true
+        
+        // === STORAGE ===
+        cabinet: {
+            path: 'assets/sprites/interior/cabinet_bottles.png',
+            width: 32, height: 30,
+            collision: { width: 28, height: 16, offsetY: 14 }
+        },
+        dresser: {
+            path: 'assets/sprites/interior/dresser.png',
+            width: 28, height: 19,
+            collision: { width: 24, height: 12, offsetY: 7 }
         },
         bookshelf: {
-            path: 'assets/sprites/interior/bookshelf.png',
-            width: 15,
-            height: 17,
-            collision: true
+            path: 'assets/sprites/interior/bookshelf_tall.png',
+            width: 23, height: 32,
+            collision: { width: 20, height: 14, offsetY: 18 }
         },
-        cabinet: {
-            path: 'assets/sprites/interior/cabinet.png',
-            width: 15,
-            height: 17,
-            collision: true
+        bookshelf_potions: {
+            path: 'assets/sprites/interior/bookshelf_potions.png',
+            width: 20, height: 32,
+            collision: { width: 18, height: 14, offsetY: 18 }
         },
-        plant_pot: {
-            path: 'assets/sprites/interior/plant_pot.png',
-            width: 11,
-            height: 13,
-            collision: false
+        shelf: {
+            path: 'assets/sprites/interior/shelf_books.png',
+            width: 21, height: 24,
+            collision: { width: 18, height: 12, offsetY: 12 }
         },
-        wood_floor: {
-            path: 'assets/sprites/interior/wood_floor.png',
-            width: 16,
-            height: 16,
-            collision: false,
-            isTile: true
+        shelf_plant: {
+            path: 'assets/sprites/interior/shelf_plant.png',
+            width: 25, height: 32,
+            collision: { width: 22, height: 14, offsetY: 18 }
         },
-        stone_wall: {
-            path: 'assets/sprites/interior/stone_wall.png',
-            width: 16,
-            height: 16,
-            collision: true,
-            isTile: true
+        shelf_potions: {
+            path: 'assets/sprites/interior/shelf_potions.png',
+            width: 17, height: 28,
+            collision: { width: 14, height: 12, offsetY: 16 }
         },
+        counter: {
+            path: 'assets/sprites/interior/counter.png',
+            width: 17, height: 28,
+            collision: { width: 14, height: 14, offsetY: 14 }
+        },
+        
+        // === CONTAINERS ===
+        barrel: {
+            path: 'assets/sprites/interior/barrel.png',
+            width: 22, height: 28,
+            collision: { width: 18, height: 14, offsetY: 14 }
+        },
+        barrel_small: {
+            path: 'assets/sprites/interior/barrel_small.png',
+            width: 21, height: 24,
+            collision: { width: 16, height: 12, offsetY: 12 }
+        },
+        barrel_large: {
+            path: 'assets/sprites/interior/barrel_large.png',
+            width: 22, height: 28,
+            collision: { width: 18, height: 14, offsetY: 14 }
+        },
+        jug: {
+            path: 'assets/sprites/interior/jug.png',
+            width: 20, height: 28,
+            collision: null
+        },
+        
+        // === PLANTS ===
+        plant: {
+            path: 'assets/sprites/interior/plant_flower.png',
+            width: 15, height: 28,
+            collision: null
+        },
+        plant_bush: {
+            path: 'assets/sprites/interior/plant_bush_1.png',
+            width: 20, height: 28,
+            collision: null
+        },
+        plant_bush2: {
+            path: 'assets/sprites/interior/plant_bush_2.png',
+            width: 21, height: 28,
+            collision: null
+        },
+        plant_bush3: {
+            path: 'assets/sprites/interior/plant_bush_3.png',
+            width: 20, height: 28,
+            collision: null
+        },
+        
+        // === DECOR ===
         rug: {
             path: 'assets/sprites/interior/rug.png',
-            width: 20,
-            height: 20,
-            collision: false
+            width: 32, height: 48,
+            collision: null,
+            ground: true
         }
     };
+
+    // Floor tile definitions
+    static FLOORS = {
+        wood: {
+            path: 'assets/sprites/interior/wood_floor.png',
+            width: 16, height: 16
+        },
+        stone: {
+            path: 'assets/sprites/interior/stone_floor.png',
+            width: 16, height: 16
+        }
+    };
+
+    // Get random furniture of a category
+    static getRandomType(category) {
+        const categories = {
+            table: ['table', 'table_long', 'table_round'],
+            chair: ['chair', 'chair2'],
+            seating: ['couch', 'bench', 'bench_ornate', 'stool'],
+            storage: ['cabinet', 'dresser', 'bookshelf', 'bookshelf_potions', 'shelf', 'shelf_plant'],
+            container: ['barrel', 'barrel_small', 'barrel_large', 'jug'],
+            plant: ['plant', 'plant_bush', 'plant_bush2', 'plant_bush3']
+        };
+        
+        const types = categories[category];
+        if (!types) return category;
+        return types[Math.floor(Math.random() * types.length)];
+    }
 
     // Load all interior sprites
     async load() {
         if (this.loadPromise) return this.loadPromise;
 
         this.loadPromise = new Promise((resolve) => {
-            const furnitureTypes = Object.keys(InteriorLoader.FURNITURE);
+            const allItems = { ...InteriorLoader.FURNITURE, ...InteriorLoader.FLOORS };
+            const itemTypes = Object.keys(allItems);
             let loadedCount = 0;
 
-            for (const type of furnitureTypes) {
-                const def = InteriorLoader.FURNITURE[type];
+            for (const type of itemTypes) {
+                const def = allItems[type];
                 const img = new Image();
                 
                 img.onload = () => {
                     this.sprites[type] = img;
                     loadedCount++;
                     
-                    if (loadedCount === furnitureTypes.length) {
+                    if (loadedCount === itemTypes.length) {
                         this.loaded = true;
                         console.log(`🪑 Loaded ${loadedCount} interior sprites`);
                         resolve();
@@ -97,16 +214,16 @@ class InteriorLoader {
                 };
                 
                 img.onerror = () => {
-                    console.warn(`Failed to load interior: ${type}`);
+                    console.warn(`Failed to load interior: ${type} (${def.path})`);
                     loadedCount++;
                     
-                    if (loadedCount === furnitureTypes.length) {
+                    if (loadedCount === itemTypes.length) {
                         this.loaded = true;
                         resolve();
                     }
                 };
                 
-                img.src = def.path;
+                img.src = `${def.path}?v=${Date.now()}`;
             }
         });
 
@@ -120,7 +237,31 @@ class InteriorLoader {
 
     // Get definition for a furniture type
     getDefinition(type) {
-        return InteriorLoader.FURNITURE[type] || null;
+        return InteriorLoader.FURNITURE[type] || InteriorLoader.FLOORS[type] || null;
+    }
+
+    // Create a furniture object
+    createFurniture(type, x, y) {
+        const def = this.getDefinition(type);
+        if (!def) {
+            return {
+                x, y,
+                type,
+                width: 16,
+                height: 16,
+                useSprite: false
+            };
+        }
+
+        return {
+            x, y,
+            type,
+            width: def.width,
+            height: def.height,
+            collision: def.collision,
+            ground: def.ground || false,
+            useSprite: true
+        };
     }
 }
 

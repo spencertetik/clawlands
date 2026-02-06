@@ -4,6 +4,9 @@ class RenderEngine {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.camera = camera;
+        
+        // Zoom level (1 = normal, 0.5 = zoomed out 2x, etc.)
+        this.zoom = 1;
 
         // Setup pixel-perfect rendering
         this.setupPixelPerfect();
@@ -42,6 +45,11 @@ class RenderEngine {
         }
     }
 
+    // Set zoom level (1 = normal, 0.5 = zoomed out 2x, etc.)
+    setZoom(zoom) {
+        this.zoom = zoom;
+    }
+    
     // Render all layers in order
     render() {
         // Clear canvas
@@ -51,8 +59,9 @@ class RenderEngine {
         // Save context state
         this.ctx.save();
 
-        // Scale for display
-        this.ctx.scale(CONSTANTS.DISPLAY_SCALE, CONSTANTS.DISPLAY_SCALE);
+        // Scale for display (includes zoom)
+        const scale = CONSTANTS.DISPLAY_SCALE * this.zoom;
+        this.ctx.scale(scale, scale);
 
         // Translate for camera position
         this.ctx.translate(

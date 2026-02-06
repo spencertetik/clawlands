@@ -52,7 +52,8 @@ class CollisionSystem {
     }
 
     // Check collision for an entity at position
-    checkCollision(x, y, width, height) {
+    // excludeEntity: optional entity to exclude from NPC collision checks (for self-collision avoidance)
+    checkCollision(x, y, width, height, excludeEntity = null) {
         const tileSize = CONSTANTS.TILE_SIZE;
 
         // Get tile coordinates for all corners of the entity
@@ -86,8 +87,9 @@ class CollisionSystem {
             }
         }
         
-        // Check collision with NPCs
+        // Check collision with NPCs (skip excludeEntity for self-collision avoidance)
         for (const npc of this.npcs) {
+            if (npc === excludeEntity) continue; // Skip self
             if (npc.checkCollision(x, y, width, height)) {
                 return true; // Collision with NPC
             }

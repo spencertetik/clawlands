@@ -27,6 +27,14 @@ class NPC extends Entity {
         this.moveTarget = null;
         this.homePosition = { x, y }; // Remember spawn position
         this.wanderRadius = 48; // How far from home they can wander (3 tiles)
+        
+        // Animation
+        this.animationFrame = 0;
+        this.animationTimer = 0;
+        this.animationSpeed = 150; // ms per frame
+        
+        // Walk sprites by direction (loaded externally)
+        this.walkSpritesByDirection = {}; // { south: [frame0, frame1, frame2], ... }
     }
 
     // Set the sprite image (south-facing default)
@@ -40,10 +48,34 @@ class NPC extends Entity {
         this.spritesByDirection = sprites;
         this.sprite = sprites.south || this.sprite;
     }
+    
+    // Set walk animation sprites by direction
+    // walkSprites: { south: [frame0, frame1, frame2], north: [...], east: [...], west: [...] }
+    setWalkSprites(walkSprites) {
+        this.walkSpritesByDirection = walkSprites;
+    }
 
     // Update NPC (wandering behavior)
     update(deltaTime, collisionSystem = null) {
+        // Update animation even if not wandering
+        if (this.isMoving) {
+            this.animationTimer += deltaTime * 1000;
+            if (this.animationTimer >= this.animationSpeed) {
+                this.animationTimer = 0;
+                this.animationFrame = (this.animationFrame + 1) % 3; // 3 walk frames
+            }
+        } else {
+            this.animationFrame = 0;
+            this.animationTimer = 0;
+        }
+        
         if (!this.canWander) return;
+        
+        // Debug: log first time this NPC tries to wander
+        if (!this._loggedWander) {
+            console.log(`🚶 ${this.name} wandering enabled, timer: ${this.wanderTimer}, interval: ${this.wanderInterval}`);
+            this._loggedWander = true;
+        }
         
         // If moving toward a target
         if (this.isMoving && this.moveTarget) {
@@ -64,8 +96,9 @@ class NPC extends Entity {
                 const newY = this.position.y + moveY;
                 
                 // Check collision before moving (use smaller hitbox for NPCs)
+                // Pass 'this' to exclude self from NPC collision checks
                 const canMove = !collisionSystem || !collisionSystem.checkCollision(
-                    newX + 4, newY + 8, this.width - 8, this.height - 8
+                    newX + 4, newY + 8, this.width - 8, this.height - 8, this
                 );
                 
                 if (canMove) {
@@ -107,6 +140,8 @@ class NPC extends Entity {
         this.moveTarget = { x: targetX, y: targetY };
         this.isMoving = true;
         
+        console.log(`🚶 ${this.name} starts walking to (${Math.round(targetX)}, ${Math.round(targetY)})`);
+        
         // Update direction immediately when starting to move
         const dx = targetX - this.position.x;
         const dy = targetY - this.position.y;
@@ -131,8 +166,21 @@ class NPC extends Entity {
         // Draw shadow beneath character for grounding
         this.renderShadow(renderer);
         
-        // Get directional sprite if available, fallback to default sprite
-        const currentSprite = this.spritesByDirection[this.direction] || this.sprite;
+        // Get directional sprite - use walk sprites if moving
+        let currentSprite = null;
+        
+        if (this.isMoving && this.walkSpritesByDirection[this.direction]) {
+            // Use walk animation frame
+            const walkFrames = this.walkSpritesByDirection[this.direction];
+            if (walkFrames && walkFrames.length > 0) {
+                currentSprite = walkFrames[this.animationFrame % walkFrames.length];
+            }
+        }
+        
+        // Fallback to static directional sprite or default
+        if (!currentSprite) {
+            currentSprite = this.spritesByDirection[this.direction] || this.sprite;
+        }
         
         const renderScale = CONSTANTS.CHARACTER_RENDER_SCALE || 1;
         const spriteWidth = CONSTANTS.CHARACTER_SPRITE_WIDTH || this.width;

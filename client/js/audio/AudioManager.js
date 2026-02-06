@@ -9,10 +9,12 @@ class AudioManager {
         this.volume = 0.5;
         this.fadeDuration = 1000; // ms
         this.muted = false;
+        this.preloaded = false;
+        this.pendingPlay = null; // Track to play once preloaded
         
         // Track mappings
         this.trackList = {
-            title: 'Welcome to Lobster Isle',
+            title: 'Signal From The Dead Cartridge',
             loading: 'Lobster Island Loading Screen',
             overworld: 'Harbor Steps',
             inn: 'Safe Point Tavern',
@@ -20,9 +22,29 @@ class AudioManager {
             house: 'Forgotten Shells in Claw World',
             lighthouse: 'Signal From The Dead Cartridge',
             transition: 'Glitch Between Worlds',
+            // Zone-specific overworld tracks
+            zone_central: 'Harbor Steps',
+            zone_north: 'Signal From The Dead Cartridge',
+            zone_south: 'Forgotten Shells in Claw World',
+            zone_east: 'Clockwork Glitch Parade',
             // Default fallback for unknown buildings
             default: 'Harbor Steps'
         };
+        
+        // Music zones (world coordinates) - 1920x1920 world divided into regions
+        // Format: { x, y, width, height, track }
+        this.musicZones = [
+            // Northern mysterious region (top third)
+            { x: 0, y: 0, width: 1920, height: 600, track: 'zone_north', name: 'Northern Reaches' },
+            // Eastern quirky region (right side, middle)
+            { x: 1300, y: 600, width: 620, height: 720, track: 'zone_east', name: 'Eastern Shores' },
+            // Southern relaxed beaches (bottom third)
+            { x: 0, y: 1320, width: 1920, height: 600, track: 'zone_south', name: 'Southern Sands' },
+            // Central/default - Harbor Steps (middle area)
+            { x: 0, y: 600, width: 1300, height: 720, track: 'zone_central', name: 'Harbor District' }
+        ];
+        
+        this.currentZone = null;
         
         this.basePath = 'assets/audio/music/';
     }
@@ -33,7 +55,15 @@ class AudioManager {
     async preload() {
         const promises = Object.values(this.trackList).map(name => this.loadTrack(name));
         await Promise.all(promises);
+        this.preloaded = true;
         console.log('🎵 Audio Manager: All tracks preloaded');
+        
+        // If there was a pending play request, execute it now
+        if (this.pendingPlay) {
+            console.log(`🎵 Playing pending track: ${this.pendingPlay}`);
+            this.play(this.pendingPlay);
+            this.pendingPlay = null;
+        }
     }
 
     /**
@@ -68,6 +98,14 @@ class AudioManager {
      */
     play(key, crossfade = true) {
         const trackName = this.trackList[key] || this.trackList.default;
+        
+        // If not preloaded yet, queue this request
+        if (!this.preloaded) {
+            console.log(`🎵 Queuing ${key} - waiting for preload`);
+            this.pendingPlay = key;
+            return;
+        }
+        
         this.playTrack(trackName, crossfade);
     }
 
@@ -202,10 +240,48 @@ class AudioManager {
     }
 
     /**
-     * Play overworld music
+     * Play overworld music (uses default zone)
      */
     playOverworld() {
-        this.play('overworld');
+        this.play('zone_central');
+    }
+    
+    /**
+     * Check player position and update music zone if needed
+     * Call this periodically from the game update loop
+     */
+    updateZone(playerX, playerY) {
+        if (this.muted) return;
+        
+        // Find which zone the player is in
+        let newZone = null;
+        for (const zone of this.musicZones) {
+            if (playerX >= zone.x && playerX < zone.x + zone.width &&
+                playerY >= zone.y && playerY < zone.y + zone.height) {
+                newZone = zone;
+                break;
+            }
+        }
+        
+        // If no zone found, use central
+        if (!newZone) {
+            newZone = this.musicZones.find(z => z.track === 'zone_central') || this.musicZones[0];
+        }
+        
+        // Only change if we're in a different zone
+        if (newZone && newZone !== this.currentZone) {
+            const oldZoneName = this.currentZone?.name || 'none';
+            this.currentZone = newZone;
+            console.log(`🎵 Entering ${newZone.name} (from ${oldZoneName})`);
+            this.play(newZone.track);
+        }
+    }
+    
+    /**
+     * Get current zone name (for UI display if wanted)
+     */
+    getCurrentZoneName() {
+        return this.currentZone?.name || 'Unknown';
     }
 
     /**

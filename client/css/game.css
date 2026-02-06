@@ -19,14 +19,29 @@ body {
     justify-content: center;
     align-items: center;
     width: 100%;
-    padding: 8px;
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
 }
 
 #frame-scene {
     position: relative;
-    width: min(98vw, 1600px);
+    /* Full desk visible at start */
+    width: min(78vw, 1200px);
     aspect-ratio: 3 / 2;
     overflow: hidden;
+    flex-shrink: 0;
+    /* Smooth zoom uses transform so everything scales uniformly */
+    transition: transform 8s cubic-bezier(0.25, 0.1, 0.25, 1);
+    transform: scale(1);
+    /* Computed so screen center lands at viewport center at scale(2.69) */
+    transform-origin: 45.1% 28.6%;
+}
+
+/* Zoomed-in state: scale up so the monitor screen nearly fills the viewport.
+   Only ~3px of monitor frame visible at top/bottom. */
+#frame-scene.zoomed {
+    transform: scale(2.69);
 }
 
 #frame-art {
@@ -40,6 +55,12 @@ body {
     pointer-events: none;
     transform: scale(1.08);
     transform-origin: center;
+    transition: opacity 1.5s ease;
+}
+
+/* Frame fading out before fullscreen switch */
+#frame-art.fading {
+    opacity: 0;
 }
 
 #frame-screen {
@@ -55,6 +76,7 @@ body {
     overflow: hidden;
     border-radius: 12px;
     z-index: 1;
+    transition: border-radius 1s ease;
 }
 
 #screen-overlay {
@@ -262,7 +284,7 @@ body {
 .music-hint {
     position: fixed;
     top: 12px;
-    right: 60px;
+    right: 12px;
     background: rgba(0, 0, 0, 0.7);
     color: #fbbf24;
     padding: 8px 14px;
@@ -333,38 +355,5 @@ body.fullscreen-mode #frame-screen {
 
 body.fullscreen-mode .music-hint {
     top: 12px;
-    right: 60px;
-}
-
-/* Fullscreen toggle button */
-.fullscreen-btn {
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    background: rgba(0, 0, 0, 0.7);
-    color: #5eead4;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-    z-index: 9999;
-    cursor: pointer;
-    border: 1px solid rgba(94, 234, 212, 0.4);
-    transition: all 0.2s;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.fullscreen-btn:hover {
-    background: rgba(0, 0, 0, 0.85);
-    border-color: rgba(94, 234, 212, 0.7);
-}
-
-.fullscreen-btn:active {
-    transform: scale(0.95);
-}
-
-body.fullscreen-mode .fullscreen-btn {
     right: 12px;
 }

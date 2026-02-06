@@ -16,15 +16,19 @@ const mimeTypes = {
     '.jpg': 'image/jpg',
     '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon'
+    '.ico': 'image/x-icon',
+    '.mp3': 'audio/mpeg',
+    '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav'
 };
 
 // Create HTTP server
 const server = http.createServer((req, res) => {
     console.log(`${req.method} ${req.url}`);
 
-    // Parse URL
-    let filePath = req.url === '/' ? '/index.html' : req.url;
+    // Parse URL (strip query strings, decode %20 etc.)
+    const urlPath = decodeURIComponent(req.url.split('?')[0]);
+    let filePath = urlPath === '/' ? '/home.html' : urlPath;
     filePath = path.join(CLIENT_DIR, filePath);
 
     // Get file extension

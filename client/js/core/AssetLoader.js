@@ -396,12 +396,18 @@ class AssetLoader {
             rect(x, y + 12, tileSize, 2, '#5b5b62');
         });
 
-        // Tile 2: Door
+        // Tile 2: Door (bigger, more visible exit)
         drawAt(2, (x, y) => {
-            rect(x, y, tileSize, tileSize, '#6c6c74');
-            rect(x + 4, y + 4, 8, 10, '#8b5a2b');
-            rect(x + 5, y + 5, 6, 8, '#a06a35');
-            rect(x + 9, y + 9, 1, 1, '#f5d47a');
+            // Floor extends behind door for visual continuity
+            rect(x, y, tileSize, tileSize, '#c9a26b');
+            // Large door frame - nearly fills tile
+            rect(x + 1, y + 1, 14, 15, '#5a3825'); // Dark wood frame
+            rect(x + 2, y + 2, 12, 13, '#8b5a2b'); // Main door
+            rect(x + 3, y + 3, 10, 11, '#a06a35'); // Lighter wood center
+            // Door details
+            rect(x + 4, y + 4, 8, 4, '#8b5a2b');   // Top panel
+            rect(x + 4, y + 9, 8, 4, '#8b5a2b');   // Bottom panel
+            rect(x + 11, y + 8, 2, 2, '#f5d47a'); // Doorknob (gold)
         });
 
         // Tile 3: Counter

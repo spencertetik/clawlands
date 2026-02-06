@@ -148,20 +148,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Fullscreen toggle button
-    const fullscreenBtn = document.getElementById('fullscreen-btn');
-    if (fullscreenBtn) {
-        fullscreenBtn.addEventListener('click', () => {
-            document.body.classList.toggle('fullscreen-mode');
-            const isFullscreen = document.body.classList.contains('fullscreen-mode');
-            fullscreenBtn.textContent = isFullscreen ? '⛶' : '⛶';
-            fullscreenBtn.title = isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
-            
-            // Trigger resize to adjust canvas
-            window.dispatchEvent(new Event('resize'));
-        });
-    }
-
     // Get canvas element
     const canvas = document.getElementById('game-canvas');
 
@@ -176,11 +162,20 @@ window.addEventListener('DOMContentLoaded', () => {
     // Start game
     game.start();
 
+    // Initialize Map Editor (press E to toggle)
+    if (typeof MapEditor !== 'undefined') {
+        const mapEditor = new MapEditor(game);
+        window.mapEditor = mapEditor;
+        game.mapEditor = mapEditor; // Store reference on game for interior loading
+        console.log('🗺️ Map Editor loaded - Press E to toggle');
+    }
+
     console.log('🦀 Claw World Started!');
     console.log('Controls: WASD to move, Space to interact');
     console.log('Press ` (backtick) to toggle debug mode');
     console.log('Press M to toggle music');
     console.log('Press B to toggle bot mode (AI players)');
+    console.log('Press E to toggle Map Editor');
 
     // Setup keyboard shortcuts
     window.addEventListener('keydown', (e) => {

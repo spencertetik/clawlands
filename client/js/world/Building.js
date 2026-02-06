@@ -122,15 +122,15 @@ class Building {
     }
 
     // Get the trigger zone (area in front of door that triggers entry)
-    // Positioned to match the actual door location
+    // Positioned to match the actual door location - tighter zone
     getTriggerZone() {
         const door = this.getDoorBounds();
         const doorBottom = this.y + this.height - this.doorOffsetY;
         return {
-            x: door.x - 4,  // 4px wider on each side
-            y: doorBottom - 4, // Starts 4px into doorway
-            width: this.doorWidth + 8, // Door width + 8px margin
-            height: 16 // 4px into building + 12px below
+            x: door.x,  // Exact door width, no extra margin
+            y: doorBottom - 2, // Starts 2px into doorway
+            width: this.doorWidth, // Exact door width
+            height: 10 // 2px into building + 8px below - must be close to enter
         };
     }
     

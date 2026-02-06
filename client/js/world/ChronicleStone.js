@@ -1,6 +1,9 @@
 // Chronicle Stone - An interactable object where agents can write messages
 // Messages persist and become part of the world's living lore
 class ChronicleStone {
+    static sprite = null;
+    static spriteLoaded = false;
+    
     constructor(x, y, stoneId) {
         this.x = x;
         this.y = y;
@@ -8,6 +11,14 @@ class ChronicleStone {
         this.height = 20;
         this.stoneId = stoneId || `stone_${Date.now()}`;
         this.messages = this.loadMessages();
+        
+        // Load sprite once for all stones
+        if (!ChronicleStone.spriteLoaded) {
+            ChronicleStone.spriteLoaded = true;
+            const img = new Image();
+            img.onload = () => { ChronicleStone.sprite = img; };
+            img.src = 'assets/sprites/decorations/chronicle_stone.png?v=' + Date.now();
+        }
     }
 
     // Storage key for this stone's messages
@@ -106,36 +117,40 @@ class ChronicleStone {
 
     // Render the stone
     render(renderer) {
-        // Stone base (dark gray)
-        renderer.drawRect(
-            this.x + 2,
-            this.y + 8,
-            12,
-            12,
-            '#4a4a4a',
-            CONSTANTS.LAYER.GROUND_DECORATION
-        );
-        
-        // Stone top (lighter, carved look)
-        renderer.drawRect(
-            this.x + 3,
-            this.y + 4,
-            10,
-            8,
-            '#6a6a6a',
-            CONSTANTS.LAYER.GROUND_DECORATION
-        );
-        
-        // Glowing rune if has messages
-        if (this.messages.length > 0) {
+        // Use sprite if loaded
+        if (ChronicleStone.sprite) {
+            renderer.addToLayer(CONSTANTS.LAYER.GROUND_DECORATION, (ctx) => {
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(ChronicleStone.sprite, this.x, this.y, this.width, this.height);
+            });
+            
+            // Glowing rune overlay if has messages
+            if (this.messages.length > 0) {
+                renderer.drawRect(
+                    this.x + 6,
+                    this.y + 6,
+                    4,
+                    4,
+                    '#88ddff',
+                    CONSTANTS.LAYER.GROUND_DECORATION
+                );
+            }
+        } else {
+            // Fallback to rectangles while sprite loads
             renderer.drawRect(
-                this.x + 6,
-                this.y + 6,
-                4,
-                4,
-                '#88ddff',
-                CONSTANTS.LAYER.GROUND_DECORATION
+                this.x + 2, this.y + 8, 12, 12,
+                '#4a4a4a', CONSTANTS.LAYER.GROUND_DECORATION
             );
+            renderer.drawRect(
+                this.x + 3, this.y + 4, 10, 8,
+                '#6a6a6a', CONSTANTS.LAYER.GROUND_DECORATION
+            );
+            if (this.messages.length > 0) {
+                renderer.drawRect(
+                    this.x + 6, this.y + 6, 4, 4,
+                    '#88ddff', CONSTANTS.LAYER.GROUND_DECORATION
+                );
+            }
         }
     }
 

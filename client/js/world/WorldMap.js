@@ -540,18 +540,11 @@ class WorldMap {
             }
         }
 
-        // Door on bottom wall
+        // Door on bottom wall (bigger visual now)
         this.setTile(this.groundLayer, doorCol, doorRow, doorTile);
         this.setTile(this.collisionLayer, doorCol, doorRow, 0);
 
-        // Doormat tile just inside the door (one and two rows up from exit)
-        const doormatTile = { tileset: 'interior', id: 8 };
-        if (doorRow > 1) {
-            this.setTile(this.groundLayer, doorCol, doorRow - 1, doormatTile);
-        }
-        if (doorRow > 2) {
-            this.setTile(this.groundLayer, doorCol, doorRow - 2, doormatTile);
-        }
+        // No doormat - just clean floor leading to exit
 
         this.meta = {
             type: 'interior',

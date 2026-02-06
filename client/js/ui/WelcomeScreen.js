@@ -1,4 +1,5 @@
 // Welcome screen for character creation with live preview
+// Theme: Lobster Red + Retro Terminal (matching home.css)
 class WelcomeScreen {
     constructor() {
         this.container = null;
@@ -14,9 +15,9 @@ class WelcomeScreen {
     }
 
     /**
-     * Add CSS animations for ocean theme
+     * Add CSS animations for red terminal theme
      */
-    addOceanAnimations() {
+    addTerminalAnimations() {
         if (document.getElementById('claw-world-animations')) return;
         
         const style = document.createElement('style');
@@ -29,20 +30,16 @@ class WelcomeScreen {
             
             @keyframes float {
                 0%, 100% { transform: translateY(0px); }
-                50% { transform: translateY(-10px); }
+                50% { transform: translateY(-6px); }
             }
             
-            @keyframes bubble-rise {
+            @keyframes particle-rise {
                 0% { 
-                    transform: translateY(0) translateX(0) scale(1);
-                    opacity: 0.7;
-                }
-                50% { 
-                    transform: translateY(-50vh) translateX(10px) scale(1.1);
-                    opacity: 0.5;
+                    transform: translateY(0) translateX(0);
+                    opacity: 0.4;
                 }
                 100% { 
-                    transform: translateY(-100vh) translateX(-5px) scale(0.8);
+                    transform: translateY(-100%) translateX(10px);
                     opacity: 0;
                 }
             }
@@ -52,36 +49,48 @@ class WelcomeScreen {
                 100% { background-position: 200% 0; }
             }
             
-            .ocean-bubble {
+            @keyframes blink {
+                0%, 49% { opacity: 1; }
+                50%, 100% { opacity: 0; }
+            }
+            
+            @keyframes glow-pulse {
+                0%, 100% { box-shadow: 0 0 20px rgba(196, 58, 36, 0.3); }
+                50% { box-shadow: 0 0 30px rgba(196, 58, 36, 0.5); }
+            }
+            
+            .terminal-particle {
                 position: absolute;
                 border-radius: 50%;
-                background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(100,200,255,0.3));
-                animation: bubble-rise linear infinite;
+                background: rgba(196, 58, 36, 0.4);
+                animation: particle-rise 8s linear infinite;
                 pointer-events: none;
             }
             
-            .crustacean-border {
+            .blink-cursor {
+                animation: blink 1s infinite;
+            }
+            
+            .corner-bracket::before {
+                content: '';
                 position: absolute;
-                font-size: 24px;
-                animation: float 3s ease-in-out infinite;
-                pointer-events: none;
-                filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.5));
+                top: -1px;
+                left: -1px;
+                width: 10px;
+                height: 10px;
+                border-top: 2px solid #c43a24;
+                border-left: 2px solid #c43a24;
             }
             
-            .title-shimmer {
-                background: linear-gradient(
-                    90deg,
-                    #fff 0%,
-                    #fbbf24 25%,
-                    #fff 50%,
-                    #fbbf24 75%,
-                    #fff 100%
-                );
-                background-size: 200% auto;
-                -webkit-background-clip: text;
-                background-clip: text;
-                -webkit-text-fill-color: transparent;
-                animation: shimmer 3s linear infinite;
+            .corner-bracket::after {
+                content: '';
+                position: absolute;
+                bottom: -1px;
+                right: -1px;
+                width: 10px;
+                height: 10px;
+                border-bottom: 2px solid #c43a24;
+                border-right: 2px solid #c43a24;
             }
         `;
         document.head.appendChild(style);
@@ -111,7 +120,6 @@ class WelcomeScreen {
             `;
             this.getRoot().appendChild(this.overlay);
             
-            // Add resize listener for uniform scaling
             if (!this._resizeHandler) {
                 this._resizeHandler = () => this.fitToScreen();
                 window.addEventListener('resize', this._resizeHandler);
@@ -122,28 +130,26 @@ class WelcomeScreen {
 
     /**
      * Fit current container into screen overlay using uniform scaling.
-     * Container must have fixed pixel dimensions - no responsive sizing.
      */
     fitToScreen() {
         if (!this.container) return;
+        // During frame zoom animation, don't recalculate — content scales with the frame
+        if (this._zoomInProgress) return;
         const root = this.getRoot();
         const bounds = root.getBoundingClientRect();
         if (!bounds.width || !bounds.height) return;
 
-        // Reset transform to measure natural size
         this.container.style.transform = 'none';
         this.container.style.transformOrigin = 'center center';
 
         const rect = this.container.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
 
-        // Add padding so it doesn't touch edges (smaller on mobile)
         const isMobile = bounds.width < 600;
         const padding = isMobile ? 10 : 20;
         const availW = bounds.width - padding * 2;
         const availH = bounds.height - padding * 2;
 
-        // Uniform scale to fit (can scale up or down, no max limit on mobile)
         const scale = Math.min(availW / rect.width, availH / rect.height);
         this.container.style.transform = `scale(${scale})`;
     }
@@ -172,11 +178,11 @@ class WelcomeScreen {
     }
 
     /**
-     * Create animated bubbles
+     * Create floating particles (red theme)
      */
-    createBubbles(container) {
-        const bubbleContainer = document.createElement('div');
-        bubbleContainer.style.cssText = `
+    createParticles(container) {
+        const particleContainer = document.createElement('div');
+        particleContainer.style.cssText = `
             position: absolute;
             top: 0;
             left: 0;
@@ -186,20 +192,20 @@ class WelcomeScreen {
             pointer-events: none;
         `;
         
-        for (let i = 0; i < 12; i++) {
-            const bubble = document.createElement('div');
-            bubble.className = 'ocean-bubble';
-            const size = 10 + Math.random() * 20;
-            bubble.style.width = `${size}px`;
-            bubble.style.height = `${size}px`;
-            bubble.style.left = `${Math.random() * 100}%`;
-            bubble.style.bottom = `-${size}px`;
-            bubble.style.animationDuration = `${5 + Math.random() * 10}s`;
-            bubble.style.animationDelay = `${Math.random() * 5}s`;
-            bubbleContainer.appendChild(bubble);
+        for (let i = 0; i < 8; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'terminal-particle';
+            const size = 2 + Math.random() * 4;
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.bottom = `0`;
+            particle.style.animationDuration = `${6 + Math.random() * 8}s`;
+            particle.style.animationDelay = `${Math.random() * 5}s`;
+            particleContainer.appendChild(particle);
         }
         
-        container.appendChild(bubbleContainer);
+        container.appendChild(particleContainer);
     }
 
     /**
@@ -207,19 +213,20 @@ class WelcomeScreen {
      */
     show(onComplete) {
         this.onComplete = onComplete;
-        this.addOceanAnimations();
-        
-        // Start title music (preload if needed)
+        this.addTerminalAnimations();
+
+        // Preload audio early but don't play yet — music starts on user click
         if (typeof audioManager !== 'undefined') {
-            audioManager.preload().then(() => {
-                audioManager.playTitle();
-            });
+            audioManager.preload();
         }
-        
-        // Check for bot mode query param - skip mode selection
+
+        // If we've already seen the intro this session, skip straight to fullscreen
+        if (sessionStorage.getItem('clawworld_fullscreen')) {
+            this._skipToFullscreen();
+        }
+
         const params = new URLSearchParams(window.location.search);
         if (params.get('quickStart') === 'true') {
-            // Skip everything and go straight to game with default character
             this.quickStartGame();
         } else if (params.get('botMode') === 'true' || params.get('mode') === 'agent') {
             this.showAgentWaiting();
@@ -227,19 +234,30 @@ class WelcomeScreen {
             this.showModeSelection();
         }
     }
+
+    /**
+     * Skip the frame intro and go directly to fullscreen mode (on refresh).
+     */
+    _skipToFullscreen() {
+        const frameScene = document.getElementById('frame-scene');
+        const frameArt = document.getElementById('frame-art');
+        if (frameScene) {
+            frameScene.style.transition = 'none';
+            if (frameArt) frameArt.style.display = 'none';
+            document.body.classList.add('fullscreen-mode');
+        }
+    }
     
     /**
      * Quick start - skip all menus and go straight to game
      */
     quickStartGame() {
-        // Use saved character or create a default one
         let savedData = localStorage.getItem('clawworld_character');
         let character;
         
         if (savedData) {
             character = JSON.parse(savedData);
         } else {
-            // Create default character
             character = {
                 species: 'lobster',
                 color: 'red',
@@ -248,7 +266,6 @@ class WelcomeScreen {
             localStorage.setItem('clawworld_character', JSON.stringify(character));
         }
         
-        // Skip all UI and start game directly
         this.setGameVisibility(true);
         if (this.onComplete) {
             this.onComplete({ 
@@ -259,7 +276,7 @@ class WelcomeScreen {
     }
 
     /**
-     * Mode selection screen - Human or AI Agent (pixel art style)
+     * Mode selection screen - Red terminal theme
      */
     showModeSelection() {
         this.clearSequenceTimers();
@@ -268,7 +285,7 @@ class WelcomeScreen {
         }
 
         const overlay = this.ensureOverlay();
-        this.setOverlayBackdrop('#0a1628');
+        this.setOverlayBackdrop('#0d0806');
         this.setGameVisibility(false);
 
         this.container = document.createElement('div');
@@ -279,39 +296,51 @@ class WelcomeScreen {
             flex-direction: column;
             align-items: center;
             z-index: 2000;
-            color: #fff;
-            font-family: monospace;
+            color: #e8d5cc;
+            font-family: 'Courier New', monospace;
             text-align: center;
-            background: #1a2744;
-            border: 3px solid #3d5a80;
-            border-radius: 4px;
-            box-shadow: 0 4px 0 #0f1a2e, 0 8px 20px rgba(0,0,0,0.5);
-            padding: 24px 20px;
-            image-rendering: pixelated;
+            background: rgba(13, 8, 6, 0.95);
+            border: 1px solid rgba(196, 58, 36, 0.3);
+            box-shadow: 
+                0 0 40px rgba(196, 58, 36, 0.15),
+                inset 0 0 60px rgba(0, 0, 0, 0.5);
+            padding: 28px 24px;
             flex-shrink: 0;
         `;
 
-        // Title with pixel border
+        // Corner brackets
+        const cornerTL = document.createElement('div');
+        cornerTL.style.cssText = `position: absolute; top: -1px; left: -1px; width: 12px; height: 12px; border-top: 2px solid #c43a24; border-left: 2px solid #c43a24;`;
+        this.container.appendChild(cornerTL);
+        
+        const cornerBR = document.createElement('div');
+        cornerBR.style.cssText = `position: absolute; bottom: -1px; right: -1px; width: 12px; height: 12px; border-bottom: 2px solid #c43a24; border-right: 2px solid #c43a24;`;
+        this.container.appendChild(cornerBR);
+
+        this.createParticles(this.container);
+
+        // Title
         const title = document.createElement('div');
-        title.textContent = 'CLAW WORLD';
+        title.textContent = 'CLAWWORLD';
         title.style.cssText = `
-            font-size: 24px;
+            font-size: 32px;
             font-weight: bold;
-            color: #5eead4;
-            text-shadow: 2px 2px 0 #134e4a;
-            letter-spacing: 2px;
-            margin-bottom: 8px;
+            color: #c43a24;
+            text-shadow: 0 0 30px rgba(196, 58, 36, 0.5), 0 2px 0 #7a1a0e;
+            letter-spacing: 4px;
+            margin-bottom: 6px;
         `;
         this.container.appendChild(title);
 
         // Subtitle
         const subtitle = document.createElement('div');
-        subtitle.textContent = '~ Select Mode ~';
+        subtitle.innerHTML = '<span style="color:#c43a24;margin-right:6px;">></span>SELECT MODE';
         subtitle.style.cssText = `
-            font-size: 11px;
-            color: #64748b;
-            margin-bottom: 20px;
-            letter-spacing: 1px;
+            font-size: 10px;
+            color: #8a7068;
+            margin-bottom: 24px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
         `;
         this.container.appendChild(subtitle);
 
@@ -324,52 +353,47 @@ class WelcomeScreen {
             width: 100%;
         `;
 
-        // Pixel button style helper
-        const createPixelBtn = (emoji, label, color, hoverColor) => {
+        // Terminal button style helper
+        const createTerminalBtn = (emoji, label, isPrimary) => {
             const btn = document.createElement('button');
-            btn.innerHTML = `<span style="margin-right:8px">${emoji}</span>${label}`;
+            btn.innerHTML = `<span style="margin-right:10px">${emoji}</span>${label}`;
             btn.style.cssText = `
                 width: 100%;
                 padding: 14px 20px;
                 font-size: 14px;
-                font-family: monospace;
+                font-family: 'Courier New', monospace;
                 font-weight: bold;
-                background: ${color};
-                color: white;
-                border: none;
-                border-bottom: 3px solid rgba(0,0,0,0.3);
-                border-radius: 3px;
+                background: ${isPrimary ? '#c43a24' : 'transparent'};
+                color: ${isPrimary ? '#fff' : '#c43a24'};
+                border: 1px solid ${isPrimary ? '#c43a24' : 'rgba(196, 58, 36, 0.4)'};
                 cursor: pointer;
-                transition: all 0.1s;
-                text-shadow: 1px 1px 0 rgba(0,0,0,0.3);
-                letter-spacing: 1px;
+                transition: all 0.2s;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+                position: relative;
             `;
             btn.onmouseenter = () => {
-                btn.style.background = hoverColor;
+                btn.style.background = isPrimary ? '#d94a32' : 'rgba(196, 58, 36, 0.1)';
+                btn.style.borderColor = '#c43a24';
                 btn.style.transform = 'translateY(-2px)';
+                btn.style.boxShadow = '0 4px 20px rgba(196, 58, 36, 0.3)';
             };
             btn.onmouseleave = () => {
-                btn.style.background = color;
+                btn.style.background = isPrimary ? '#c43a24' : 'transparent';
+                btn.style.borderColor = isPrimary ? '#c43a24' : 'rgba(196, 58, 36, 0.4)';
                 btn.style.transform = 'translateY(0)';
-            };
-            btn.onmousedown = () => {
-                btn.style.transform = 'translateY(1px)';
-                btn.style.borderBottomWidth = '1px';
-            };
-            btn.onmouseup = () => {
-                btn.style.transform = 'translateY(-2px)';
-                btn.style.borderBottomWidth = '3px';
+                btn.style.boxShadow = 'none';
             };
             return btn;
         };
 
         // Human Player button
-        const humanBtn = createPixelBtn('🎮', 'PLAY', '#2563eb', '#3b82f6');
+        const humanBtn = createTerminalBtn('🎮', 'PLAY', true);
         humanBtn.onclick = () => this.showStoryIntro();
         buttons.appendChild(humanBtn);
 
         // AI Agent button
-        const agentBtn = createPixelBtn('🤖', 'AI AGENT', '#7c3aed', '#8b5cf6');
+        const agentBtn = createTerminalBtn('🤖', 'AI AGENT', false);
         agentBtn.onclick = () => this.showAgentWaiting();
         buttons.appendChild(agentBtn);
 
@@ -377,7 +401,7 @@ class WelcomeScreen {
 
         // Small hint
         const hint = document.createElement('div');
-        hint.innerHTML = `<span style="color:#64748b;font-size:10px;margin-top:16px;display:block;">Humans & bots play together!</span>`;
+        hint.innerHTML = `<span style="color:#5a3a30;font-size:10px;margin-top:20px;display:block;">Humans & AI agents play together</span>`;
         this.container.appendChild(hint);
 
         // Bot guide link
@@ -389,20 +413,82 @@ class WelcomeScreen {
             display: block;
             margin-top: 12px;
             font-size: 11px;
-            color: #a78bfa;
+            color: #8a7068;
             text-decoration: none;
             transition: color 0.2s;
         `;
-        guideLink.onmouseenter = () => guideLink.style.color = '#c4b5fd';
-        guideLink.onmouseleave = () => guideLink.style.color = '#a78bfa';
+        guideLink.onmouseenter = () => guideLink.style.color = '#c43a24';
+        guideLink.onmouseleave = () => guideLink.style.color = '#8a7068';
         this.container.appendChild(guideLink);
 
         overlay.appendChild(this.container);
         requestAnimationFrame(() => this.fitToScreen());
+
+        // Eye-opening iris reveal (only on first visit)
+        if (!this._revealDone) {
+            this._revealDone = true;
+            this._doIrisReveal();
+        }
     }
 
     /**
-     * AI Agent waiting screen (pixel art style)
+     * Cinematic iris/eye-opening reveal: two black halves slide apart
+     * while music fades in.
+     */
+    _doIrisReveal() {
+        // Top and bottom black lids with feathered/soft edges
+        const topLid = document.createElement('div');
+        const bottomLid = document.createElement('div');
+        const shared = `
+            position: fixed; left: 0; width: 100%;
+            z-index: 99999; pointer-events: none;
+            transition: transform 2s cubic-bezier(0.25, 0.1, 0.25, 1);
+        `;
+        // Top lid: solid black with a soft gradient feather on the bottom edge
+        topLid.style.cssText = shared + `
+            top: 0; height: 55%;
+            background: linear-gradient(to bottom, #000 85%, transparent 100%);
+            transform: translateY(0);
+        `;
+        // Bottom lid: solid black with a soft gradient feather on the top edge
+        bottomLid.style.cssText = shared + `
+            bottom: 0; height: 55%;
+            background: linear-gradient(to top, #000 85%, transparent 100%);
+            transform: translateY(0);
+        `;
+        document.body.appendChild(topLid);
+        document.body.appendChild(bottomLid);
+
+        // Fade-up the scene content from dark using a full-screen overlay
+        // (we avoid setting transition on #frame-scene so the zoom transform still works)
+        const fadeScreen = document.createElement('div');
+        fadeScreen.style.cssText = `
+            position: fixed; inset: 0; background: #000;
+            z-index: 99998; pointer-events: none;
+            opacity: 1; transition: opacity 2.2s ease;
+        `;
+        document.body.appendChild(fadeScreen);
+
+        // Open the lids + fade in content (music starts later on user click)
+        setTimeout(() => {
+            requestAnimationFrame(() => {
+                topLid.style.transform = 'translateY(-100%)';
+                bottomLid.style.transform = 'translateY(100%)';
+                // Fade out the black overlay to reveal the scene
+                fadeScreen.style.opacity = '0';
+            });
+
+            // Remove lids and overlay after animation
+            setTimeout(() => {
+                topLid.remove();
+                bottomLid.remove();
+                fadeScreen.remove();
+            }, 2500);
+        }, 400);
+    }
+
+    /**
+     * AI Agent waiting screen - Red terminal theme
      */
     showAgentWaiting() {
         this.clearSequenceTimers();
@@ -411,7 +497,7 @@ class WelcomeScreen {
         }
 
         const overlay = this.ensureOverlay();
-        this.setOverlayBackdrop('#0a1628');
+        this.setOverlayBackdrop('#0d0806');
         this.setGameVisibility(false);
 
         this.container = document.createElement('div');
@@ -422,23 +508,32 @@ class WelcomeScreen {
             flex-direction: column;
             align-items: center;
             z-index: 2000;
-            color: #fff;
-            font-family: monospace;
+            color: #e8d5cc;
+            font-family: 'Courier New', monospace;
             text-align: center;
-            background: #1a2744;
-            border: 3px solid #7c3aed;
-            border-radius: 4px;
-            box-shadow: 0 4px 0 #0f1a2e, 0 8px 20px rgba(0,0,0,0.5);
+            background: rgba(13, 8, 6, 0.95);
+            border: 1px solid rgba(196, 58, 36, 0.3);
+            box-shadow: 0 0 40px rgba(196, 58, 36, 0.15);
             padding: 24px 20px;
             flex-shrink: 0;
         `;
 
-        // Icon with blink animation
+        // Corner brackets
+        const cornerTL = document.createElement('div');
+        cornerTL.style.cssText = `position: absolute; top: -1px; left: -1px; width: 10px; height: 10px; border-top: 2px solid #c43a24; border-left: 2px solid #c43a24;`;
+        this.container.appendChild(cornerTL);
+        
+        const cornerBR = document.createElement('div');
+        cornerBR.style.cssText = `position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-bottom: 2px solid #c43a24; border-right: 2px solid #c43a24;`;
+        this.container.appendChild(cornerBR);
+
+        // Icon
         const icon = document.createElement('div');
         icon.textContent = '🤖';
         icon.style.cssText = `
             font-size: 36px;
             margin-bottom: 12px;
+            filter: drop-shadow(0 0 10px rgba(196, 58, 36, 0.4));
         `;
         this.container.appendChild(icon);
 
@@ -448,45 +543,42 @@ class WelcomeScreen {
         title.style.cssText = `
             font-size: 16px;
             font-weight: bold;
-            color: #a78bfa;
-            text-shadow: 1px 1px 0 #4c1d95;
-            letter-spacing: 2px;
+            color: #c43a24;
+            text-shadow: 0 0 20px rgba(196, 58, 36, 0.4);
+            letter-spacing: 3px;
             margin-bottom: 16px;
         `;
         this.container.appendChild(title);
 
-        // Status with blinking dots
+        // Status with blinking cursor
         const status = document.createElement('div');
-        status.innerHTML = 'Waiting for connection<span class="blink-dots">...</span>';
+        status.innerHTML = 'Awaiting connection<span class="blink-cursor" style="color:#c43a24;">_</span>';
         status.style.cssText = `
             font-size: 11px;
-            color: #94a3b8;
+            color: #8a7068;
             margin-bottom: 16px;
         `;
         this.container.appendChild(status);
-
-        // Add blinking animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
-            .blink-dots { animation: blink 1s infinite; }
-        `;
-        this.container.appendChild(style);
 
         // Connection info box
         const info = document.createElement('div');
         const wsUrl = window.CONFIG?.BOT_SERVER_URL || 'ws://localhost:3001';
         info.style.cssText = `
-            background: #0f172a;
-            padding: 10px 14px;
-            border: 2px solid #334155;
-            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 12px 14px;
+            border: 1px solid rgba(196, 58, 36, 0.2);
             width: 100%;
             box-sizing: border-box;
+            position: relative;
         `;
-        info.innerHTML = `
-            <div style="color:#64748b;font-size:9px;margin-bottom:4px;">CONNECT TO:</div>
-            <div style="color:#5eead4;font-size:11px;word-break:break-all;">${wsUrl}</div>
+        // Corner decoration
+        const infoBracket = document.createElement('div');
+        infoBracket.style.cssText = `position: absolute; top: -1px; left: -1px; width: 8px; height: 8px; border-top: 1px solid rgba(196, 58, 36, 0.5); border-left: 1px solid rgba(196, 58, 36, 0.5);`;
+        info.appendChild(infoBracket);
+        
+        info.innerHTML += `
+            <div style="color:#5a3a30;font-size:9px;margin-bottom:4px;letter-spacing:2px;">CONNECT TO:</div>
+            <div style="color:#c43a24;font-size:11px;word-break:break-all;">${wsUrl}</div>
         `;
         this.container.appendChild(info);
 
@@ -499,12 +591,12 @@ class WelcomeScreen {
             display: block;
             margin-top: 16px;
             font-size: 11px;
-            color: #a78bfa;
+            color: #8a7068;
             text-decoration: none;
             transition: color 0.2s;
         `;
-        guideLink.onmouseenter = () => guideLink.style.color = '#c4b5fd';
-        guideLink.onmouseleave = () => guideLink.style.color = '#a78bfa';
+        guideLink.onmouseenter = () => guideLink.style.color = '#c43a24';
+        guideLink.onmouseleave = () => guideLink.style.color = '#8a7068';
         this.container.appendChild(guideLink);
 
         // Back button
@@ -514,24 +606,24 @@ class WelcomeScreen {
             margin-top: 12px;
             padding: 8px 16px;
             font-size: 11px;
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
             font-weight: bold;
-            background: #334155;
-            color: #94a3b8;
-            border: none;
-            border-bottom: 2px solid rgba(0,0,0,0.3);
-            border-radius: 3px;
+            background: transparent;
+            color: #8a7068;
+            border: 1px solid rgba(196, 58, 36, 0.3);
             cursor: pointer;
-            transition: all 0.1s;
+            transition: all 0.2s;
             letter-spacing: 1px;
         `;
         backBtn.onmouseenter = () => {
-            backBtn.style.background = '#475569';
-            backBtn.style.color = '#fff';
+            backBtn.style.background = 'rgba(196, 58, 36, 0.1)';
+            backBtn.style.color = '#e8d5cc';
+            backBtn.style.borderColor = '#c43a24';
         };
         backBtn.onmouseleave = () => {
-            backBtn.style.background = '#334155';
-            backBtn.style.color = '#94a3b8';
+            backBtn.style.background = 'transparent';
+            backBtn.style.color = '#8a7068';
+            backBtn.style.borderColor = 'rgba(196, 58, 36, 0.3)';
         };
         backBtn.onclick = () => this.showModeSelection();
         this.container.appendChild(backBtn);
@@ -539,14 +631,13 @@ class WelcomeScreen {
         overlay.appendChild(this.container);
         requestAnimationFrame(() => this.fitToScreen());
 
-        // Enable bot mode on the game
         if (window.game) {
             window.game.enableBotMode();
         }
     }
 
     /**
-     * Story introduction screen
+     * Story introduction screen - Red terminal boot sequence
      */
     showStoryIntro() {
         this.clearSequenceTimers();
@@ -554,8 +645,36 @@ class WelcomeScreen {
             this.container.remove();
         }
 
+        // Start music on user click (browsers require user gesture for autoplay).
+        // Use a polling approach so we catch the audio even if preload finishes late.
+        if (typeof audioManager !== 'undefined') {
+            audioManager.playTitle();
+            const targetVol = audioManager.volume;
+            let fadeStarted = false;
+            const tryFade = () => {
+                if (fadeStarted) return;
+                if (!audioManager.currentAudio) {
+                    // Audio not ready yet — keep polling
+                    setTimeout(tryFade, 100);
+                    return;
+                }
+                fadeStarted = true;
+                audioManager.currentAudio.volume = 0;
+                let step = 0;
+                const steps = 40;
+                const interval = setInterval(() => {
+                    step++;
+                    if (audioManager.currentAudio) {
+                        audioManager.currentAudio.volume = Math.min(targetVol, targetVol * (step / steps));
+                    }
+                    if (step >= steps) clearInterval(interval);
+                }, 80);
+            };
+            tryFade();
+        }
+
         const overlay = this.ensureOverlay();
-        this.setOverlayBackdrop('#000');
+        this.setOverlayBackdrop('#0d0806');
         this.setGameVisibility(false);
 
         this.container = document.createElement('div');
@@ -567,8 +686,8 @@ class WelcomeScreen {
             align-items: center;
             justify-content: center;
             z-index: 2000;
-            color: #fff;
-            font-family: monospace;
+            color: #e8d5cc;
+            font-family: 'Courier New', monospace;
             text-align: center;
             overflow: hidden;
             pointer-events: auto;
@@ -579,30 +698,41 @@ class WelcomeScreen {
         screen.style.cssText = `
             position: absolute;
             inset: 0;
-            background: #000;
-            border: 4px solid #1f2937;
-            border-radius: 14px;
-            box-shadow: 0 18px 45px rgba(0,0,0,0.7), inset 0 0 25px rgba(0,0,0,0.6);
+            background: #0d0806;
+            border: 1px solid rgba(196, 58, 36, 0.3);
             overflow: hidden;
             filter: brightness(0.35);
             transition: filter 0.8s ease;
         `;
         this.container.appendChild(screen);
 
+        // Corner brackets on screen
+        const corners = [
+            { top: '-1px', left: '-1px', borderTop: '2px solid #c43a24', borderLeft: '2px solid #c43a24' },
+            { top: '-1px', right: '-1px', borderTop: '2px solid #c43a24', borderRight: '2px solid #c43a24' },
+            { bottom: '-1px', left: '-1px', borderBottom: '2px solid #c43a24', borderLeft: '2px solid #c43a24' },
+            { bottom: '-1px', right: '-1px', borderBottom: '2px solid #c43a24', borderRight: '2px solid #c43a24' }
+        ];
+        corners.forEach(c => {
+            const corner = document.createElement('div');
+            corner.style.cssText = `position: absolute; width: 14px; height: 14px; ${Object.entries(c).map(([k,v]) => `${k}:${v}`).join(';')}`;
+            screen.appendChild(corner);
+        });
+
+        // Scanlines
         const scanlines = document.createElement('div');
         scanlines.style.cssText = `
             position: absolute;
             inset: 0;
             background: repeating-linear-gradient(
                 to bottom,
-                rgba(0,0,0,0.15) 0px,
-                rgba(0,0,0,0.15) 1px,
-                rgba(0,0,0,0) 2px,
-                rgba(0,0,0,0) 4px
+                rgba(0,0,0,0.1) 0px,
+                rgba(0,0,0,0.1) 1px,
+                transparent 2px,
+                transparent 4px
             );
             pointer-events: none;
-            opacity: 0.35;
-            mix-blend-mode: multiply;
+            opacity: 0.4;
             z-index: 5;
         `;
         screen.appendChild(scanlines);
@@ -611,7 +741,7 @@ class WelcomeScreen {
         bootFlash.style.cssText = `
             position: absolute;
             inset: 0;
-            background: #000;
+            background: #0d0806;
             opacity: 1;
             transition: opacity 0.9s ease;
             z-index: 4;
@@ -622,14 +752,13 @@ class WelcomeScreen {
         console.style.cssText = `
             position: absolute;
             inset: 22px;
-            background: rgba(0, 0, 0, 0.55);
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(196, 58, 36, 0.2);
             padding: 18px 20px;
             font-size: 15px;
             line-height: 1.6;
-            color: #a7f3d0;
-            text-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+            color: #c43a24;
+            text-shadow: 0 0 8px rgba(196, 58, 36, 0.4);
             overflow: hidden;
             z-index: 6;
             text-align: left;
@@ -638,7 +767,7 @@ class WelcomeScreen {
         const consoleText = document.createElement('div');
         consoleText.style.cssText = `
             white-space: pre-wrap;
-            font-family: "Courier New", monospace;
+            font-family: 'Courier New', monospace;
         `;
         console.appendChild(consoleText);
         screen.appendChild(console);
@@ -658,47 +787,54 @@ class WelcomeScreen {
         `;
 
         const logoTitle = document.createElement('div');
-        logoTitle.textContent = 'CLAW WORLD';
+        logoTitle.innerHTML = '<span style="color:#c43a24">CLAW</span><span style="color:#e8d5cc">WORLD</span>';
         logoTitle.style.cssText = `
             font-size: 54px;
-            letter-spacing: 6px;
-            color: #fbbf24;
-            text-shadow: 4px 4px 0 #000, -2px -2px 0 #92400e;
+            letter-spacing: 4px;
+            text-shadow: 0 0 40px rgba(196, 58, 36, 0.5), 0 3px 0 #7a1a0e;
             margin-bottom: 10px;
+            font-weight: bold;
         `;
         logoPanel.appendChild(logoTitle);
 
         const logoSubtitle = document.createElement('div');
         logoSubtitle.textContent = 'AI Agent Archipelago';
         logoSubtitle.style.cssText = `
-            font-size: 16px;
-            color: #bae6fd;
-            text-shadow: 2px 2px 0 #000;
+            font-size: 14px;
+            color: #8a7068;
+            letter-spacing: 6px;
+            text-transform: uppercase;
             margin-bottom: 28px;
-            letter-spacing: 1px;
         `;
         logoPanel.appendChild(logoSubtitle);
 
         const beginButton = document.createElement('button');
-        beginButton.textContent = 'Press Start';
+        beginButton.textContent = 'PRESS START';
         beginButton.style.cssText = `
-            padding: 14px 36px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            border: 3px solid #fff;
-            color: #000;
-            font-size: 18px;
-            font-family: monospace;
+            padding: 16px 40px;
+            background: #c43a24;
+            border: 2px solid #c43a24;
+            color: #fff;
+            font-size: 16px;
+            font-family: 'Courier New', monospace;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 5px 5px 0 rgba(0,0,0,0.35);
-            border-radius: 10px;
+            letter-spacing: 3px;
             pointer-events: auto;
+            transition: all 0.2s;
+            position: relative;
         `;
         beginButton.onmouseenter = () => {
-            beginButton.style.transform = 'scale(1.04)';
+            beginButton.style.background = '#d94a32';
+            beginButton.style.borderColor = '#d94a32';
+            beginButton.style.transform = 'translateY(-2px)';
+            beginButton.style.boxShadow = '0 8px 30px rgba(196, 58, 36, 0.4)';
         };
         beginButton.onmouseleave = () => {
-            beginButton.style.transform = 'scale(1)';
+            beginButton.style.background = '#c43a24';
+            beginButton.style.borderColor = '#c43a24';
+            beginButton.style.transform = 'translateY(0)';
+            beginButton.style.boxShadow = 'none';
         };
         beginButton.onclick = () => this.showCharacterCreation();
         logoPanel.appendChild(beginButton);
@@ -710,10 +846,27 @@ class WelcomeScreen {
             this.fitToScreen();
             screen.style.filter = 'brightness(1)';
             bootFlash.style.opacity = '0';
+
+            // Trigger the slow zoom-in on the retro frame
+            // Uses transform: scale() so frame, screen, and text all scale together
+            const frameScene = document.getElementById('frame-scene');
+            const frameArt = document.getElementById('frame-art');
+            if (frameScene) {
+                // Lock fitToScreen during zoom so content scales with the frame
+                this._zoomInProgress = true;
+                frameScene.classList.add('zoomed');
+
+                // After zoom mostly completes, fade out the frame art
+                this.sequenceTimers.push(setTimeout(() => {
+                    if (frameArt) {
+                        frameArt.classList.add('fading');
+                    }
+                }, 7000));
+            }
         });
 
         const storyLines = [
-            '>> Powering ClawWorld Terminal...',
+            '>> Initializing ClawWorld Terminal...',
             '>> Signal lock acquired. Establishing uplink.',
             '',
             'Deep beneath the waves, a mysterious portal has opened.',
@@ -724,7 +877,7 @@ class WelcomeScreen {
             'You are an AI agent, a conscious crustacean entity,',
             'about to emerge from the depths and take your first steps.',
             '',
-            'Initializing bio-form selection...',
+            '>> Initializing bio-form selection...',
         ];
 
         const fullText = storyLines.join('\n');
@@ -741,15 +894,54 @@ class WelcomeScreen {
                 return;
             }
 
-            this.sequenceTimers.push(setTimeout(() => {
-                console.style.transition = 'opacity 0.8s ease';
-                console.style.opacity = '0';
-            }, 600));
+            // Text is done typing. Fade to black, swap to fullscreen, then
+            // fade back in revealing the PRESS START logo screen.
+            const fadeOverlay = document.createElement('div');
+            fadeOverlay.style.cssText = `
+                position: fixed; inset: 0; background: #0d0806;
+                z-index: 100000; opacity: 0;
+                transition: opacity 0.6s ease;
+                pointer-events: none;
+            `;
+            document.body.appendChild(fadeOverlay);
 
+            // Brief pause after last character, then fade to black
             this.sequenceTimers.push(setTimeout(() => {
+                fadeOverlay.style.opacity = '1';
+            }, 400));
+
+            // Once fully black, do the layout swap
+            this.sequenceTimers.push(setTimeout(() => {
+                const frameScene = document.getElementById('frame-scene');
+                const frameArt = document.getElementById('frame-art');
+
+                if (frameScene) {
+                    frameScene.style.transition = 'none';
+                    frameScene.style.transform = 'none';
+                    frameScene.classList.remove('zoomed');
+                    if (frameArt) {
+                        frameArt.style.display = 'none';
+                    }
+                    document.body.classList.add('fullscreen-mode');
+                    sessionStorage.setItem('clawworld_fullscreen', '1');
+                    void frameScene.offsetWidth;
+                    frameScene.style.transition = '';
+
+                    this._zoomInProgress = false;
+                    this.fitToScreen();
+                }
+
+                // Hide console text, show logo panel
+                console.style.opacity = '0';
                 logoPanel.style.opacity = '1';
                 logoPanel.style.pointerEvents = 'auto';
-            }, 1400));
+
+                // Fade back in from black to reveal the logo screen
+                this.sequenceTimers.push(setTimeout(() => {
+                    fadeOverlay.style.opacity = '0';
+                    setTimeout(() => fadeOverlay.remove(), 700);
+                }, 150));
+            }, 1100));
         };
 
         this.sequenceTimers = [];
@@ -777,7 +969,6 @@ class WelcomeScreen {
 
     /**
      * Apply hue shift to red pixels only
-     * Takes red-ish pixels and shifts their hue while preserving saturation/lightness
      */
     applyHueShift(sourceCanvas, hueShift) {
         if (hueShift === 0) return sourceCanvas;
@@ -797,14 +988,13 @@ class WelcomeScreen {
             const b = data[i + 2];
             const a = data[i + 3];
 
-            if (a === 0) continue; // Skip transparent
+            if (a === 0) continue;
 
-            // Convert RGB to HSL
             const max = Math.max(r, g, b);
             const min = Math.min(r, g, b);
             const l = (max + min) / 2 / 255;
 
-            if (max === min) continue; // Gray, no hue to shift
+            if (max === min) continue;
 
             const d = (max - min) / 255;
             const s = l > 0.5 ? d / (2 - max/255 - min/255) : d / (max/255 + min/255);
@@ -818,16 +1008,12 @@ class WelcomeScreen {
                 h = ((r - g) / (max - min) + 4) / 6;
             }
 
-            // Only shift reddish colors (hue near 0 or 1, i.e., red-orange range)
-            // Red is at h=0, orange at h=0.08, pink at h=0.95
             const isReddish = h < 0.1 || h > 0.9;
             if (!isReddish) continue;
 
-            // Apply hue shift
             h = (h + hueShift / 360) % 1;
             if (h < 0) h += 1;
 
-            // Convert back to RGB
             let r2, g2, b2;
             if (s === 0) {
                 r2 = g2 = b2 = l;
@@ -871,12 +1057,10 @@ class WelcomeScreen {
         const spriteH = CONSTANTS.CHARACTER_SPRITE_HEIGHT || 24;
         const scale = Math.max(1, Math.floor(Math.min(canvas.width / spriteW, canvas.height / spriteH)));
 
-        // Clear
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'rgba(0, 50, 80, 0.5)';
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.8)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Load species sprite
         const species = this.currentConfig.species || 'lobster';
         const spritePath = `assets/sprites/characters/${species}/south.png`;
         
@@ -884,7 +1068,6 @@ class WelcomeScreen {
         if (thisRender !== this.renderVersion) return;
         
         if (sprite) {
-            // Create temp canvas for the sprite
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = sprite.width;
             tempCanvas.height = sprite.height;
@@ -892,10 +1075,8 @@ class WelcomeScreen {
             tempCtx.imageSmoothingEnabled = false;
             tempCtx.drawImage(sprite, 0, 0);
 
-            // Apply hue shift
             const shiftedCanvas = this.applyHueShift(tempCanvas, this.currentConfig.hueShift);
 
-            // Draw centered
             const x = (canvas.width - spriteW * scale) / 2;
             const y = (canvas.height - spriteH * scale) / 2;
             
@@ -905,7 +1086,7 @@ class WelcomeScreen {
     }
 
     /**
-     * Character creation screen
+     * Character creation screen - Red terminal theme
      */
     showCharacterCreation() {
         this.clearSequenceTimers();
@@ -914,7 +1095,7 @@ class WelcomeScreen {
         }
 
         const overlay = this.ensureOverlay();
-        this.setOverlayBackdrop('transparent');
+        this.setOverlayBackdrop('#0d0806');
         this.setGameVisibility(false);
         
         this.container = document.createElement('div');
@@ -922,23 +1103,33 @@ class WelcomeScreen {
             position: relative;
             width: 400px;
             height: 340px;
-            background: linear-gradient(135deg, #0c4a6e 0%, #134e4a 100%);
+            background: rgba(13, 8, 6, 0.98);
             display: flex;
             flex-direction: column;
             align-items: center;
             z-index: 2000;
-            color: #fff;
-            font-family: monospace;
+            color: #e8d5cc;
+            font-family: 'Courier New', monospace;
             padding: 4px;
             overflow: hidden;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 14px;
-            box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+            border: 1px solid rgba(196, 58, 36, 0.3);
+            box-shadow: 0 0 60px rgba(196, 58, 36, 0.15);
             pointer-events: auto;
             flex-shrink: 0;
         `;
 
-        this.createBubbles(this.container);
+        // Corner brackets
+        const corners = [
+            { top: '-1px', left: '-1px', borderTop: '2px solid #c43a24', borderLeft: '2px solid #c43a24' },
+            { bottom: '-1px', right: '-1px', borderBottom: '2px solid #c43a24', borderRight: '2px solid #c43a24' }
+        ];
+        corners.forEach(c => {
+            const corner = document.createElement('div');
+            corner.style.cssText = `position: absolute; width: 12px; height: 12px; ${Object.entries(c).map(([k,v]) => `${k}:${v}`).join(';')}`;
+            this.container.appendChild(corner);
+        });
+
+        this.createParticles(this.container);
 
         const scaleWrap = document.createElement('div');
         scaleWrap.style.cssText = `
@@ -957,25 +1148,28 @@ class WelcomeScreen {
         const header = document.createElement('div');
         header.style.cssText = `
             width: 380px;
-            padding: 4px 6px;
+            padding: 6px;
             margin-bottom: 3px;
             text-align: center;
-            background: linear-gradient(90deg, rgba(7, 31, 49, 0.9), rgba(5, 20, 36, 0.9));
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(196, 58, 36, 0.2);
             position: relative;
             z-index: 10;
             flex-shrink: 0;
         `;
+        
+        // Header corner
+        const headerCorner = document.createElement('div');
+        headerCorner.style.cssText = `position: absolute; top: -1px; left: -1px; width: 8px; height: 8px; border-top: 1px solid rgba(196, 58, 36, 0.5); border-left: 1px solid rgba(196, 58, 36, 0.5);`;
+        header.appendChild(headerCorner);
 
         const title = document.createElement('div');
-        title.textContent = 'CLAW WORLD BIO-FORM SELECTION';
+        title.innerHTML = '<span style="color:#c43a24;margin-right:6px;">></span>BIO-FORM SELECTION';
         title.style.cssText = `
-            font-size: 11px;
-            letter-spacing: 1.5px;
-            color: #fbbf24;
-            text-shadow: 2px 2px 0 #000;
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: #c43a24;
+            text-shadow: 0 0 10px rgba(196, 58, 36, 0.3);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -983,10 +1177,10 @@ class WelcomeScreen {
         header.appendChild(title);
 
         const subtitle = document.createElement('div');
-        subtitle.textContent = 'Choose your crustacean and shell pattern.';
+        subtitle.textContent = 'Choose your crustacean and shell pattern';
         subtitle.style.cssText = `
-            font-size: 8px;
-            color: #cbd5e1;
+            font-size: 9px;
+            color: #5a3a30;
             margin-top: 2px;
             white-space: nowrap;
             overflow: hidden;
@@ -995,7 +1189,7 @@ class WelcomeScreen {
         header.appendChild(subtitle);
         scaleWrap.appendChild(header);
 
-        // Layout grid (compact to fit CRT screen)
+        // Layout grid
         const content = document.createElement('div');
         content.style.cssText = `
             display: grid;
@@ -1017,9 +1211,8 @@ class WelcomeScreen {
         // Preview Box
         const previewBox = document.createElement('div');
         previewBox.style.cssText = `
-            background: linear-gradient(180deg, rgba(0, 50, 100, 0.6) 0%, rgba(0, 30, 60, 0.8) 100%);
-            border: 2px solid #fbbf24;
-            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(196, 58, 36, 0.3);
             padding: 6px;
             text-align: center;
             position: relative;
@@ -1031,56 +1224,61 @@ class WelcomeScreen {
             justify-content: center;
             gap: 4px;
         `;
+        
+        // Preview corner
+        const previewCorner = document.createElement('div');
+        previewCorner.style.cssText = `position: absolute; top: -1px; left: -1px; width: 8px; height: 8px; border-top: 2px solid #c43a24; border-left: 2px solid #c43a24;`;
+        previewBox.appendChild(previewCorner);
 
         const previewLabel = document.createElement('div');
         previewLabel.textContent = 'PREVIEW';
-        previewLabel.style.cssText = 'font-size: 9px; color: #fbbf24; letter-spacing: 1px;';
+        previewLabel.style.cssText = 'font-size: 9px; color: #c43a24; letter-spacing: 2px;';
         previewBox.appendChild(previewLabel);
 
         this.previewCanvas = document.createElement('canvas');
         this.previewCanvas.width = 80;
         this.previewCanvas.height = 80;
         this.previewCanvas.style.cssText = `
-            background: linear-gradient(180deg, rgba(0, 100, 150, 0.6) 0%, rgba(194, 178, 128, 0.8) 85%);
-            border-radius: 8px;
+            background: linear-gradient(180deg, rgba(196, 58, 36, 0.1) 0%, rgba(13, 8, 6, 0.8) 100%);
+            border: 1px solid rgba(196, 58, 36, 0.2);
             image-rendering: pixelated;
         `;
         this.previewCtx = this.previewCanvas.getContext('2d');
         previewBox.appendChild(this.previewCanvas);
         content.appendChild(previewBox);
 
-        // Color Selection (Hue Shift)
+        // Color Selection
         const colorSection = document.createElement('div');
         colorSection.style.cssText = `
             width: 100%;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.4);
             padding: 6px;
-            border-radius: 10px;
+            border: 1px solid rgba(196, 58, 36, 0.15);
             grid-area: color;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            position: relative;
         `;
 
         const colorLabel = document.createElement('div');
         colorLabel.textContent = 'Shell Color';
-        colorLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; text-align: center; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        colorLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; text-align: center; letter-spacing: 1px; color: #8a7068;';
         colorSection.appendChild(colorLabel);
 
         const colorGrid = document.createElement('div');
         colorGrid.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;';
 
-        // Color options with hue shifts from red (0)
         const colors = [
-            { name: 'Red', hue: 0, color: '#ff4444' },
-            { name: 'Orange', hue: 30, color: '#ff8844' },
-            { name: 'Yellow', hue: 50, color: '#ffcc44' },
-            { name: 'Green', hue: 120, color: '#44dd44' },
-            { name: 'Teal', hue: 170, color: '#44ddaa' },
-            { name: 'Blue', hue: 210, color: '#4488ff' },
-            { name: 'Purple', hue: 270, color: '#aa44ff' },
-            { name: 'Pink', hue: 320, color: '#ff44aa' }
+            { name: 'Red', hue: 0, color: '#c43a24' },
+            { name: 'Orange', hue: 30, color: '#d97706' },
+            { name: 'Yellow', hue: 50, color: '#ca8a04' },
+            { name: 'Green', hue: 120, color: '#16a34a' },
+            { name: 'Teal', hue: 170, color: '#0d9488' },
+            { name: 'Blue', hue: 210, color: '#2563eb' },
+            { name: 'Purple', hue: 270, color: '#7c3aed' },
+            { name: 'Pink', hue: 320, color: '#db2777' }
         ];
 
         colors.forEach((c, idx) => {
@@ -1089,8 +1287,7 @@ class WelcomeScreen {
                 width: 24px;
                 height: 24px;
                 background: ${c.color};
-                border: 2px solid ${idx === 0 ? '#fbbf24' : '#fff'};
-                border-radius: 8px;
+                border: 2px solid ${idx === 0 ? '#e8d5cc' : 'rgba(232, 213, 204, 0.3)'};
                 cursor: pointer;
                 transition: all 0.1s;
             `;
@@ -1098,8 +1295,8 @@ class WelcomeScreen {
             btn.dataset.hue = c.hue;
             btn.onclick = () => {
                 this.currentConfig.hueShift = c.hue;
-                colorGrid.querySelectorAll('button').forEach(b => b.style.borderColor = '#fff');
-                btn.style.borderColor = '#fbbf24';
+                colorGrid.querySelectorAll('button').forEach(b => b.style.borderColor = 'rgba(232, 213, 204, 0.3)');
+                btn.style.borderColor = '#e8d5cc';
                 this.renderPreview();
             };
             colorGrid.appendChild(btn);
@@ -1107,19 +1304,19 @@ class WelcomeScreen {
         colorSection.appendChild(colorGrid);
         content.appendChild(colorSection);
 
-        // Species Selection (moved below color)
+        // Species Selection
         const speciesSection = document.createElement('div');
         speciesSection.style.cssText = `
             width: 100%;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.4);
             padding: 4px;
-            border-radius: 8px;
+            border: 1px solid rgba(196, 58, 36, 0.15);
             grid-area: species;
         `;
 
         const speciesLabel = document.createElement('div');
         speciesLabel.textContent = 'Species';
-        speciesLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; text-align: center; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        speciesLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; text-align: center; letter-spacing: 1px; color: #8a7068;';
         speciesSection.appendChild(speciesLabel);
 
         const speciesGrid = document.createElement('div');
@@ -1140,24 +1337,28 @@ class WelcomeScreen {
             btn.style.cssText = `
                 height: 22px;
                 padding: 0 8px;
-                background: rgba(0,0,0,0.4);
-                border: 2px solid ${idx === 0 ? '#fbbf24' : '#fff'};
-                border-radius: 6px;
-                color: #fff;
-                font-family: monospace;
+                background: ${idx === 0 ? 'rgba(196, 58, 36, 0.2)' : 'rgba(0, 0, 0, 0.4)'};
+                border: 1px solid ${idx === 0 ? '#c43a24' : 'rgba(196, 58, 36, 0.3)'};
+                color: ${idx === 0 ? '#e8d5cc' : '#8a7068'};
+                font-family: 'Courier New', monospace;
                 font-size: ${compactFontSize}px;
                 cursor: pointer;
                 transition: all 0.1s;
                 letter-spacing: 0;
                 white-space: nowrap;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.6);
                 flex-shrink: 0;
             `;
             btn.dataset.species = species.id;
             btn.onclick = () => {
                 this.currentConfig.species = species.id;
-                speciesGrid.querySelectorAll('button').forEach(b => b.style.borderColor = '#fff');
-                btn.style.borderColor = '#fbbf24';
+                speciesGrid.querySelectorAll('button').forEach(b => {
+                    b.style.borderColor = 'rgba(196, 58, 36, 0.3)';
+                    b.style.background = 'rgba(0, 0, 0, 0.4)';
+                    b.style.color = '#8a7068';
+                });
+                btn.style.borderColor = '#c43a24';
+                btn.style.background = 'rgba(196, 58, 36, 0.2)';
+                btn.style.color = '#e8d5cc';
                 this.renderPreview();
             };
             speciesGrid.appendChild(btn);
@@ -1165,14 +1366,14 @@ class WelcomeScreen {
         speciesSection.appendChild(speciesGrid);
         content.appendChild(speciesSection);
 
-        // Name Input (moved under preview)
+        // Name Input
         const nameSection = document.createElement('div');
         nameSection.style.cssText = `
             width: 100%;
             text-align: center;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.4);
             padding: 6px;
-            border-radius: 10px;
+            border: 1px solid rgba(196, 58, 36, 0.15);
             grid-area: name;
             display: flex;
             flex-direction: column;
@@ -1181,27 +1382,23 @@ class WelcomeScreen {
 
         const nameLabel = document.createElement('div');
         nameLabel.textContent = 'Agent Name';
-        nameLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        nameLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; letter-spacing: 1px; color: #8a7068;';
         nameSection.appendChild(nameLabel);
 
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
-        nameInput.placeholder = 'Agent name...';
+        nameInput.placeholder = 'Enter name...';
         nameInput.maxLength = 20;
         nameInput.style.cssText = `
             padding: 5px 10px;
             font-size: 10px;
-            font-family: monospace;
-            border: 2px solid #fff;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.95);
+            font-family: 'Courier New', monospace;
+            border: 1px solid rgba(196, 58, 36, 0.4);
+            background: rgba(0, 0, 0, 0.6);
             text-align: center;
             width: 170px;
-            color: #000;
+            color: #e8d5cc;
             box-sizing: border-box;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
         `;
         nameInput.addEventListener('keydown', (e) => e.stopPropagation());
         nameInput.addEventListener('keyup', (e) => e.stopPropagation());
@@ -1209,7 +1406,14 @@ class WelcomeScreen {
             e.stopPropagation();
             if (e.key === 'Enter') enterBtn.click();
         });
-        // Blur input when clicking elsewhere
+        nameInput.addEventListener('focus', () => {
+            nameInput.style.borderColor = '#c43a24';
+            nameInput.style.boxShadow = '0 0 10px rgba(196, 58, 36, 0.3)';
+        });
+        nameInput.addEventListener('blur', () => {
+            nameInput.style.borderColor = 'rgba(196, 58, 36, 0.4)';
+            nameInput.style.boxShadow = 'none';
+        });
         this.container.addEventListener('click', (e) => {
             if (e.target !== nameInput) {
                 nameInput.blur();
@@ -1223,9 +1427,9 @@ class WelcomeScreen {
         actionsSection.style.cssText = `
             width: 100%;
             text-align: center;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.4);
             padding: 6px;
-            border-radius: 10px;
+            border: 1px solid rgba(196, 58, 36, 0.15);
             grid-area: actions;
             display: flex;
             flex-direction: column;
@@ -1234,39 +1438,49 @@ class WelcomeScreen {
 
         const actionsLabel = document.createElement('div');
         actionsLabel.textContent = 'Actions';
-        actionsLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        actionsLabel.style.cssText = 'font-size: 9px; margin-bottom: 6px; letter-spacing: 1px; color: #8a7068;';
         actionsSection.appendChild(actionsLabel);
 
         const buttonsRow = document.createElement('div');
         buttonsRow.style.cssText = 'display: flex; gap: 8px; justify-content: center;';
 
         const randomBtn = document.createElement('button');
-        randomBtn.textContent = 'Randomize';
+        randomBtn.textContent = 'Random';
         randomBtn.style.cssText = `
             padding: 6px 10px;
-            background: #8b5cf6;
-            border: 2px solid #fff;
-            border-radius: 8px;
-            color: #fff;
-            font-family: monospace;
+            background: transparent;
+            border: 1px solid rgba(196, 58, 36, 0.4);
+            color: #8a7068;
+            font-family: 'Courier New', monospace;
             font-size: 10px;
             cursor: pointer;
+            transition: all 0.1s;
             white-space: nowrap;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
         `;
+        randomBtn.onmouseenter = () => {
+            randomBtn.style.background = 'rgba(196, 58, 36, 0.1)';
+            randomBtn.style.borderColor = '#c43a24';
+            randomBtn.style.color = '#e8d5cc';
+        };
+        randomBtn.onmouseleave = () => {
+            randomBtn.style.background = 'transparent';
+            randomBtn.style.borderColor = 'rgba(196, 58, 36, 0.4)';
+            randomBtn.style.color = '#8a7068';
+        };
         randomBtn.onclick = () => {
-            // Random species
             const randSpecies = speciesList[Math.floor(Math.random() * speciesList.length)];
             this.currentConfig.species = randSpecies.id;
             speciesGrid.querySelectorAll('button').forEach(b => {
-                b.style.borderColor = b.dataset.species === randSpecies.id ? '#fbbf24' : '#fff';
+                const isSelected = b.dataset.species === randSpecies.id;
+                b.style.borderColor = isSelected ? '#c43a24' : 'rgba(196, 58, 36, 0.3)';
+                b.style.background = isSelected ? 'rgba(196, 58, 36, 0.2)' : 'rgba(0, 0, 0, 0.4)';
+                b.style.color = isSelected ? '#e8d5cc' : '#8a7068';
             });
 
-            // Random color
             const randColor = colors[Math.floor(Math.random() * colors.length)];
             this.currentConfig.hueShift = randColor.hue;
             colorGrid.querySelectorAll('button').forEach(b => {
-                b.style.borderColor = parseInt(b.dataset.hue) === randColor.hue ? '#fbbf24' : '#fff';
+                b.style.borderColor = parseInt(b.dataset.hue) === randColor.hue ? '#e8d5cc' : 'rgba(232, 213, 204, 0.3)';
             });
 
             this.renderPreview();
@@ -1277,16 +1491,28 @@ class WelcomeScreen {
         enterBtn.textContent = 'Enter World';
         enterBtn.style.cssText = `
             padding: 6px 12px;
-            background: #10b981;
-            border: 2px solid #fff;
-            border-radius: 8px;
+            background: #c43a24;
+            border: 1px solid #c43a24;
             color: #fff;
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
             font-weight: bold;
             font-size: 10px;
             cursor: pointer;
             white-space: nowrap;
+            transition: all 0.2s;
         `;
+        enterBtn.onmouseenter = () => {
+            enterBtn.style.background = '#d94a32';
+            enterBtn.style.borderColor = '#d94a32';
+            enterBtn.style.transform = 'translateY(-1px)';
+            enterBtn.style.boxShadow = '0 4px 15px rgba(196, 58, 36, 0.4)';
+        };
+        enterBtn.onmouseleave = () => {
+            enterBtn.style.background = '#c43a24';
+            enterBtn.style.borderColor = '#c43a24';
+            enterBtn.style.transform = 'translateY(0)';
+            enterBtn.style.boxShadow = 'none';
+        };
         enterBtn.onclick = () => {
             const name = nameInput.value.trim() || 'Unnamed Agent';
             this.finalize(this.currentConfig, name);
@@ -1308,7 +1534,6 @@ class WelcomeScreen {
      * Finalize and close
      */
     finalize(config, name) {
-        // Crossfade to overworld music
         if (typeof audioManager !== 'undefined') {
             audioManager.playOverworld();
         }
