@@ -3407,6 +3407,9 @@ class Game {
         // Generate paths connecting buildings on each island
         this.generatePaths(sortedIslands);
 
+        // Apply editor map data (Spencer's hand-placed roads & decorations)
+        this.applyEditorMapData();
+
         this.outdoorBuildings = [...this.buildings];
         this.outdoorSigns = [...this.signs];
         
@@ -3535,6 +3538,51 @@ class Game {
         this.fillPathCorners();
     }
     
+    // Apply hand-placed editor map data (roads, decorations, deletions)
+    applyEditorMapData() {
+        if (typeof EDITOR_MAP_DATA === 'undefined') return;
+        
+        const data = EDITOR_MAP_DATA;
+        let placed = 0;
+        let deleted = 0;
+        
+        // First: remove deleted decorations
+        if (data.deleted && data.deleted.length > 0) {
+            const deleteSet = new Set(data.deleted);
+            const beforeCount = this.decorations.length;
+            this.decorations = this.decorations.filter(d => {
+                const key = `outdoor:${d.type}_${d.x}_${d.y}`;
+                if (deleteSet.has(key)) {
+                    deleted++;
+                    return false;
+                }
+                return true;
+            });
+        }
+        
+        // Then: add editor-placed items
+        if (data.placements) {
+            for (const [type, coords] of Object.entries(data.placements)) {
+                for (const [x, y] of coords) {
+                    // Check for duplicates
+                    const exists = this.decorations.some(d => 
+                        d.x === x && d.y === y && d.type === type
+                    );
+                    if (exists) continue;
+                    
+                    // Create decoration using the loader
+                    const decor = this.decorationLoader.createDecoration(type, x, y);
+                    if (decor) {
+                        this.decorations.push(decor);
+                        placed++;
+                    }
+                }
+            }
+        }
+        
+        console.log(`🗺️ Editor map data applied: ${placed} placed, ${deleted} deleted`);
+    }
+
     // Fill diagonal gaps at path corners/junctions
     fillPathCorners() {
         const tileSize = CONSTANTS.TILE_SIZE;
