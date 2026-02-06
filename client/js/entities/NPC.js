@@ -15,8 +15,9 @@ class NPC extends Entity {
         this.spritesByDirection = {}; // { south: img, north: img, east: img, west: img }
         this.direction = 'south'; // NPCs face down by default
         
-        // Random hue shift for variety
-        this.hueShift = Math.floor(Math.random() * 360);
+        // Random hue shift for variety (use the 8 player color options)
+        const hueOptions = [0, 30, 50, 120, 170, 200, 270, 320]; // red, orange, yellow, green, teal, blue, purple, pink
+        this.hueShift = hueOptions[Math.floor(Math.random() * hueOptions.length)];
         
         // Wandering behavior
         this.canWander = false; // Set to true for wandering NPCs

@@ -160,67 +160,68 @@ class WorldItem {
 const WorldItemSpawns = {
     // Spawn configs per island index
     // { itemId, offsetX, offsetY (tile offsets from island center), respawnTime (ms) }
+    // Items pushed to island edges/beaches — encourage exploration away from town center
     
-    island_0: [ // Port Clawson (main island)
-        { itemId: 'driftwood', offsetX: -3, offsetY: 5, respawnTime: 180000 },
-        { itemId: 'driftwood', offsetX: 6, offsetY: 3, respawnTime: 180000 },
-        { itemId: 'sea_glass', offsetX: -5, offsetY: -2, respawnTime: 240000 },
-        { itemId: 'sea_glass', offsetX: 4, offsetY: -4, respawnTime: 240000 },
-        { itemId: 'sea_glass', offsetX: 7, offsetY: 1, respawnTime: 240000 },
-        { itemId: 'coconut', offsetX: 2, offsetY: -5, respawnTime: 300000 },
-        { itemId: 'sandy_bread', offsetX: -1, offsetY: 3, respawnTime: 300000 },
-        { itemId: 'coral_fragment', offsetX: -6, offsetY: 4, respawnTime: 240000 },
-        { itemId: 'kelp_wrap', offsetX: 3, offsetY: 6, respawnTime: 300000 },
-        { itemId: 'torn_journal_page', offsetX: -4, offsetY: -5, respawnTime: 600000 },
+    island_0: [ // Port Clawson (main island) — items along coastline
+        { itemId: 'driftwood', offsetX: -9, offsetY: 7, respawnTime: 180000 },
+        { itemId: 'driftwood', offsetX: 10, offsetY: 5, respawnTime: 180000 },
+        { itemId: 'sea_glass', offsetX: -8, offsetY: -6, respawnTime: 240000 },
+        { itemId: 'sea_glass', offsetX: 7, offsetY: -8, respawnTime: 240000 },
+        { itemId: 'sea_glass', offsetX: 11, offsetY: 2, respawnTime: 240000 },
+        { itemId: 'coconut', offsetX: 6, offsetY: -9, respawnTime: 300000 },
+        { itemId: 'sandy_bread', offsetX: -7, offsetY: 8, respawnTime: 300000 },
+        { itemId: 'coral_fragment', offsetX: -10, offsetY: 3, respawnTime: 240000 },
+        { itemId: 'kelp_wrap', offsetX: 8, offsetY: 9, respawnTime: 300000 },
+        { itemId: 'torn_journal_page', offsetX: -6, offsetY: -9, respawnTime: 600000 },
     ],
     
-    island_1: [ // Molthaven
-        { itemId: 'coral_fragment', offsetX: -2, offsetY: 3, respawnTime: 240000 },
-        { itemId: 'ancient_shell', offsetX: 4, offsetY: -1, respawnTime: 360000 },
-        { itemId: 'kelp_wrap', offsetX: -3, offsetY: -3, respawnTime: 300000 },
-        { itemId: 'kelp_wrap', offsetX: 5, offsetY: 2, respawnTime: 300000 },
-        { itemId: 'pearl', offsetX: 1, offsetY: 4, respawnTime: 480000 },
-        { itemId: 'driftwood', offsetX: -5, offsetY: 1, respawnTime: 180000 },
-        { itemId: 'coconut', offsetX: 3, offsetY: -4, respawnTime: 300000 },
+    island_1: [ // Molthaven — scattered along shores
+        { itemId: 'coral_fragment', offsetX: -7, offsetY: 6, respawnTime: 240000 },
+        { itemId: 'ancient_shell', offsetX: 8, offsetY: -5, respawnTime: 360000 },
+        { itemId: 'kelp_wrap', offsetX: -6, offsetY: -7, respawnTime: 300000 },
+        { itemId: 'kelp_wrap', offsetX: 9, offsetY: 4, respawnTime: 300000 },
+        { itemId: 'pearl', offsetX: 5, offsetY: 8, respawnTime: 480000 },
+        { itemId: 'driftwood', offsetX: -9, offsetY: 2, respawnTime: 180000 },
+        { itemId: 'coconut', offsetX: 7, offsetY: -7, respawnTime: 300000 },
     ],
     
-    island_2: [ // Iron Reef
-        { itemId: 'iron_nugget', offsetX: 0, offsetY: 2, respawnTime: 360000 },
-        { itemId: 'iron_nugget', offsetX: -3, offsetY: -1, respawnTime: 360000 },
-        { itemId: 'coral_fragment', offsetX: 4, offsetY: 3, respawnTime: 240000 },
-        { itemId: 'ancient_shell', offsetX: -2, offsetY: -3, respawnTime: 360000 },
-        { itemId: 'driftwood', offsetX: 5, offsetY: 0, respawnTime: 180000 },
-        { itemId: 'glowing_scale', offsetX: -1, offsetY: 4, respawnTime: 600000 },
+    island_2: [ // Iron Reef — minerals near rocky edges
+        { itemId: 'iron_nugget', offsetX: -6, offsetY: 7, respawnTime: 360000 },
+        { itemId: 'iron_nugget', offsetX: -8, offsetY: -4, respawnTime: 360000 },
+        { itemId: 'coral_fragment', offsetX: 7, offsetY: 6, respawnTime: 240000 },
+        { itemId: 'ancient_shell', offsetX: -5, offsetY: -7, respawnTime: 360000 },
+        { itemId: 'driftwood', offsetX: 9, offsetY: -2, respawnTime: 180000 },
+        { itemId: 'glowing_scale', offsetX: -3, offsetY: 8, respawnTime: 600000 },
     ],
     
-    island_3: [ // Deepcoil Isle
-        { itemId: 'ancient_shell', offsetX: 2, offsetY: -2, respawnTime: 360000 },
-        { itemId: 'moonstone', offsetX: 0, offsetY: 3, respawnTime: 900000 },
-        { itemId: 'torn_journal_page', offsetX: -3, offsetY: 1, respawnTime: 600000 },
-        { itemId: 'old_map_fragment', offsetX: 4, offsetY: -1, respawnTime: 900000 },
-        { itemId: 'glowing_scale', offsetX: -2, offsetY: -4, respawnTime: 600000 },
-        { itemId: 'pearl', offsetX: 3, offsetY: 2, respawnTime: 480000 },
+    island_3: [ // Deepcoil Isle — rare items on remote beaches
+        { itemId: 'ancient_shell', offsetX: 6, offsetY: -6, respawnTime: 360000 },
+        { itemId: 'moonstone', offsetX: -4, offsetY: 7, respawnTime: 900000 },
+        { itemId: 'torn_journal_page', offsetX: -7, offsetY: 3, respawnTime: 600000 },
+        { itemId: 'old_map_fragment', offsetX: 8, offsetY: -4, respawnTime: 900000 },
+        { itemId: 'glowing_scale', offsetX: -5, offsetY: -7, respawnTime: 600000 },
+        { itemId: 'pearl', offsetX: 7, offsetY: 5, respawnTime: 480000 },
     ],
     
-    island_4: [ // Smaller island
-        { itemId: 'sea_glass', offsetX: 1, offsetY: 1, respawnTime: 240000 },
-        { itemId: 'driftwood', offsetX: -2, offsetY: 2, respawnTime: 180000 },
-        { itemId: 'coconut', offsetX: 0, offsetY: -2, respawnTime: 300000 },
-        { itemId: 'coral_fragment', offsetX: 3, offsetY: 0, respawnTime: 240000 },
+    island_4: [ // Smaller island — edges are close
+        { itemId: 'sea_glass', offsetX: 5, offsetY: 4, respawnTime: 240000 },
+        { itemId: 'driftwood', offsetX: -5, offsetY: 5, respawnTime: 180000 },
+        { itemId: 'coconut', offsetX: 3, offsetY: -5, respawnTime: 300000 },
+        { itemId: 'coral_fragment', offsetX: 6, offsetY: -3, respawnTime: 240000 },
     ],
     
-    island_5: [ // Whisper Reef area
-        { itemId: 'sea_glass', offsetX: -1, offsetY: 3, respawnTime: 240000 },
-        { itemId: 'enchanted_pearl', offsetX: 2, offsetY: -2, respawnTime: 1200000 },
-        { itemId: 'ancient_shell', offsetX: -3, offsetY: 0, respawnTime: 360000 },
-        { itemId: 'golden_doubloon', offsetX: 0, offsetY: -4, respawnTime: 900000 },
+    island_5: [ // Whisper Reef area — hidden treasures on far shores
+        { itemId: 'sea_glass', offsetX: -5, offsetY: 6, respawnTime: 240000 },
+        { itemId: 'enchanted_pearl', offsetX: 6, offsetY: -5, respawnTime: 1200000 },
+        { itemId: 'ancient_shell', offsetX: -7, offsetY: -3, respawnTime: 360000 },
+        { itemId: 'golden_doubloon', offsetX: 4, offsetY: -7, respawnTime: 900000 },
     ],
     
-    // Generic spawns for islands 6+
+    // Generic spawns for islands 6+ — beach items
     generic: [
-        { itemId: 'driftwood', offsetX: 0, offsetY: 2, respawnTime: 180000 },
-        { itemId: 'sea_glass', offsetX: -2, offsetY: -1, respawnTime: 240000 },
-        { itemId: 'coral_fragment', offsetX: 3, offsetY: 1, respawnTime: 240000 },
+        { itemId: 'driftwood', offsetX: -5, offsetY: 6, respawnTime: 180000 },
+        { itemId: 'sea_glass', offsetX: 6, offsetY: -4, respawnTime: 240000 },
+        { itemId: 'coral_fragment', offsetX: 7, offsetY: 3, respawnTime: 240000 },
     ]
 };
 

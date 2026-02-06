@@ -94,6 +94,9 @@ class Game {
         // Decorations (plants, shells, rocks)
         this.decorations = [];
         this.outdoorDecorations = [];
+        
+        // Game active state - false until welcome screen is dismissed
+        this.gameActive = false;
 
         // Dialog system
         this.dialogSystem = new DialogSystem();
@@ -371,6 +374,9 @@ class Game {
             if (this.redCurrent) {
                 this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
             }
+            
+            // Mark game as active — item pickups, interactions etc. now enabled
+            this.gameActive = true;
         });
     }
 
@@ -430,8 +436,9 @@ class Game {
         }
 
         // Update world items and check for pickups (every 0.15s for performance)
+        // Don't pick up items until welcome screen is dismissed
         this.worldItemCheckTimer = (this.worldItemCheckTimer || 0) + deltaTime;
-        if (this.worldItems.length > 0) {
+        if (this.gameActive && this.worldItems.length > 0) {
             // Update bobbing for nearby items only
             const px = this.player.position.x;
             const py = this.player.position.y;
@@ -2649,6 +2656,7 @@ class Game {
     loadNPCSprite(npc) {
         const species = npc.species || 'lobster';
         const basePath = `assets/sprites/characters/${species}`;
+        const hueShift = npc.hueShift || 0;
         
         // Load directional sprites
         const directions = ['south', 'north', 'east', 'west'];
@@ -2659,7 +2667,7 @@ class Game {
         directions.forEach(dir => {
             const img = new Image();
             img.onload = () => {
-                directionalSprites[dir] = img;
+                directionalSprites[dir] = hueShift !== 0 ? this.applyHueShiftToImage(img, hueShift) : img;
                 npc.setDirectionalSprites(directionalSprites);
             };
             img.src = `${basePath}/${dir}.png`;
@@ -2670,12 +2678,72 @@ class Game {
             for (let i = 0; i < 3; i++) {
                 const walkImg = new Image();
                 walkImg.onload = () => {
-                    walkSprites[dir][i] = walkImg;
+                    walkSprites[dir][i] = hueShift !== 0 ? this.applyHueShiftToImage(walkImg, hueShift) : walkImg;
                     npc.setWalkSprites(walkSprites);
                 };
                 walkImg.src = `${basePath}/frames/${dir}_walk_${i}.png`;
             }
         });
+    }
+    
+    // Apply hue shift to a loaded image, returns a canvas
+    applyHueShiftToImage(image, hueShift) {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+            if (a === 0) continue;
+            
+            // Convert to HSL
+            const max = Math.max(r, g, b) / 255;
+            const min = Math.min(r, g, b) / 255;
+            const l = (max + min) / 2;
+            
+            if (max === min) continue; // Gray, skip
+            
+            const d = max - min;
+            const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            
+            let h;
+            const rn = r/255, gn = g/255, bn = b/255;
+            if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+            else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+            else h = ((rn - gn) / d + 4) / 6;
+            
+            // Only shift reddish/warm colors (hue near 0 or 1)
+            if (h > 0.1 && h < 0.9) continue;
+            
+            // Apply shift
+            h = (h + hueShift / 360) % 1;
+            if (h < 0) h += 1;
+            
+            // HSL to RGB
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            };
+            
+            const q2 = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p2 = 2 * l - q2;
+            
+            data[i] = Math.round(hue2rgb(p2, q2, h + 1/3) * 255);
+            data[i+1] = Math.round(hue2rgb(p2, q2, h) * 255);
+            data[i+2] = Math.round(hue2rgb(p2, q2, h - 1/3) * 255);
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        return canvas;
     }
 
     // Update FPS counter

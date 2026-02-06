@@ -1,0 +1,6 @@
+client/
+docs/
+scripts/
+*.md
+.claude/
+.git/

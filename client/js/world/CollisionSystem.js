@@ -116,30 +116,36 @@ class CollisionSystem {
         }
         
         // Check collision with remote players (very forgiving - players can push through)
-        // Only block if player is trying to move INTO another player, not if already overlapping
+        // Use targetPosition (server truth) not interpolated position to avoid jitter
         if (this.remotePlayers && this.player) {
-            const playerCenterX = this.player.position.x + this.player.width / 2;
-            const playerCenterY = this.player.position.y + this.player.height / 2;
-            
             for (const [id, remote] of this.remotePlayers) {
+                // Use target position (stable server value) instead of interpolated position
+                // This prevents jitter when the remote player is moving
+                const remotePos = remote.targetPosition || remote.position;
+                
                 // Use very small collision box (6x6) centered on remote player
                 const remoteWidth = 6;
                 const remoteHeight = 6;
-                const remoteCenterX = remote.position.x + 8;
-                const remoteCenterY = remote.position.y + 12;
+                const remoteCenterX = remotePos.x + 8;
+                const remoteCenterY = remotePos.y + 12;
                 const remoteX = remoteCenterX - remoteWidth / 2;
                 const remoteY = remoteCenterY - remoteHeight / 2;
                 
                 // Check if already overlapping (don't block - let them escape)
                 const currentlyOverlapping = !(
-                    this.player.position.x + this.player.width < remote.position.x ||
-                    this.player.position.x > remote.position.x + 16 ||
-                    this.player.position.y + this.player.height < remote.position.y ||
-                    this.player.position.y > remote.position.y + 24
+                    this.player.position.x + this.player.width < remotePos.x ||
+                    this.player.position.x > remotePos.x + 16 ||
+                    this.player.position.y + this.player.height < remotePos.y ||
+                    this.player.position.y > remotePos.y + 24
                 );
                 
                 if (currentlyOverlapping) {
                     continue; // Already overlapping, let them move to escape
+                }
+                
+                // Skip collision entirely if remote is currently moving (prevents jitter)
+                if (remote.isMoving) {
+                    continue;
                 }
                 
                 // Check AABB collision with small hitbox
