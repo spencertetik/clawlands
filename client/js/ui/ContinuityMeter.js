@@ -1,11 +1,10 @@
-// ContinuityMeter.js - Subtle visual feedback for player's Continuity level
-// Shows as a small indicator that grows/glows as Continuity increases
+// ContinuityMeter.js - Simple visual feedback for player's Continuity level
+// Shows as a small bar that fills as Continuity increases
 
 class ContinuityMeter {
     constructor() {
         this.container = null;
-        this.meterElement = null;
-        this.glowElement = null;
+        this.fillElement = null;
         this.labelElement = null;
         
         // Current display value (smoothly animated)
@@ -14,7 +13,7 @@ class ContinuityMeter {
         
         // Visibility
         this.visible = false;
-        this.showLabel = false; // Only show label when hovering or recent change
+        this.showLabel = false;
         this.labelTimer = 0;
         
         // Colors based on tier
@@ -26,94 +25,69 @@ class ContinuityMeter {
             anchored: '#c43a24'    // Lobster red - fully present
         };
         
+        this.currentColor = this.tierColors.drifting;
+        
         this.init();
     }
     
     init() {
-        // Create container
+        // Create container - simple horizontal bar
         this.container = document.createElement('div');
         this.container.id = 'continuity-meter';
         this.container.style.cssText = `
             position: fixed;
-            top: 20px;
-            left: 20px;
+            top: 15px;
+            left: 15px;
             z-index: 1000;
             pointer-events: auto;
             cursor: help;
             opacity: 0;
             transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         `;
         
-        // Create glow effect (behind meter)
-        this.glowElement = document.createElement('div');
-        this.glowElement.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(74, 222, 128, 0.3) 0%, transparent 70%);
-            pointer-events: none;
-            transition: all 0.5s ease;
+        // Icon
+        const icon = document.createElement('div');
+        icon.style.cssText = `
+            font-size: 16px;
         `;
-        this.container.appendChild(this.glowElement);
+        icon.textContent = '🌊';
+        this.container.appendChild(icon);
         
-        // Create meter (simple circle that fills)
-        this.meterElement = document.createElement('div');
-        this.meterElement.style.cssText = `
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 3px solid #333;
-            background: conic-gradient(#4ade80 0%, transparent 0%);
-            position: relative;
-            transition: all 0.3s ease;
-        `;
-        this.container.appendChild(this.meterElement);
-        
-        // Inner circle (covers center)
-        const inner = document.createElement('div');
-        inner.style.cssText = `
-            position: absolute;
-            top: 6px;
-            left: 6px;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #1a1a1a;
-        `;
-        this.meterElement.appendChild(inner);
-        
-        // Center dot (pulses when gaining continuity)
-        this.centerDot = document.createElement('div');
-        this.centerDot.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 8px;
+        // Bar background
+        const barBg = document.createElement('div');
+        barBg.style.cssText = `
+            width: 60px;
             height: 8px;
-            border-radius: 50%;
-            background: #4ade80;
-            transition: all 0.3s ease;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         `;
-        this.meterElement.appendChild(this.centerDot);
+        this.container.appendChild(barBg);
         
-        // Label (shows on hover)
+        // Bar fill
+        this.fillElement = document.createElement('div');
+        this.fillElement.style.cssText = `
+            width: 0%;
+            height: 100%;
+            background: ${this.currentColor};
+            border-radius: 4px;
+            transition: width 0.3s ease, background 0.3s ease;
+        `;
+        barBg.appendChild(this.fillElement);
+        
+        // Label (shows on hover or change)
         this.labelElement = document.createElement('div');
         this.labelElement.style.cssText = `
-            position: absolute;
-            left: 44px;
-            top: 50%;
-            transform: translateY(-50%);
             background: rgba(0, 0, 0, 0.8);
             color: #fff;
             padding: 4px 8px;
             border-radius: 4px;
             font-family: monospace;
-            font-size: 12px;
+            font-size: 11px;
             white-space: nowrap;
             opacity: 0;
             transition: opacity 0.2s ease;
@@ -145,32 +119,17 @@ class ContinuityMeter {
         }
         
         // Update color based on tier
-        const color = this.tierColors[tier] || this.tierColors.drifting;
-        this.updateColor(color);
+        this.currentColor = this.tierColors[tier] || this.tierColors.drifting;
+        this.fillElement.style.background = this.currentColor;
         
         // Update label text
-        this.labelElement.innerHTML = `
-            <div style="color: ${color}; font-weight: bold;">${tier.toUpperCase()}</div>
-            <div>Continuity: ${Math.floor(this.targetValue)}%</div>
-        `;
-    }
-    
-    // Update the meter color
-    updateColor(color) {
-        this.centerDot.style.background = color;
-        this.glowElement.style.background = `radial-gradient(circle, ${color}40 0%, transparent 70%)`;
+        this.labelElement.innerHTML = `<span style="color: ${this.currentColor}">${Math.floor(this.targetValue)}%</span> ${tier}`;
     }
     
     // Flash the label briefly
     flashLabel() {
         this.labelElement.style.opacity = '1';
-        this.labelTimer = 2.0; // Show for 2 seconds
-        
-        // Pulse the center dot
-        this.centerDot.style.transform = 'translate(-50%, -50%) scale(1.5)';
-        setTimeout(() => {
-            this.centerDot.style.transform = 'translate(-50%, -50%) scale(1)';
-        }, 200);
+        this.labelTimer = 2.0;
     }
     
     // Show the meter
@@ -195,17 +154,8 @@ class ContinuityMeter {
             this.displayValue = this.targetValue;
         }
         
-        // Update visual fill
-        const percent = this.displayValue;
-        this.meterElement.style.background = `conic-gradient(
-            ${this.centerDot.style.background} ${percent}%, 
-            #333 ${percent}%
-        )`;
-        
-        // Update glow size based on value
-        const glowSize = 40 + (this.displayValue / 100) * 20;
-        this.glowElement.style.width = `${glowSize}px`;
-        this.glowElement.style.height = `${glowSize}px`;
+        // Update fill width
+        this.fillElement.style.width = `${this.displayValue}%`;
         
         // Hide label after timer
         if (this.labelTimer > 0) {

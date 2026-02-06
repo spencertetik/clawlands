@@ -12,8 +12,9 @@ class Waygate {
         this.height = 64;
         
         // Visibility threshold (Continuity required to see it)
-        this.visibilityThreshold = 70; // Need 70+ Continuity to see
-        this.fullVisibilityThreshold = 90; // Full opacity at 90+
+        // TESTING: Lowered thresholds for easier testing
+        this.visibilityThreshold = 10; // Need 10+ Continuity to see
+        this.fullVisibilityThreshold = 25; // Full opacity at 25+
         
         // Current visibility (0 = invisible, 1 = fully visible)
         this.visibility = 0;
