@@ -95,35 +95,41 @@ class Minimap {
     
     // Pre-render the static map (islands, water)
     prerenderMap() {
-        if (!this.worldMap || !this.worldMap.groundLayer) return;
+        // Use terrainMap (0=land, 1=water) instead of groundLayer (auto-tiled IDs)
+        if (!this.worldMap || !this.worldMap.terrainMap) return;
         
-        // Create texture canvas
+        const terrainMap = this.worldMap.terrainMap;
+        const rows = terrainMap.length;
+        const cols = terrainMap[0]?.length || 0;
+        
+        // Create texture canvas at actual tile resolution
         const texCanvas = document.createElement('canvas');
-        const texSize = 200; // Higher resolution texture
-        texCanvas.width = texSize;
-        texCanvas.height = texSize;
+        texCanvas.width = cols;
+        texCanvas.height = rows;
         const texCtx = texCanvas.getContext('2d');
         texCtx.imageSmoothingEnabled = false;
         
-        const texScale = texSize / Math.max(this.worldWidth, this.worldHeight) * (CONSTANTS.TILE_SIZE || 16);
-        
-        // Fill with water
-        texCtx.fillStyle = this.colors.water;
-        texCtx.fillRect(0, 0, texSize, texSize);
-        
-        // Draw land tiles
-        const rows = this.worldMap.groundLayer.length;
-        const cols = this.worldMap.groundLayer[0]?.length || 0;
-        
+        // Draw each tile as a single pixel
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                const tile = this.worldMap.groundLayer[r][c];
-                if (tile !== 1) { // Not water
-                    const x = c * texScale;
-                    const y = r * texScale;
-                    texCtx.fillStyle = this.colors.land;
-                    texCtx.fillRect(x, y, Math.ceil(texScale) + 1, Math.ceil(texScale) + 1);
+                const isWater = terrainMap[r][c] === 1;
+                if (isWater) {
+                    // Deep vs shallow water based on distance from land
+                    texCtx.fillStyle = this.colors.water;
+                } else {
+                    // Check if it's a beach tile (land adjacent to water)
+                    let nearWater = false;
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            const nr = r + dr, nc = c + dc;
+                            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && terrainMap[nr][nc] === 1) {
+                                nearWater = true;
+                            }
+                        }
+                    }
+                    texCtx.fillStyle = nearWater ? this.colors.sand : this.colors.land;
                 }
+                texCtx.fillRect(c, r, 1, 1);
             }
         }
         
@@ -178,7 +184,9 @@ class Minimap {
         
         const ctx = this.ctx;
         const size = this.expanded ? this.expandedSize : this.size;
-        const scale = size / Math.max(this.worldWidth, this.worldHeight);
+        const tileSize = CONSTANTS?.TILE_SIZE || 16;
+        const worldPixelSize = Math.max(this.worldWidth, this.worldHeight) * tileSize;
+        const scale = size / worldPixelSize;
         
         // Clear
         ctx.fillStyle = this.colors.background;
