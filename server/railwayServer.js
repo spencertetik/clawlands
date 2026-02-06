@@ -610,8 +610,7 @@ function sanitizeName(name) {
 // ============================================
 
 async function start() {
-    await initDatabase();
-    
+    // Start listening FIRST so Railway's health check passes immediately
     httpServer.listen(PORT, () => {
         console.log(`
 🦀 Claw World Server running on port ${PORT}
@@ -621,10 +620,13 @@ async function start() {
    ├─ WS:    ws://localhost:${PORT}/game (players)
    └─ WS:    ws://localhost:${PORT}/bot?key=KEY (bots)
    
-   Database: ${db ? 'Connected' : 'None (in-memory only)'}
    Bot keys: ${BOT_API_KEYS.length} configured
         `);
     });
+
+    // Connect to database in the background (don't block startup)
+    await initDatabase();
+    console.log(`   Database: ${db ? '✅ Connected' : '⚠️ None (in-memory only)'}`);
 }
 
 start().catch(console.error);
