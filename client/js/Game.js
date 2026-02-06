@@ -138,6 +138,9 @@ class Game {
         
         // Minimap (created after world is generated)
         this.minimap = null;
+        
+        // Footstep effects
+        this.footstepEffects = typeof FootstepEffects !== 'undefined' ? new FootstepEffects() : null;
 
         // Map state
         this.currentLocation = 'outdoor';
@@ -453,6 +456,11 @@ class Game {
             this.minimap.update(deltaTime, this.player, this.npcs, this.buildings, this.waygates);
             this.minimap.render();
         }
+        
+        // Update footstep effects
+        if (this.footstepEffects) {
+            this.footstepEffects.update(deltaTime, this.player, this.worldMap);
+        }
     }
 
     // Auto-enter building when player walks onto entrance (Pokémon-style)
@@ -553,6 +561,11 @@ class Game {
             npc.render(this.renderer);
         }
 
+        // Render footstep effects (behind player)
+        if (this.footstepEffects) {
+            this.footstepEffects.render(this.renderer);
+        }
+        
         // Render player (pass sprite renderer)
         this.player.render(this.renderer, this.spriteRenderer);
         
