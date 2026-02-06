@@ -318,7 +318,7 @@ wss.on('connection', async (ws, req) => {
             }
 
             // Notify others
-            broadcast({ type: 'player_left', id: playerId, name: playerData.name });
+            broadcast({ type: 'player_left', playerId: playerId, name: playerData.name });
         }
         players.delete(playerId);
     });
@@ -410,14 +410,16 @@ async function handleMessage(playerId, playerData, msg, ws) {
             
             playerData.x = msg.x;
             playerData.y = msg.y;
-            playerData.facing = msg.facing || playerData.facing;
+            playerData.direction = msg.direction || playerData.direction;
+            playerData.isMoving = msg.isMoving || false;
 
             broadcast({
                 type: 'player_moved',
-                id: playerId,
+                playerId: playerId,
                 x: msg.x,
                 y: msg.y,
-                facing: msg.facing
+                direction: msg.direction,
+                isMoving: msg.isMoving
             }, playerId);
             break;
         }
@@ -438,7 +440,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
 
             broadcast({
                 type: 'chat',
-                id: playerId,
+                playerId: playerId,
                 name: playerData.name,
                 text: message,
                 x: playerData.x,
@@ -556,7 +558,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
 
             broadcast({
                 type: 'chat',
-                id: playerId,
+                playerId: playerId,
                 name: playerData.name,
                 text: message
             });
