@@ -117,6 +117,29 @@ class RenderEngine {
         });
     }
 
+    // Helper: Draw text with clean outline (stroke + fill)
+    drawTextOutlined(text, x, y, color = '#fff', outlineColor = '#000', fontSize = 8, layer = CONSTANTS.LAYER.UI, outlineWidth = 2) {
+        this.addToLayer(layer, (ctx) => {
+            const px = Math.floor(x);
+            const py = Math.floor(y);
+            ctx.font = `bold ${fontSize}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Stroke outline
+            ctx.strokeStyle = outlineColor;
+            ctx.lineWidth = outlineWidth;
+            ctx.lineJoin = 'round';
+            ctx.miterLimit = 2;
+            ctx.strokeText(text, px, py);
+            // Fill text on top
+            ctx.fillStyle = color;
+            ctx.fillText(text, px, py);
+            // Reset alignment
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
+        });
+    }
+
     // Helper: Draw a tile
     drawTile(tileset, tileId, tileSize, columns, x, y, layer = CONSTANTS.LAYER.GROUND) {
         const sx = (tileId % columns) * tileSize;

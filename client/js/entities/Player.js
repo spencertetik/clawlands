@@ -161,13 +161,12 @@ class Player extends Entity {
         );
 
         // Draw name tag above player
-        renderer.drawText(
+        renderer.drawTextOutlined(
             this.name,
-            renderX + renderWidth / 2 - this.name.length * 2,
+            renderX + renderWidth / 2,
             renderY - 5,
-            '#fff',
-            8,
-            CONSTANTS.LAYER.UI
+            '#fff', '#000',
+            6, CONSTANTS.LAYER.UI, 1.5
         );
 
         // Draw animation frame indicator (for testing)

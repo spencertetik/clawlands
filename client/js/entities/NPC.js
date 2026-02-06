@@ -281,20 +281,10 @@ class NPC extends Entity {
             CONSTANTS.LAYER.GROUND_DECORATION
         );
 
-        // Draw name above NPC with outline for readability
-        // Center text above sprite - use character pixel width for accurate centering
-        const charWidth = 3.5; // Approximate pixel width per character at font size 6
-        const textWidth = this.name.length * charWidth;
-        const nameX = this.position.x + this.width / 2 - textWidth / 2;
-        const nameY = this.position.y - 10; // Raise slightly higher above sprite
-        
-        // Draw shadow/outline first (offset by 1px in each direction)
-        renderer.drawText(this.name, nameX - 1, nameY, '#000', 6, CONSTANTS.LAYER.UI);
-        renderer.drawText(this.name, nameX + 1, nameY, '#000', 6, CONSTANTS.LAYER.UI);
-        renderer.drawText(this.name, nameX, nameY - 1, '#000', 6, CONSTANTS.LAYER.UI);
-        renderer.drawText(this.name, nameX, nameY + 1, '#000', 6, CONSTANTS.LAYER.UI);
-        // Draw main text on top
-        renderer.drawText(this.name, nameX, nameY, '#fff', 6, CONSTANTS.LAYER.UI);
+        // Draw name above NPC with clean outline
+        const nameX = this.position.x + this.width / 2;
+        const nameY = this.position.y - 8;
+        renderer.drawTextOutlined(this.name, nameX, nameY, '#fff', '#000', 5, CONSTANTS.LAYER.UI, 1.5);
     }
 
     getDialog() {
