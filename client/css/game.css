@@ -22,13 +22,16 @@ body {
     height: 100vh;
     padding: 0;
     overflow: hidden;
+    /* Scale the fixed-size frame to fit the viewport uniformly */
+    transform-origin: center center;
 }
 
 #frame-scene {
     position: relative;
-    /* Full desk visible at start */
-    width: min(78vw, 1200px);
-    aspect-ratio: 3 / 2;
+    /* Fixed reference size — the frame wrapper scales this down uniformly
+       on smaller screens via transform so content never changes proportions */
+    width: 1200px;
+    height: 800px;
     overflow: hidden;
     flex-shrink: 0;
     /* Smooth zoom uses transform so everything scales uniformly */
