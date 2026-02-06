@@ -127,6 +127,14 @@ class Game {
         
         // Continuity UI meter
         this.continuityMeter = typeof ContinuityMeter !== 'undefined' ? new ContinuityMeter() : null;
+        
+        // Weather system
+        this.weatherSystem = typeof WeatherSystem !== 'undefined' ? 
+            new WeatherSystem(this.worldWidth, this.worldHeight) : null;
+        
+        if (this.weatherSystem) {
+            console.log(`🌤️ Weather system initialized (${this.weatherSystem.getWeatherName()})`);
+        }
 
         // Map state
         this.currentLocation = 'outdoor';
@@ -431,6 +439,11 @@ class Game {
             this.continuityMeter.setValue(value, tier);
             this.continuityMeter.update(deltaTime);
         }
+        
+        // Update weather system (outdoor only)
+        if (this.weatherSystem && this.currentLocation === 'outdoor') {
+            this.weatherSystem.update(deltaTime);
+        }
     }
 
     // Auto-enter building when player walks onto entrance (Pokémon-style)
@@ -533,6 +546,11 @@ class Game {
 
         // Render player (pass sprite renderer)
         this.player.render(this.renderer, this.spriteRenderer);
+        
+        // Render weather effects (rain, fog, etc.) on top
+        if (this.weatherSystem && this.currentLocation === 'outdoor') {
+            this.weatherSystem.render(this.renderer, this.camera);
+        }
 
         // Render debug info
         if (this.debugMode) {
