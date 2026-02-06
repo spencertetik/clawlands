@@ -1183,7 +1183,7 @@ class Game {
             this.playerCountEl.style.cssText = `
                 position: fixed;
                 top: 8px;
-                left: 8px;
+                right: 8px;
                 background: rgba(13, 8, 6, 0.75);
                 border: 1px solid rgba(196, 58, 36, 0.4);
                 border-radius: 4px;
