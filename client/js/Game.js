@@ -2997,13 +2997,10 @@ class Game {
                 }
                 
                 // Preload audio (don't await - let it load in background)
+                // Music starts in WelcomeScreen: title music on PLAY click,
+                // overworld music on finalize() after character creation
                 if (typeof audioManager !== 'undefined') {
-                    audioManager.preload().then(() => {
-                        // Start overworld music if not on welcome screen
-                        if (!document.querySelector('.welcome-screen')) {
-                            audioManager.playOverworld();
-                        }
-                    });
+                    audioManager.preload();
                 }
             })
             .load();
