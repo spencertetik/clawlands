@@ -88,22 +88,38 @@ class CollisionSystem {
         }
         
         // Check collision with NPCs (skip excludeEntity for self-collision avoidance)
-        // Use same "escape if overlapping" logic as remote players
         for (const npc of this.npcs) {
             if (npc === excludeEntity) continue; // Skip self
             
             // If player is checking collision, allow escape if already overlapping
-            if (this.player && excludeEntity === null) {
+            // This prevents the player getting permanently stuck when an NPC walks into them
+            if (this.player && !excludeEntity) {
                 // Check if player is CURRENTLY overlapping with this NPC
+                const px = this.player.position.x;
+                const py = this.player.position.y;
+                const pw = this.player.width;
+                const ph = this.player.height;
+                const nx = npc.position.x;
+                const ny = npc.position.y;
+                const nw = npc.width;
+                const nh = npc.height;
+                
                 const currentlyOverlapping = !(
-                    this.player.position.x + this.player.width < npc.position.x ||
-                    this.player.position.x > npc.position.x + npc.width ||
-                    this.player.position.y + this.player.height < npc.position.y ||
-                    this.player.position.y > npc.position.y + npc.height
+                    px + pw <= nx || px >= nx + nw ||
+                    py + ph <= ny || py >= ny + nh
                 );
                 
                 if (currentlyOverlapping) {
-                    continue; // Already overlapping with NPC, let player escape
+                    // Already stuck — check if this move takes us FURTHER from the NPC
+                    const npcCenterX = nx + nw / 2;
+                    const npcCenterY = ny + nh / 2;
+                    const currentDist = Math.abs(px + pw/2 - npcCenterX) + Math.abs(py + ph/2 - npcCenterY);
+                    const newDist = Math.abs(x + width/2 - npcCenterX) + Math.abs(y + height/2 - npcCenterY);
+                    
+                    if (newDist >= currentDist) {
+                        continue; // Moving away or same distance — allow escape
+                    }
+                    // Moving closer — still block to prevent walking through
                 }
             }
             
