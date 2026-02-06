@@ -104,13 +104,14 @@ class DialogSystem {
         return this.visible;
     }
 
-    // Show regular dialog lines
-    show(lines) {
+    // Show regular dialog lines (optional callback when dialog ends)
+    show(lines, onComplete = null) {
         this.ensureUI();
         this.lines = Array.isArray(lines) ? lines : [lines];
         this.index = 0;
         this.visible = true;
         this.inputMode = false;
+        this.onCompleteCallback = onComplete; // Store callback for when dialog ends
         this.inputContainer.style.display = 'none';
         this.updateText();
         this.container.style.display = 'block';
@@ -196,6 +197,13 @@ class DialogSystem {
         // Show touch controls again on mobile
         if (window.touchControls) {
             window.touchControls.show();
+        }
+        
+        // Call completion callback if set
+        if (this.onCompleteCallback) {
+            const callback = this.onCompleteCallback;
+            this.onCompleteCallback = null; // Clear before calling to prevent loops
+            callback();
         }
     }
 }
