@@ -40,7 +40,8 @@ const RATE_LIMIT = {
 let db = null;
 
 async function initDatabase() {
-    if (!process.env.DATABASE_URL) {
+    const dbUrl = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+    if (!dbUrl) {
         console.log('⚠️ No DATABASE_URL - running without persistence');
         return;
     }
@@ -48,7 +49,7 @@ async function initDatabase() {
     let pool = null;
     try {
         pool = new Pool({
-            connectionString: process.env.DATABASE_URL,
+            connectionString: dbUrl,
             ssl: { rejectUnauthorized: false },
             connectionTimeoutMillis: 10000,
             idleTimeoutMillis: 30000,
