@@ -135,30 +135,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     detectFrameScreen();
 
-    // Scale the fixed-size frame to fit in the viewport uniformly.
-    // This ensures the monitor content always appears at the same proportional
-    // size regardless of screen/browser dimensions — on mobile the whole desk
-    // just shrinks uniformly rather than re-laying-out the contents smaller.
-    const scaleFrameToFit = () => {
-        const wrapper = document.getElementById('frame-wrapper');
-        const scene = document.getElementById('frame-scene');
-        if (!wrapper || !scene || document.body.classList.contains('fullscreen-mode')) {
-            if (wrapper) wrapper.style.transform = '';
-            return;
-        }
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        // Reference size of the frame scene (matches CSS: 1200 × 800)
-        const refW = 1200;
-        const refH = 800;
-        const scale = Math.min(vw / refW, vh / refH, 1);
-        wrapper.style.transform = `scale(${scale})`;
-    };
-    scaleFrameToFit();
-    window.addEventListener('resize', scaleFrameToFit);
-    // Expose for WelcomeScreen to call after fullscreen swap
-    window._scaleFrameToFit = scaleFrameToFit;
-
     // Make music hint clickable
     const musicHint = document.querySelector('.music-hint');
     if (musicHint) {

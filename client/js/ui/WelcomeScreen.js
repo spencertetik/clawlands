@@ -145,11 +145,6 @@ class WelcomeScreen {
         const rect = this.container.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
 
-        // The content should always look the same size relative to the monitor
-        // screen, regardless of viewport size. We compute a single scale that
-        // fits the container into the available area — the frame itself already
-        // shrinks proportionally on smaller screens (via min(78vw, 1200px)),
-        // so the content inside scales down with it uniformly.
         const padding = 8;
         const availW = bounds.width - padding * 2;
         const availH = bounds.height - padding * 2;
@@ -924,8 +919,6 @@ class WelcomeScreen {
                         frameArt.style.display = 'none';
                     }
                     document.body.classList.add('fullscreen-mode');
-                    // Clear the wrapper scale now that we're fullscreen
-                    if (window._scaleFrameToFit) window._scaleFrameToFit();
                     void frameScene.offsetWidth;
                     frameScene.style.transition = '';
 

@@ -22,16 +22,15 @@ body {
     height: 100vh;
     padding: 0;
     overflow: hidden;
-    /* Scale the fixed-size frame to fit the viewport uniformly */
-    transform-origin: center center;
 }
 
 #frame-scene {
     position: relative;
-    /* Fixed reference size — the frame wrapper scales this down uniformly
-       on smaller screens via transform so content never changes proportions */
-    width: 1200px;
-    height: 800px;
+    /* Responsive frame: use most of the viewport, capped at 1200px.
+       On mobile (portrait), the height is the constraint, so we also
+       cap at 100vh via the aspect-ratio + max-height. */
+    width: min(96vw, 96vh * 1.5, 1200px);
+    aspect-ratio: 3 / 2;
     overflow: hidden;
     flex-shrink: 0;
     /* Smooth zoom uses transform so everything scales uniformly */
