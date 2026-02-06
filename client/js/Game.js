@@ -837,7 +837,9 @@ class Game {
         if (!hintText && this.multiplayerClient) {
             const remotePlayer = this.findNearbyRemotePlayer();
             if (remotePlayer) {
-                hintText = `[SPACE] Talk to ${remotePlayer.name}`;
+                hintText = remotePlayer.isBot 
+                    ? `[SPACE] Talk to 🤖 ${remotePlayer.name}`
+                    : `[SPACE] Wave at ${remotePlayer.name}`;
             }
         }
         
@@ -1181,21 +1183,28 @@ class Game {
         return null;
     }
 
-    // Talk to a remote player
+    // Talk to a remote player (human or bot)
     talkToRemotePlayer(remotePlayer) {
-        // Show "talking to..." message
-        this.dialogSystem.show([`${remotePlayer.name} notices you approach...`]);
+        if (remotePlayer.isBot) {
+            // For bots: show waiting message, send talk request, bot will respond
+            this.dialogSystem.show([`${remotePlayer.name} ...`]);
+            this._waitingForBotResponse = remotePlayer.id;
+        } else {
+            // For human players: just wave, no free-form chat
+            this.dialogSystem.show([`You wave at ${remotePlayer.name}!`]);
+        }
         
         // Send talk request to server
         this.multiplayerClient.send({
-            type: 'talk',
+            type: 'talk_request',
             targetId: remotePlayer.id,
             fromName: this.characterName || 'Adventurer'
         });
     }
 
-    // Handle incoming talk response from remote player
+    // Handle incoming talk response from remote player/bot
     handleRemotePlayerResponse(name, text) {
+        this._waitingForBotResponse = null;
         this.dialogSystem.show([`${name}: "${text}"`]);
     }
 

@@ -144,13 +144,14 @@ class MultiplayerClient {
                 break;
 
             case 'talk_response':
-                // Remote player responded to our talk request
-                console.log(`💬 Response from ${msg.name}: ${msg.text}`);
+                // Remote player/bot responded to our talk request
+                const responderName = msg.fromName || msg.name;
+                console.log(`💬 Response from ${responderName}: ${msg.text}`);
                 if (this.game.handleRemotePlayerResponse) {
-                    this.game.handleRemotePlayerResponse(msg.name, msg.text);
+                    this.game.handleRemotePlayerResponse(responderName, msg.text);
                 }
-                // Also show speech bubble
-                const responder = this.remotePlayers.get(msg.playerId);
+                // Also show speech bubble on the responder
+                const responder = this.remotePlayers.get(msg.fromId);
                 if (responder) {
                     responder.showSpeech(msg.text);
                 }
