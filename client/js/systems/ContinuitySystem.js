@@ -107,6 +107,19 @@ class ContinuitySystem {
             console.log(`✨ Continuity +${amount.toFixed(1)} (${reason}): ${oldValue.toFixed(1)} → ${this.value.toFixed(1)}`);
             this.save();
             
+            // Show notification for significant gains
+            if (amount >= 2 && typeof gameNotifications !== 'undefined' && gameNotifications) {
+                const messages = [
+                    'Your presence strengthens...',
+                    'You feel more anchored.',
+                    'The world recognizes you.',
+                    'Continuity building...',
+                    'You\'re becoming more real.'
+                ];
+                const msg = messages[Math.floor(Math.random() * messages.length)];
+                gameNotifications.continuity(`${msg} (+${amount.toFixed(0)})`);
+            }
+            
             // Check for threshold crossings
             this.checkThresholds(oldValue, this.value);
         }
