@@ -44,16 +44,22 @@ class Minimap {
     
     init() {
         // Detect mobile/touch device
-        const isMobile = ('ontouchstart' in window) || 
-                         (navigator.maxTouchPoints > 0) || 
-                         (navigator.msMaxTouchPoints > 0);
+        this.isMobile = ('ontouchstart' in window) || 
+                        (navigator.maxTouchPoints > 0) || 
+                        (navigator.msMaxTouchPoints > 0);
         
-        // Create container - top-right on mobile to avoid ACT button, bottom-right on desktop
+        // Hide minimap on mobile - screen too crowded with touch controls
+        if (this.isMobile) {
+            this.visible = false;
+            return;
+        }
+        
+        // Create container - bottom-right on desktop
         this.container = document.createElement('div');
         this.container.id = 'minimap-container';
         this.container.style.cssText = `
             position: fixed;
-            ${isMobile ? 'top' : 'bottom'}: ${this.margin}px;
+            bottom: ${this.margin}px;
             right: ${this.margin}px;
             z-index: 1000;
             pointer-events: auto;
