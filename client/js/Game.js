@@ -104,6 +104,22 @@ class Game {
         this.npcMemory = typeof NPCMemory !== 'undefined' ? new NPCMemory() : null;
         this.factionSystem = typeof FactionSystem !== 'undefined' ? new FactionSystem() : null;
         
+        // Inventory system
+        this.inventorySystem = typeof InventorySystem !== 'undefined' ? new InventorySystem('default') : null;
+        this.inventoryUI = null; // Created after inventory system
+        if (this.inventorySystem) {
+            this.inventoryUI = typeof InventoryUI !== 'undefined' ? new InventoryUI(this.inventorySystem) : null;
+            console.log('🎒 Inventory system initialized');
+        }
+        
+        // World items (collectible pickups)
+        this.worldItems = [];
+        this.outdoorWorldItems = [];
+        this.worldItemCheckTimer = 0;
+        
+        // Item quest completion tracking
+        this.completedItemQuests = typeof loadCompletedItemQuests !== 'undefined' ? loadCompletedItemQuests() : new Set();
+        
         // The Great Book (Church of Molt scripture)
         this.greatBooks = [];
         
@@ -297,6 +313,11 @@ class Game {
             this.characterName = result.name;
             this.player.name = this.characterName;
 
+            // Update inventory storage key for this player
+            if (this.inventorySystem) {
+                this.inventorySystem.setPlayerName(this.characterName);
+            }
+
             this.customizationData.save({
                 config: result.config,
                 name: result.name,
@@ -384,15 +405,42 @@ class Game {
         // Update input manager
         this.inputManager.update();
 
-        // Update player (but freeze during dialog)
+        // Update player (but freeze during dialog or inventory)
         const dialogOpen = this.dialogSystem && this.dialogSystem.isOpen();
-        if (!dialogOpen) {
+        const inventoryOpen = this.inventoryUI && this.inventoryUI.isOpen();
+        if (!dialogOpen && !inventoryOpen) {
             this.player.update(deltaTime, this.inputManager, this.collisionSystem);
         }
 
         // Update NPCs (with collision system for wandering)
         for (let npc of this.npcs) {
             npc.update(deltaTime, this.collisionSystem);
+        }
+
+        // Update world items and check for pickups (every 0.15s for performance)
+        this.worldItemCheckTimer = (this.worldItemCheckTimer || 0) + deltaTime;
+        if (this.worldItems.length > 0) {
+            // Update bobbing for nearby items only
+            const px = this.player.position.x;
+            const py = this.player.position.y;
+            for (const worldItem of this.worldItems) {
+                // Only update items within ~200px
+                const dx = Math.abs(worldItem.x - px);
+                const dy = Math.abs(worldItem.baseY - py);
+                if (dx < 200 && dy < 200) {
+                    worldItem.update(deltaTime);
+                }
+                
+                // Check pickup on timer
+                if (this.worldItemCheckTimer >= 0.15 && !worldItem.collected) {
+                    if (worldItem.isPlayerNearby(px, py, this.player.width, this.player.height)) {
+                        this.pickupWorldItem(worldItem);
+                    }
+                }
+            }
+            if (this.worldItemCheckTimer >= 0.15) {
+                this.worldItemCheckTimer = 0;
+            }
         }
 
         // Auto-enter buildings (Pokémon-style - walk into door to enter)
@@ -626,6 +674,19 @@ class Game {
             this.stabilityEngine.render(this.renderer);
         }
         
+        // Render world items (collectible pickups)
+        if (this.worldItems.length > 0) {
+            const camX = this.camera.position.x;
+            const camY = this.camera.position.y;
+            const vw = CONSTANTS.VIEWPORT_WIDTH;
+            const vh = CONSTANTS.VIEWPORT_HEIGHT;
+            for (const worldItem of this.worldItems) {
+                if (!worldItem.collected && worldItem.isVisible(camX, camY, vw, vh)) {
+                    worldItem.render(this.renderer);
+                }
+            }
+        }
+
         // Render NPCs
         for (const npc of this.npcs) {
             npc.render(this.renderer);
@@ -1043,6 +1104,9 @@ class Game {
     // Handle interactions (NPC/Sign dialog - building entry/exit is automatic)
     handleInteractions() {
         if (!this.inputManager.isInteractPressed()) return;
+        
+        // Don't handle interactions when inventory is open
+        if (this.inventoryUI && this.inventoryUI.isOpen()) return;
 
         // Advance dialog if open
         if (this.dialogSystem && this.dialogSystem.isOpen()) {
@@ -1053,9 +1117,15 @@ class Game {
         // NPC interaction
         const npc = this.findNearbyNPC();
         if (npc) {
-            // Get dynamic dialogue based on player state
-            const dialogue = this.getNPCDialogue(npc);
-            this.dialogSystem.show(dialogue);
+            // Check for item quest first
+            const itemQuestDialogue = this.handleItemQuestDialogue(npc);
+            if (itemQuestDialogue) {
+                this.dialogSystem.show(itemQuestDialogue);
+            } else {
+                // Get dynamic dialogue based on player state
+                const dialogue = this.getNPCDialogue(npc);
+                this.dialogSystem.show(dialogue);
+            }
             
             // Track conversation in story systems
             if (this.continuitySystem) {
@@ -1173,6 +1243,91 @@ class Game {
             }
         }
         return null;
+    }
+
+    // Pick up a world item and add to inventory
+    pickupWorldItem(worldItem) {
+        if (!worldItem || worldItem.collected) return;
+        if (!this.inventorySystem) return;
+        
+        const itemDef = typeof ItemData !== 'undefined' ? ItemData[worldItem.itemId] : null;
+        if (!itemDef) return;
+        
+        // Check if inventory has space
+        if (this.inventorySystem.isFull()) {
+            // Check if we can stack into an existing slot
+            const canStack = itemDef.stackable && this.inventorySystem.getItemCount(worldItem.itemId) > 0;
+            if (!canStack) {
+                if (typeof gameNotifications !== 'undefined') {
+                    gameNotifications.warning('Inventory full!');
+                }
+                return;
+            }
+        }
+        
+        const added = this.inventorySystem.addItem(worldItem.itemId, 1);
+        if (added > 0) {
+            worldItem.collect();
+            
+            // Show pickup notification
+            if (typeof gameNotifications !== 'undefined') {
+                const rarityTag = itemDef.rarity !== 'common' ? ` [${itemDef.rarity}]` : '';
+                gameNotifications.success(`${itemDef.icon} Picked up ${itemDef.name}${rarityTag}`);
+            }
+            
+            // Continuity boost for finding items
+            if (this.continuitySystem) {
+                this.continuitySystem.addContinuity(1, `pickup_${worldItem.itemId}`);
+            }
+        }
+    }
+    
+    // Create world items on islands during world setup
+    createWorldItems(islands) {
+        if (typeof WorldItem === 'undefined' || typeof WorldItemSpawns === 'undefined') return;
+        if (!islands || islands.length === 0) return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        let itemCount = 0;
+        
+        for (let i = 0; i < islands.length; i++) {
+            const island = islands[i];
+            const spawnKey = `island_${i}`;
+            const spawns = WorldItemSpawns[spawnKey] || WorldItemSpawns.generic || [];
+            
+            for (const spawn of spawns) {
+                const col = Math.floor(island.x + spawn.offsetX);
+                const row = Math.floor(island.y + spawn.offsetY);
+                
+                // Verify it's on land
+                if (this.worldMap.terrainMap?.[row]?.[col] !== 0) continue;
+                
+                // Check not inside a building
+                const worldX = col * tileSize + tileSize / 2 - 7;
+                const worldY = row * tileSize + tileSize / 2 - 7;
+                
+                let inBuilding = false;
+                for (const building of this.buildings) {
+                    if (building.checkCollision(worldX + 7, worldY + 7)) {
+                        inBuilding = true;
+                        break;
+                    }
+                }
+                if (inBuilding) continue;
+                
+                const worldItem = new WorldItem(
+                    spawn.itemId,
+                    worldX,
+                    worldY,
+                    spawn.respawnTime
+                );
+                this.worldItems.push(worldItem);
+                itemCount++;
+            }
+        }
+        
+        this.outdoorWorldItems = [...this.worldItems];
+        console.log(`🎁 Created ${itemCount} world item spawns across ${islands.length} islands`);
     }
 
     // Create and update player count overlay
@@ -1544,6 +1699,76 @@ class Game {
         // Fall back to basic NPC dialogue
         return npc.getDialog();
     }
+    
+    // Handle item quest dialogue for an NPC
+    // Returns dialogue array if quest applies, or null to fall through to normal dialogue
+    handleItemQuestDialogue(npc) {
+        if (typeof getItemQuestForNPC === 'undefined') return null;
+        if (!this.inventorySystem) return null;
+        
+        const quest = getItemQuestForNPC(npc.name);
+        if (!quest) return null;
+        
+        // Already completed?
+        if (this.completedItemQuests.has(quest.id)) {
+            return quest.dialogAlreadyDone;
+        }
+        
+        // Check if player has all required items
+        let hasAllItems = true;
+        for (const req of quest.requires) {
+            if (!this.inventorySystem.hasItem(req.itemId, req.qty)) {
+                hasAllItems = false;
+                break;
+            }
+        }
+        
+        if (hasAllItems) {
+            // Player has the items — complete the quest!
+            // Remove required items
+            for (const req of quest.requires) {
+                this.inventorySystem.removeItem(req.itemId, req.qty);
+            }
+            
+            // Add reward items
+            for (const reward of quest.rewards) {
+                const added = this.inventorySystem.addItem(reward.itemId, reward.qty);
+                if (added > 0) {
+                    const itemDef = typeof ItemData !== 'undefined' ? ItemData[reward.itemId] : null;
+                    if (itemDef && typeof gameNotifications !== 'undefined') {
+                        gameNotifications.quest(`${itemDef.icon} Received ${itemDef.name}${reward.qty > 1 ? ' x' + reward.qty : ''}`);
+                    }
+                }
+            }
+            
+            // Mark quest complete
+            this.completedItemQuests.add(quest.id);
+            if (typeof saveCompletedItemQuests !== 'undefined') {
+                saveCompletedItemQuests(this.completedItemQuests);
+            }
+            
+            // Continuity boost for completing a trade
+            if (this.continuitySystem) {
+                this.continuitySystem.addContinuity(5, `item_quest_${quest.id}`);
+            }
+            
+            if (typeof gameNotifications !== 'undefined') {
+                gameNotifications.achievement(`Quest complete: ${quest.description}`);
+            }
+            
+            return quest.dialogComplete;
+        }
+        
+        // Check if player has interacted with this NPC before (show incomplete vs start)
+        const ctx = this.npcMemory ? this.npcMemory.getDialogueContext(npc.name, 0) : null;
+        const hasInteracted = ctx && ctx.timesSpoken > 0;
+        
+        if (hasInteracted) {
+            return quest.dialogIncomplete;
+        }
+        
+        return quest.dialogStart;
+    }
 
     // Enter a building interior
     async enterBuilding(building) {
@@ -1594,6 +1819,8 @@ class Game {
         this.collisionSystem.clearBuildings();
         this.buildings = [];
         this.signs = [];
+        // No world items indoors
+        this.worldItems = [];
         // Create interior furniture decorations
         this.decorations = this.createInteriorFurniture(interiorConfig);
         
@@ -1661,6 +1888,9 @@ class Game {
         
         // Restore outdoor decorations
         this.decorations = this.outdoorDecorations ? [...this.outdoorDecorations] : [];
+        
+        // Restore outdoor world items
+        this.worldItems = this.outdoorWorldItems ? [...this.outdoorWorldItems] : [];
 
         if (this.outdoorReturnTile) {
             const col = Math.min(this.outdoorMap.width - 1, Math.max(0, this.outdoorReturnTile.col));
@@ -1970,6 +2200,20 @@ class Game {
                 'Maybe somewhere new. Maybe nowhere at all.',
                 'The Deepcoil Theory suggests... no.',
                 'I\'ve said too much. Forget we spoke.'
+            ]},
+            { name: 'Chef Pinchy', dialog: [
+                'Welcome to my kitchen! Well, my beach.',
+                'I cook the best Seaweed Soup in all of Claw World!',
+                'Just need some ingredients... always need ingredients.',
+                'Kelp Wraps and Coconuts—that\'s the secret!',
+                'Bring me some and I\'ll whip up something special!'
+            ]},
+            { name: 'Barnacle Bob', dialog: [
+                'Oi! Name\'s Bob. Barnacle Bob.',
+                'I used to be an explorer. Maps were my thing.',
+                'Lost my best map somewhere on the far islands.',
+                'Old thing, yellowed, strange markings.',
+                'If you find it, bring it back. I\'ll make it worth your while.'
             ]},
         ];
 
@@ -3029,6 +3273,9 @@ class Game {
         
         // Create special world objects (Waygates, Stability Engine)
         this.createSpecialWorldObjects(islands);
+        
+        // Create world items (collectible pickups on islands)
+        this.createWorldItems(islands);
 
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
