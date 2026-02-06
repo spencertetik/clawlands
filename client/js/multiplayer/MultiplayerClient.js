@@ -312,6 +312,8 @@ class RemotePlayer {
         this.game = game;
         this.id = data.id;
         this.name = data.name;
+        this.isBot = data.isBot || false;
+        this.displayName = this.isBot ? `🤖 ${data.name}` : data.name;
         this.species = data.species || 'lobster';
         this.color = data.color || 'red';
         this.hueShift = this.getHueShiftFromColor(this.color);
@@ -533,8 +535,8 @@ class RemotePlayer {
         ctx.lineWidth = 3;
         ctx.font = `bold ${7 * scale}px monospace`;
         ctx.textAlign = 'center';
-        ctx.strokeText(this.name, screenX, screenY - spriteH - 4 * scale);
-        ctx.fillText(this.name, screenX, screenY - spriteH - 4 * scale);
+        ctx.strokeText(this.displayName, screenX, screenY - spriteH - 4 * scale);
+        ctx.fillText(this.displayName, screenX, screenY - spriteH - 4 * scale);
         
         // Speech bubble if speaking (offset to the right side)
         if (this.speechText) {
