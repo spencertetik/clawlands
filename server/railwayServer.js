@@ -29,7 +29,8 @@ const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k
 // Rate limiting config
 const RATE_LIMIT = {
     windowMs: 60000,
-    maxRequests: 120,
+    maxRequests: 1200,      // ~20/sec for smooth movement
+    botMaxRequests: 600,    // ~10/sec for bots
     maxConnections: 50
 };
 
@@ -469,7 +470,8 @@ wss.on('connection', async (ws, req) => {
             if (now > playerData.rateLimit.resetTime) {
                 playerData.rateLimit = { count: 0, resetTime: now + RATE_LIMIT.windowMs };
             }
-            if (++playerData.rateLimit.count > RATE_LIMIT.maxRequests) {
+            const maxReqs = playerData.isBot ? RATE_LIMIT.botMaxRequests : RATE_LIMIT.maxRequests;
+            if (++playerData.rateLimit.count > maxReqs) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Rate limited' }));
                 return;
             }
