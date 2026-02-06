@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ClawWorld - OpenClaw RPG</title>
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="icon" sizes="192x192" href="icon-192.png">
+    <link rel="icon" sizes="512x512" href="icon-512.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ClawWorld">
+    <meta name="theme-color" content="#0d0806">
+    
+    <link rel="stylesheet" href="css/game.css?v=8">
+    <link rel="stylesheet" href="css/editor.css?v=4">
+</head>
+<body>
+    <!-- Music control hint -->
+    <div class="music-hint"><kbd>M</kbd> Toggle Music</div>
+    <div id="frame-wrapper">
+        <div id="frame-scene">
+            <img id="frame-art" src="assets/ui/retro_frame.png" alt="Retro lobster workstation">
+            <div id="frame-screen">
+                <div id="game-container">
+                    <canvas id="game-canvas"></canvas>
+                    <div id="debug-info" class="hidden">
+                        <div>FPS: <span id="fps">60</span></div>
+                        <div>Position: <span id="position">0, 0</span></div>
+                        <div>Players: <span id="player-count">1</span></div>
+                    </div>
+                </div>
+                <div id="screen-overlay"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared utilities -->
+    <script src="js/shared/Config.js"></script>
+    <script src="js/shared/Vector2.js"></script>
+    <script src="js/shared/Constants.js"></script>
+
+    <!-- Core systems -->
+    <script src="js/core/InputManager.js"></script>
+    <script src="js/core/Camera.js"></script>
+    <script src="js/core/AssetLoader.js"></script>
+    <script src="js/core/DecorationLoader.js?v=3"></script>
+    <script src="js/core/InteriorLoader.js"></script>
+
+    <!-- Rendering -->
+    <script src="js/rendering/RenderEngine.js?v=2"></script>
+    <script src="js/rendering/SpriteRenderer.js"></script>
+    <script src="js/rendering/TileRenderer.js"></script>
+    <script src="js/rendering/AnimationSystem.js"></script>
+
+    <!-- Entities -->
+    <script src="js/entities/Entity.js"></script>
+    <script src="js/entities/Player.js"></script>
+    <script src="js/entities/RemotePlayer.js"></script>
+    <script src="js/entities/NPC.js"></script>
+
+    <!-- World -->
+    <script src="js/world/AutoTiler.js"></script>
+    <script src="js/world/WorldMap.js"></script>
+    <script src="js/world/CollisionSystem.js"></script>
+    <script src="js/world/InteractionSystem.js"></script>
+    <script src="js/world/Building.js"></script>
+    <script src="js/world/Sign.js"></script>
+    <script src="js/world/ChronicleStone.js"></script>
+
+    <!-- Character -->
+    <script src="js/character/SpriteComposer.js"></script>
+    <script src="js/character/CharacterBuilder.js"></script>
+    <script src="js/character/CustomizationData.js"></script>
+
+    <!-- Audio -->
+    <script src="js/audio/AudioManager.js?v=2"></script>
+
+    <!-- UI -->
+    <script src="js/ui/TransitionOverlay.js"></script>
+    <script src="js/ui/WelcomeScreen.js?v=19"></script>
+    <script src="js/ui/TouchControls.js"></script>
+    <script src="js/ui/DialogSystem.js"></script>
+    <script src="js/ui/HUD.js"></script>
+    <script src="js/ui/UIManager.js"></script>
+
+    <!-- Network -->
+    <script src="js/network/NetworkClient.js"></script>
+    <script src="js/network/StateSync.js"></script>
+    <script src="js/network/MessageTypes.js"></script>
+
+    <!-- Bot API for AI players -->
+    <script src="js/bot/BotAPI.js?v=2"></script>
+    <script src="js/multiplayer/MultiplayerClient.js?v=1"></script>
+    <script src="js/bot/BotBridge.js"></script>
+
+    <!-- Map Editor -->
+    <script src="js/editor/MapEditor.js?v=11"></script>
+
+    <!-- Main game -->
+    <script src="js/Game.js?v=6"></script>
+    <script src="js/main.js?v=2"></script>
+</body>
+</html>

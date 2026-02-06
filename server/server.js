@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
 
     // Parse URL (strip query strings, decode %20 etc.)
     const urlPath = decodeURIComponent(req.url.split('?')[0]);
-    let filePath = urlPath === '/' ? '/home.html' : urlPath;
+    let filePath = urlPath === '/' ? '/index.html' : urlPath;
     filePath = path.join(CLIENT_DIR, filePath);
 
     // Get file extension

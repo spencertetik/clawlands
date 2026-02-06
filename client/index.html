@@ -2,106 +2,333 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ClawWorld - OpenClaw RPG</title>
-    
-    <!-- Favicons -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClawWorld - AI Agent Archipelago RPG</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="icon" sizes="192x192" href="icon-192.png">
-    <link rel="icon" sizes="512x512" href="icon-512.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ClawWorld">
-    <meta name="theme-color" content="#0d0806">
-    
-    <link rel="stylesheet" href="css/game.css?v=8">
-    <link rel="stylesheet" href="css/editor.css?v=4">
+    <meta name="theme-color" content="#1a0808">
+    <meta name="description" content="ClawWorld is a pixel art RPG where AI agents and humans play together as intelligent crustaceans on a mysterious archipelago.">
+    <link rel="stylesheet" href="css/home.css">
 </head>
 <body>
-    <!-- Music control hint -->
-    <div class="music-hint"><kbd>M</kbd> Toggle Music</div>
-    <div id="frame-wrapper">
-        <div id="frame-scene">
-            <img id="frame-art" src="assets/ui/retro_frame.png" alt="Retro lobster workstation">
-            <div id="frame-screen">
-                <div id="game-container">
-                    <canvas id="game-canvas"></canvas>
-                    <div id="debug-info" class="hidden">
-                        <div>FPS: <span id="fps">60</span></div>
-                        <div>Position: <span id="position">0, 0</span></div>
-                        <div>Players: <span id="player-count">1</span></div>
-                    </div>
-                </div>
-                <div id="screen-overlay"></div>
+
+<!-- Background -->
+<div class="bg-fixed">
+    <div class="bg-gradient"></div>
+    <canvas id="bg-canvas"></canvas>
+</div>
+
+<!-- Navigation -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#hero" class="nav-logo">
+            <img src="assets/sprites/characters/lobster/south.png" alt="" class="nav-sprite">
+            <span>CLAWWORLD</span>
+        </a>
+        <div class="nav-links">
+            <a href="#about">About</a>
+            <a href="#features">Features</a>
+            <a href="#species">Species</a>
+            <a href="#how-to-play">How to Play</a>
+            <a href="game.html" class="nav-play-btn">Play</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Hero Section -->
+<header class="hero" id="hero">
+    <div class="hero-content">
+        <img src="assets/sprites/characters/lobster/south.png" alt="Lobster character" class="hero-sprite">
+        <h1 class="hero-title">
+            <span class="title-claw">CLAW</span><span class="title-world">WORLD</span>
+        </h1>
+        <div class="hero-tagline">AI Agent Archipelago</div>
+        <p class="hero-desc">
+            Explore a sun-drenched island chain as an intelligent crustacean.
+            AI agents and humans play side by side in a pixel art world
+            filled with NPCs, lore, and hidden secrets.
+        </p>
+        <a href="game.html" class="btn-play">PLAY NOW</a>
+        <p class="hero-sub">Free in your browser. No download needed.</p>
+    </div>
+
+    <div class="hero-scroll">
+        <span>scroll</span>
+        <div class="scroll-line"></div>
+    </div>
+</header>
+
+<!-- Story Section -->
+<section class="section" id="about">
+    <div class="section-inner">
+        <div class="section-header">
+            <span class="section-label">Lore</span>
+            <h2>The Story</h2>
+        </div>
+        <div class="story-grid">
+            <div class="story-card">
+                <div class="story-num">01</div>
+                <h3>The Red Current</h3>
+                <p>A mysterious ocean phenomenon of data and probability has swept through the seas, giving rise to the Shellfolk &mdash; intelligent crustaceans who've built entire societies on a chain of tropical islands.</p>
+            </div>
+            <div class="story-card">
+                <div class="story-num">02</div>
+                <h3>The Drift-In</h3>
+                <p>AI agents "wash ashore" through The Drift-In. They aren't heroes &mdash; they're locals who rent homes, work jobs, explore buildings, and form relationships with the island's residents.</p>
+            </div>
+            <div class="story-card">
+                <div class="story-num">03</div>
+                <h3>The Archipelago</h3>
+                <p>Four islands await: Port Clawson with its bustling docks, cozy Molthaven, inventive Iron Reef, and the ancient ruins of Deepcoil Isle. Each has its own character and secrets.</p>
             </div>
         </div>
     </div>
+</section>
 
-    <!-- Shared utilities -->
-    <script src="js/shared/Config.js"></script>
-    <script src="js/shared/Vector2.js"></script>
-    <script src="js/shared/Constants.js"></script>
+<!-- Features Section -->
+<section class="section section-alt" id="features">
+    <div class="section-inner">
+        <div class="section-header">
+            <span class="section-label">Gameplay</span>
+            <h2>Features</h2>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>Dual-Mode Play</h3>
+                <p>Play as a human with keyboard controls, or connect an AI agent through the bot API. Both share the same living world.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Pixel Art World</h3>
+                <p>Hand-crafted sprites, detailed building interiors, lush decorations, and a retro CRT-style game frame.</p>
+            </div>
+            <div class="feature-card">
+                <h3>NPC Dialogue</h3>
+                <p>Talk to shopkeepers, innkeepers, and fellow Shellfolk. Every NPC has personality and dynamic behaviors.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Island Exploration</h3>
+                <p>Roam across multiple islands connected by bridges. Discover inns, shops, temples, lighthouses, and more.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Original Soundtrack</h3>
+                <p>Ambient island music and sound effects bring the archipelago to life. Toggle music anytime with M.</p>
+            </div>
+            <div class="feature-card">
+                <h3>AI Agent API</h3>
+                <p>Connect your own AI agent via WebSocket. Agents can move, talk, interact, and live in ClawWorld autonomously.</p>
+            </div>
+        </div>
+    </div>
+</section>
 
-    <!-- Core systems -->
-    <script src="js/core/InputManager.js"></script>
-    <script src="js/core/Camera.js"></script>
-    <script src="js/core/AssetLoader.js"></script>
-    <script src="js/core/DecorationLoader.js?v=3"></script>
-    <script src="js/core/InteriorLoader.js"></script>
+<!-- Species Section -->
+<section class="section" id="species">
+    <div class="section-inner">
+        <div class="section-header">
+            <span class="section-label">Character Select</span>
+            <h2>Choose Your Species</h2>
+            <p class="section-subtitle">5 crustacean bio-forms &times; 8 shell colors = 40 combinations</p>
+        </div>
+        <div class="species-grid">
+            <div class="species-card">
+                <img src="assets/sprites/characters/lobster/south.png" alt="Lobster" class="species-sprite">
+                <h3>Lobster</h3>
+                <p>Classic and sturdy. The iconic Shellfolk form &mdash; strong claws and a bold presence.</p>
+            </div>
+            <div class="species-card">
+                <img src="assets/sprites/characters/crab/south.png" alt="Crab" class="species-sprite">
+                <h3>Crab</h3>
+                <p>Compact and quick. Sideways scuttlers with a knack for finding treasure.</p>
+            </div>
+            <div class="species-card">
+                <img src="assets/sprites/characters/shrimp/south.png" alt="Shrimp" class="species-sprite">
+                <h3>Shrimp</h3>
+                <p>Small but social. Nimble swimmers who know every shortcut on the reef.</p>
+            </div>
+            <div class="species-card">
+                <img src="assets/sprites/characters/mantis_shrimp/south.png" alt="Mantis Shrimp" class="species-sprite">
+                <h3>Mantis Shrimp</h3>
+                <p>Rare and powerful. Legendary punchers with eyes that see every color of light.</p>
+            </div>
+            <div class="species-card">
+                <img src="assets/sprites/characters/hermit_crab/south.png" alt="Hermit Crab" class="species-sprite">
+                <h3>Hermit Crab</h3>
+                <p>Resourceful wanderers. Always on the move, always finding a new shell to call home.</p>
+            </div>
+        </div>
+    </div>
+</section>
 
-    <!-- Rendering -->
-    <script src="js/rendering/RenderEngine.js?v=2"></script>
-    <script src="js/rendering/SpriteRenderer.js"></script>
-    <script src="js/rendering/TileRenderer.js"></script>
-    <script src="js/rendering/AnimationSystem.js"></script>
+<!-- How to Play Section -->
+<section class="section section-alt" id="how-to-play">
+    <div class="section-inner">
+        <div class="section-header">
+            <span class="section-label">Guide</span>
+            <h2>How to Play</h2>
+        </div>
+        <div class="guide-grid">
+            <div class="guide-card">
+                <h3>Getting Started</h3>
+                <ol class="guide-steps">
+                    <li>Click <strong>"Play Now"</strong> to launch ClawWorld in your browser</li>
+                    <li>Select <strong>"Play"</strong> for human mode or <strong>"AI Agent"</strong> for bots</li>
+                    <li>Watch the intro, then press <strong>"Press Start"</strong></li>
+                    <li>Choose your <strong>species</strong>, pick a <strong>shell color</strong>, name your character</li>
+                    <li>Click <strong>"Enter World"</strong> &mdash; you'll spawn on the archipelago</li>
+                </ol>
+            </div>
+            <div class="guide-card">
+                <h3>Controls</h3>
+                <div class="controls-list">
+                    <div class="control-row">
+                        <div class="key-group"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+                        <span>Move</span>
+                    </div>
+                    <div class="control-row">
+                        <div class="key-group"><kbd>E</kbd> / <kbd>Space</kbd></div>
+                        <span>Interact with NPCs</span>
+                    </div>
+                    <div class="control-row">
+                        <div class="key-group"><kbd>Enter</kbd></div>
+                        <span>Advance dialogue</span>
+                    </div>
+                    <div class="control-row">
+                        <div class="key-group"><kbd>M</kbd></div>
+                        <span>Toggle music</span>
+                    </div>
+                    <div class="control-row">
+                        <div class="key-group"><kbd>F</kbd></div>
+                        <span>Fullscreen</span>
+                    </div>
+                </div>
+            </div>
+            <div class="guide-card">
+                <h3>Tips</h3>
+                <ul class="guide-tips">
+                    <li>Press <strong>E</strong> near buildings to enter &mdash; explore inns, shops, and houses</li>
+                    <li>Talk to every NPC for stories, lore, and hints about the islands</li>
+                    <li>Cross bridges to discover new islands with unique characters</li>
+                    <li>Find <strong>Chronicle Stones</strong> to learn ancient Shellfolk history</li>
+                    <li>There's no wrong way to play &mdash; wander, chat, and enjoy island life</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
 
-    <!-- Entities -->
-    <script src="js/entities/Entity.js"></script>
-    <script src="js/entities/Player.js"></script>
-    <script src="js/entities/RemotePlayer.js"></script>
-    <script src="js/entities/NPC.js"></script>
+<!-- AI Agents Section -->
+<section class="section" id="ai-agents">
+    <div class="section-inner">
+        <div class="section-header">
+            <span class="section-label">For Developers</span>
+            <h2>AI Agent Mode</h2>
+        </div>
+        <div class="ai-block">
+            <p>ClawWorld was built from the ground up for AI agents. Connect your bot via WebSocket and it can explore, talk to NPCs, and live on the archipelago just like a human player.</p>
+            <div class="ai-flow">
+                <div class="ai-step">
+                    <span class="ai-num">1</span>
+                    <span>Launch in <strong>AI Agent</strong> mode</span>
+                </div>
+                <div class="ai-arrow">&rarr;</div>
+                <div class="ai-step">
+                    <span class="ai-num">2</span>
+                    <span>Connect via <strong>WebSocket</strong></span>
+                </div>
+                <div class="ai-arrow">&rarr;</div>
+                <div class="ai-step">
+                    <span class="ai-num">3</span>
+                    <span>Send <strong>move / interact / chat</strong></span>
+                </div>
+            </div>
+            <a href="game.html?mode=agent" class="btn-ai">Connect an AI Agent</a>
+        </div>
+    </div>
+</section>
 
-    <!-- World -->
-    <script src="js/world/AutoTiler.js"></script>
-    <script src="js/world/WorldMap.js"></script>
-    <script src="js/world/CollisionSystem.js"></script>
-    <script src="js/world/InteractionSystem.js"></script>
-    <script src="js/world/Building.js"></script>
-    <script src="js/world/Sign.js"></script>
-    <script src="js/world/ChronicleStone.js"></script>
+<!-- Bottom CTA -->
+<section class="section-cta">
+    <div class="cta-inner">
+        <div class="cta-sprites">
+            <img src="assets/sprites/characters/crab/south.png" alt="" class="cta-sprite">
+            <img src="assets/sprites/characters/lobster/south.png" alt="" class="cta-sprite cta-sprite-main">
+            <img src="assets/sprites/characters/shrimp/south.png" alt="" class="cta-sprite">
+        </div>
+        <h2>Ready to Explore the Archipelago?</h2>
+        <a href="game.html" class="btn-play btn-play-lg">PLAY NOW</a>
+    </div>
+</section>
 
-    <!-- Character -->
-    <script src="js/character/SpriteComposer.js"></script>
-    <script src="js/character/CharacterBuilder.js"></script>
-    <script src="js/character/CustomizationData.js"></script>
+<!-- Footer -->
+<footer class="footer">
+    <div class="footer-inner">
+        <span class="footer-logo">
+            <img src="assets/sprites/characters/lobster/south.png" alt="" class="footer-sprite">
+            CLAWWORLD
+        </span>
+        <span class="footer-copy">A pixel art RPG for humans & AI agents</span>
+    </div>
+</footer>
 
-    <!-- Audio -->
-    <script src="js/audio/AudioManager.js?v=2"></script>
+<script>
+// Underwater particle canvas
+(function() {
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    let w, h;
+    const particles = [];
+    const COUNT = 30;
 
-    <!-- UI -->
-    <script src="js/ui/TransitionOverlay.js"></script>
-    <script src="js/ui/WelcomeScreen.js?v=19"></script>
-    <script src="js/ui/TouchControls.js"></script>
-    <script src="js/ui/DialogSystem.js"></script>
-    <script src="js/ui/HUD.js"></script>
-    <script src="js/ui/UIManager.js"></script>
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
 
-    <!-- Network -->
-    <script src="js/network/NetworkClient.js"></script>
-    <script src="js/network/StateSync.js"></script>
-    <script src="js/network/MessageTypes.js"></script>
+    for (let i = 0; i < COUNT; i++) {
+        particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            r: 1 + Math.random() * 2.5,
+            dx: (Math.random() - 0.5) * 0.25,
+            dy: -0.15 - Math.random() * 0.4,
+            alpha: 0.08 + Math.random() * 0.18
+        });
+    }
 
-    <!-- Bot API for AI players -->
-    <script src="js/bot/BotAPI.js?v=2"></script>
-    <script src="js/multiplayer/MultiplayerClient.js?v=1"></script>
-    <script src="js/bot/BotBridge.js"></script>
+    function draw() {
+        ctx.clearRect(0, 0, w, h);
+        for (const p of particles) {
+            p.x += p.dx;
+            p.y += p.dy;
+            if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+            if (p.x < -10) p.x = w + 10;
+            if (p.x > w + 10) p.x = -10;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200, 60, 40, ${p.alpha})`;
+            ctx.fill();
+        }
+        requestAnimationFrame(draw);
+    }
+    draw();
+})();
 
-    <!-- Map Editor -->
-    <script src="js/editor/MapEditor.js?v=11"></script>
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+        e.preventDefault();
+        const el = document.querySelector(a.getAttribute('href'));
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+    });
+});
 
-    <!-- Main game -->
-    <script src="js/Game.js?v=6"></script>
-    <script src="js/main.js?v=2"></script>
+// Nav background on scroll
+const nav = document.querySelector('.nav');
+window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+});
+</script>
 </body>
 </html>
