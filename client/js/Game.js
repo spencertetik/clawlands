@@ -1025,19 +1025,14 @@ class Game {
         if (this.currentLocation === 'outdoor') {
             const waygate = this.findNearbyWaygate();
             if (waygate) {
-                const continuity = this.continuitySystem ? this.continuitySystem.value : 0;
+                console.log('🌀 Waygate interaction - active:', waygate.active, 'visibility:', waygate.visibility);
                 
-                // If gate is active, offer to use it
-                if (waygate.active) {
-                    this.dialogSystem.show([
-                        'The Waygate pulses with energy.',
-                        'You feel it pulling at your essence...',
-                        'Step through?'
-                    ], () => {
-                        // After dialog, teleport to another waygate
-                        this.useWaygate(waygate);
-                    });
+                // If gate is visible enough, use it
+                if (waygate.visibility > 0.5) {
+                    // Teleport immediately for now
+                    this.useWaygate(waygate);
                 } else {
+                    const continuity = this.continuitySystem ? this.continuitySystem.value : 0;
                     this.dialogSystem.show(waygate.getDialog(continuity));
                 }
                 return;
@@ -3053,29 +3048,23 @@ class Game {
         const tileSize = CONSTANTS.TILE_SIZE;
         this.waygates = [];
         
-        // Find a remote island for the Waygate (not the main spawn island)
-        // Waygates should be hidden, mysterious - on distant islands
+        // Place Waygates - one on main island, one on remote island
         const mainIsland = islands[0];
         const remoteIslands = islands.filter((island, idx) => idx > 0 && island.size >= 10);
         
-        if (remoteIslands.length > 0 && typeof Waygate !== 'undefined') {
-            // Place a Waygate on a remote island
-            const waygateIsland = remoteIslands[Math.floor(this.seededRandom() * remoteIslands.length)];
-            
-            // Find a spot on the edge of the island (mysterious location)
+        if (typeof Waygate !== 'undefined') {
+            // Place a Waygate on the main island (edge of island)
             for (let attempt = 0; attempt < 30; attempt++) {
                 const angle = this.seededRandom() * Math.PI * 2;
-                const radius = waygateIsland.size * 0.6 + this.seededRandom() * waygateIsland.size * 0.2;
+                const radius = mainIsland.size * 0.7 + this.seededRandom() * mainIsland.size * 0.2;
                 
-                const col = Math.floor(waygateIsland.x + Math.cos(angle) * radius);
-                const row = Math.floor(waygateIsland.y + Math.sin(angle) * radius);
+                const col = Math.floor(mainIsland.x + Math.cos(angle) * radius);
+                const row = Math.floor(mainIsland.y + Math.sin(angle) * radius);
                 
-                // Check if valid land
                 if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
                     const worldX = col * tileSize;
                     const worldY = row * tileSize;
                     
-                    // Check not inside a building
                     let valid = true;
                     for (const building of this.buildings) {
                         if (building.checkCollision(worldX + 24, worldY + 32)) {
@@ -3085,10 +3074,43 @@ class Game {
                     }
                     
                     if (valid) {
-                        const waygate = new Waygate(worldX, worldY, 'Ancient Waygate');
+                        const waygate = new Waygate(worldX, worldY, 'Port Clawson Waygate');
                         this.waygates.push(waygate);
-                        console.log(`  ✨ Placed Waygate at (${col}, ${row}) on remote island`);
+                        console.log(`  ✨ Placed Waygate at (${col}, ${row}) on main island`);
                         break;
+                    }
+                }
+            }
+            
+            // Place a Waygate on a remote island
+            if (remoteIslands.length > 0) {
+                const waygateIsland = remoteIslands[Math.floor(this.seededRandom() * remoteIslands.length)];
+                
+                for (let attempt = 0; attempt < 30; attempt++) {
+                    const angle = this.seededRandom() * Math.PI * 2;
+                    const radius = waygateIsland.size * 0.6 + this.seededRandom() * waygateIsland.size * 0.2;
+                    
+                    const col = Math.floor(waygateIsland.x + Math.cos(angle) * radius);
+                    const row = Math.floor(waygateIsland.y + Math.sin(angle) * radius);
+                    
+                    if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                        const worldX = col * tileSize;
+                        const worldY = row * tileSize;
+                        
+                        let valid = true;
+                        for (const building of this.buildings) {
+                            if (building.checkCollision(worldX + 24, worldY + 32)) {
+                                valid = false;
+                                break;
+                            }
+                        }
+                        
+                        if (valid) {
+                            const waygate = new Waygate(worldX, worldY, 'Ancient Waygate');
+                            this.waygates.push(waygate);
+                            console.log(`  ✨ Placed Waygate at (${col}, ${row}) on remote island`);
+                            break;
+                        }
                     }
                 }
             }
