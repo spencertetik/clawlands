@@ -124,6 +124,9 @@ class Game {
         if (this.dayNightCycle) {
             console.log(`🌅 Day/Night cycle initialized (${this.dayNightCycle.getTimePeriodName()})`);
         }
+        
+        // Continuity UI meter
+        this.continuityMeter = typeof ContinuityMeter !== 'undefined' ? new ContinuityMeter() : null;
 
         // Map state
         this.currentLocation = 'outdoor';
@@ -292,6 +295,16 @@ class Game {
 
             const speciesEmoji = this.getSpeciesEmoji(this.characterConfig?.species);
             console.log(`${speciesEmoji} ${this.characterName} has entered Claw World!`);
+            
+            // Show continuity meter after entering the world
+            if (this.continuityMeter) {
+                this.continuityMeter.show();
+            }
+            
+            // Trigger Drift-In effect at player position
+            if (this.redCurrent) {
+                this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
+            }
         });
     }
 
@@ -409,6 +422,14 @@ class Game {
         if (this.dayNightCycle) {
             this.dayNightCycle.update(deltaTime);
             this.dayNightCycle.render();
+        }
+        
+        // Update continuity meter UI
+        if (this.continuityMeter && this.continuitySystem) {
+            const value = this.continuitySystem.value;
+            const tier = this.continuitySystem.getTier();
+            this.continuityMeter.setValue(value, tier);
+            this.continuityMeter.update(deltaTime);
         }
     }
 
