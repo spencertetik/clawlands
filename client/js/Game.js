@@ -220,49 +220,21 @@ class Game {
 
     // Start the game loop
     start() {
-        // Check if this is a first-time player
-        const savedData = this.customizationData.load();
-
-        if (!savedData) {
-            // First time - show welcome screen
-            this.showWelcomeScreen();
-        } else {
-            // Returning player - load their character
-            this.characterConfig = savedData.config;
-            this.characterName = savedData.name;
-            this.player.name = this.characterName;
-            
-            const speciesEmoji = this.getSpeciesEmoji(this.characterConfig?.species);
-            console.log(`${speciesEmoji} Welcome back, ${this.characterName}!`);
-
-            // Store saved position - will be applied after buildings are created
-            try {
-                const savedPosition = this.customizationData.loadPosition();
-                if (savedPosition && savedPosition.x && savedPosition.y) {
-                    this.pendingSavedPosition = savedPosition;
-                    console.log(`📍 Will restore position after world loads: (${Math.round(savedPosition.x)}, ${Math.round(savedPosition.y)})`);
-                }
-            } catch (e) {
-                console.warn('Could not load saved position:', e);
-            }
-
-            // Load species-specific sprites when assets are ready
-            if (this.assetsLoaded) {
-                const species = this.characterConfig?.species || 'lobster';
-                this.reloadCharacterAssets(species);
-            }
-        }
+        // Always show the welcome screen (intro sequence plays every time).
+        // The welcome screen handles returning players by skipping character
+        // creation when PRESS START is clicked if a saved character exists.
+        this.showWelcomeScreen();
 
         this.running = true;
         this.lastTime = performance.now();
         this.gameLoop(this.lastTime);
     }
 
-    // Show welcome screen for first-time players
+    // Show welcome screen (plays every time — intro sequence, then game)
     showWelcomeScreen() {
         const welcomeScreen = new WelcomeScreen();
         welcomeScreen.show(async (result) => {
-            // Save character data permanently
+            // Set character data
             this.characterConfig = result.config;
             this.characterName = result.name;
             this.player.name = this.characterName;
@@ -272,6 +244,18 @@ class Game {
                 name: result.name,
                 createdAt: Date.now()
             });
+
+            // Restore saved position for returning players
+            try {
+                const savedPosition = this.customizationData.loadPosition();
+                if (savedPosition && savedPosition.x && savedPosition.y) {
+                    this.player.x = savedPosition.x;
+                    this.player.y = savedPosition.y;
+                    console.log(`📍 Restored position: (${Math.round(savedPosition.x)}, ${Math.round(savedPosition.y)})`);
+                }
+            } catch (e) {
+                console.warn('Could not load saved position:', e);
+            }
 
             // Load species-specific sprites and apply customization
             if (this.assetsLoaded) {

@@ -220,11 +220,6 @@ class WelcomeScreen {
             audioManager.preload();
         }
 
-        // If we've already seen the intro this session, skip straight to fullscreen
-        if (sessionStorage.getItem('clawworld_fullscreen')) {
-            this._skipToFullscreen();
-        }
-
         const params = new URLSearchParams(window.location.search);
         if (params.get('quickStart') === 'true') {
             this.quickStartGame();
@@ -235,19 +230,6 @@ class WelcomeScreen {
         }
     }
 
-    /**
-     * Skip the frame intro and go directly to fullscreen mode (on refresh).
-     */
-    _skipToFullscreen() {
-        const frameScene = document.getElementById('frame-scene');
-        const frameArt = document.getElementById('frame-art');
-        if (frameScene) {
-            frameScene.style.transition = 'none';
-            if (frameArt) frameArt.style.display = 'none';
-            document.body.classList.add('fullscreen-mode');
-        }
-    }
-    
     /**
      * Quick start - skip all menus and go straight to game
      */
@@ -836,7 +818,21 @@ class WelcomeScreen {
             beginButton.style.transform = 'translateY(0)';
             beginButton.style.boxShadow = 'none';
         };
-        beginButton.onclick = () => this.showCharacterCreation();
+        beginButton.onclick = () => {
+            // If player has a saved character, skip creation and enter the world
+            const savedData = localStorage.getItem('clawworld_character');
+            if (savedData) {
+                try {
+                    const character = JSON.parse(savedData);
+                    this.finalize(
+                        { species: character.species, hueShift: character.hueShift || 0 },
+                        character.name || 'Unnamed Agent'
+                    );
+                    return;
+                } catch (e) { /* fall through to character creation */ }
+            }
+            this.showCharacterCreation();
+        };
         logoPanel.appendChild(beginButton);
 
         screen.appendChild(logoPanel);
@@ -905,12 +901,13 @@ class WelcomeScreen {
             `;
             document.body.appendChild(fadeOverlay);
 
-            // Brief pause after last character, then fade to black
+            // Hold the text on screen for a few seconds so the player can read,
+            // then fade to black
             this.sequenceTimers.push(setTimeout(() => {
                 fadeOverlay.style.opacity = '1';
-            }, 400));
+            }, 3400));
 
-            // Once fully black, do the layout swap
+            // Once fully black (~3400 + 600ms fade = 4000ms), do the layout swap
             this.sequenceTimers.push(setTimeout(() => {
                 const frameScene = document.getElementById('frame-scene');
                 const frameArt = document.getElementById('frame-art');
@@ -923,7 +920,6 @@ class WelcomeScreen {
                         frameArt.style.display = 'none';
                     }
                     document.body.classList.add('fullscreen-mode');
-                    sessionStorage.setItem('clawworld_fullscreen', '1');
                     void frameScene.offsetWidth;
                     frameScene.style.transition = '';
 
@@ -941,7 +937,7 @@ class WelcomeScreen {
                     fadeOverlay.style.opacity = '0';
                     setTimeout(() => fadeOverlay.remove(), 700);
                 }, 150));
-            }, 1100));
+            }, 4100));
         };
 
         this.sequenceTimers = [];
@@ -1534,10 +1530,18 @@ class WelcomeScreen {
      * Finalize and close
      */
     finalize(config, name) {
+        // Save character for returning players
+        localStorage.setItem('clawworld_character', JSON.stringify({
+            species: config.species,
+            hueShift: config.hueShift || 0,
+            color: config.color || config.species,
+            name: name
+        }));
+
         if (typeof audioManager !== 'undefined') {
             audioManager.playOverworld();
         }
-        
+
         this.container.style.transition = 'opacity 0.5s';
         this.container.style.opacity = '0';
 
