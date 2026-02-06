@@ -12,7 +12,7 @@ class MultiplayerClient {
         this.remotePlayers = new Map(); // playerId -> RemotePlayer
         this.serverUrl = window.CONFIG?.MULTIPLAYER_URL || 'ws://localhost:3003';
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
+        this.maxReconnectAttempts = 50;
         this.lastSentPosition = { x: 0, y: 0 };
         this.positionSendInterval = null;
     }
@@ -32,6 +32,12 @@ class MultiplayerClient {
                 console.log('✅ Connected to multiplayer server');
                 this.connected = true;
                 this.reconnectAttempts = 0;
+                // Keepalive ping every 25 seconds
+                this.pingInterval = setInterval(() => {
+                    if (this.ws?.readyState === WebSocket.OPEN) {
+                        this.send({ type: 'ping' });
+                    }
+                }, 25000);
             };
 
             this.ws.onmessage = (event) => {
@@ -47,6 +53,7 @@ class MultiplayerClient {
                 console.log('🔌 Disconnected from multiplayer');
                 this.connected = false;
                 this.stopPositionSync();
+                if (this.pingInterval) { clearInterval(this.pingInterval); this.pingInterval = null; }
                 
                 // Try to reconnect
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -249,8 +256,17 @@ class MultiplayerClient {
 
     addRemotePlayer(data) {
         if (this.remotePlayers.has(data.id)) {
-            console.log(`Remote player ${data.id} already exists, skipping`);
-            return;
+            return; // Already tracking this exact player
+        }
+
+        // Remove any stale entry with the same name (reconnect with new ID)
+        for (const [existingId, existingPlayer] of this.remotePlayers) {
+            if (existingPlayer.name === data.name) {
+                console.log(`♻️ Removing stale player: ${data.name} (${existingId}) → replaced by ${data.id}`);
+                existingPlayer.destroy();
+                this.remotePlayers.delete(existingId);
+                break;
+            }
         }
 
         console.log(`✅ ADDING REMOTE PLAYER: ${data.name} (${data.id})`);

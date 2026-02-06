@@ -627,6 +627,11 @@ async function handleMessage(playerId, playerData, msg, ws) {
             break;
         }
 
+        case 'ping': {
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+        }
+
         case 'talk_request': {
             // Player wants to talk to another player/bot
             const target = players.get(msg.targetId);
