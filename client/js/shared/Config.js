@@ -1,18 +1,28 @@
 /**
  * Claw World Configuration
- * URLs can be overridden via query params: ?botServer=wss://...
+ * URLs can be overridden via query params: ?server=wss://...
+ * 
+ * Railway deployment: Set RAILWAY_SERVER_URL env var or use query param
  */
 
+// Railway production URL (update after deploying)
+const RAILWAY_URL = 'wss://claw-world-production.up.railway.app';
+
 const CONFIG = {
-    // Bot server WebSocket URL
+    // Unified server URL (Railway combines bot + multiplayer)
+    SERVER_URL: window.location.hostname.includes('netlify.app')
+        ? RAILWAY_URL
+        : 'ws://localhost:3000',
+
+    // Legacy separate URLs (for backwards compatibility)
     BOT_SERVER_URL: window.location.hostname.includes('netlify.app') 
-        ? 'wss://claw-world-bot.loca.lt' 
-        : 'ws://localhost:3001',
+        ? RAILWAY_URL + '/bot'
+        : 'ws://localhost:3000/bot',
     
     // Multiplayer server WebSocket URL
     MULTIPLAYER_URL: window.location.hostname.includes('netlify.app')
-        ? 'wss://clawworld.loca.lt'
-        : 'ws://localhost:3003',
+        ? RAILWAY_URL + '/game'
+        : 'ws://localhost:3000/game',
     
     // Auto-connect to multiplayer on game start
     MULTIPLAYER_ENABLED: true,

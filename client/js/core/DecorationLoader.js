@@ -212,8 +212,8 @@ class DecorationLoader {
             collision: null
         },
         message_bottle: {
-            path: 'assets/sprites/decorations/decor_15.png',
-            width: 20, height: 28,
+            path: 'assets/sprites/decorations/message_bottle.png',
+            width: 12, height: 16,
             collision: null
         },
         potion_bottle: {

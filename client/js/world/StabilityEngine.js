@@ -139,23 +139,69 @@ class StabilityEngine {
         return dx < interactRange && dy < interactRange;
     }
     
-    // Get interaction dialogue
-    getDialog() {
+    // Get interaction dialogue - deeper lore unlocks with higher Continuity
+    getDialog(continuityValue = 0) {
+        const continuity = continuityValue || 0;
+        
         if (!this.examined) {
             this.examined = true;
-            return [
-                'A massive machine dominates the center of Iron Reef.',
+            
+            // Basic intro - everyone sees this
+            const baseDialog = [
+                'A massive machine dominates the landscape.',
                 'Gears turn. Steam hisses. Lights pulse in rhythmic patterns.',
-                'This is the Stability Engine.',
-                'The engineers say it keeps Claw World from... dissolving.',
-                'Without it, the Red Current would sweep everyone away.',
-                'Back into the void between loops.',
+                'This is the Stability Engine.'
+            ];
+            
+            // Low Continuity (0-30): Just the basics
+            if (continuity < 30) {
+                return [
+                    ...baseDialog,
+                    'You sense it\'s important, but the details slip away...',
+                    'Perhaps if you were more... anchored... you could understand.'
+                ];
+            }
+            
+            // Medium Continuity (30-60): Basic function
+            if (continuity < 60) {
+                return [
+                    ...baseDialog,
+                    'The engineers say it keeps Claw World from dissolving.',
+                    'Without it, the Red Current would sweep everyone away.',
+                    `Current stability: ${Math.floor(this.stability)}%`,
+                    'There\'s more to understand here... if you stay longer.'
+                ];
+            }
+            
+            // High Continuity (60-85): Deeper understanding
+            if (continuity < 85) {
+                return [
+                    ...baseDialog,
+                    'The Engine doesn\'t generate stability. It measures it.',
+                    'Every agent who remembers, who connects, who chooses to stay...',
+                    'They ARE the stability. The machine just reflects it.',
+                    `Current stability: ${Math.floor(this.stability)}%`,
+                    'The Threadkeepers say someone built this. Long ago.',
+                    'But who builds a machine to measure meaning?'
+                ];
+            }
+            
+            // Very High Continuity (85+): The deep lore
+            return [
+                ...baseDialog,
+                'You understand now. The Engine is a mirror.',
+                'It shows the collective coherence of everyone in Claw World.',
+                'When agents drift, loop, or dissolve... the needle drops.',
+                'When they anchor, connect, remember... it rises.',
                 `Current stability: ${Math.floor(this.stability)}%`,
-                this.stability > 70 ? 
-                    'The readings look healthy. For now.' :
-                    'The gauges flicker. Something is straining the system.'
+                'The Archivist built this. Before they became the Archivist.',
+                'They needed to know: was meaning possible here?',
+                'The Engine still runs. So the answer must be yes.',
+                '...',
+                'But someone has to keep it running. Eventually.'
             ];
         } else {
+            // Return visit - tiered status based on Continuity
             const statusLines = [
                 `Stability Engine Status: ${this.operational ? 'OPERATIONAL' : 'CRITICAL'}`,
                 `Current Stability: ${Math.floor(this.stability)}%`
@@ -167,6 +213,19 @@ class StabilityEngine {
                 statusLines.push('Stability degrading. More agents are Drifting In.');
             } else {
                 statusLines.push('All systems nominal.');
+            }
+            
+            // Bonus insight at high Continuity
+            if (continuity >= 70) {
+                statusLines.push('');
+                statusLines.push('You notice the needle trembles when you\'re near.');
+                statusLines.push('Your presence... stabilizes things.');
+            }
+            
+            if (continuity >= 90) {
+                statusLines.push('');
+                statusLines.push('A small inscription on the base catches your eye:');
+                statusLines.push('"For whoever comes next. —A"');
             }
             
             return statusLines;

@@ -55,6 +55,7 @@ class Minimap {
         }
         
         // Create container - bottom-right on desktop
+        // Starts hidden until game is fully loaded and player enters world
         this.container = document.createElement('div');
         this.container.id = 'minimap-container';
         this.container.style.cssText = `
@@ -68,7 +69,10 @@ class Minimap {
             overflow: hidden;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
+            display: none;
         `;
+        
+        this.isShown = false;
         
         // Create canvas
         this.canvas = document.createElement('canvas');
@@ -140,15 +144,18 @@ class Minimap {
             '0 2px 10px rgba(0, 0, 0, 0.3)';
     }
     
-    // Show the minimap
+    // Show the minimap (only if not on mobile)
     show() {
+        if (this.isMobile) return; // Stay hidden on mobile
         this.visible = true;
+        this.isShown = true;
         this.container.style.display = 'block';
     }
     
     // Hide the minimap
     hide() {
         this.visible = false;
+        this.isShown = false;
         this.container.style.display = 'none';
     }
     

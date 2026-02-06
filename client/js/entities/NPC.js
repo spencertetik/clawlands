@@ -101,7 +101,23 @@ class NPC extends Entity {
                     newX + 4, newY + 8, this.width - 8, this.height - 8, this
                 );
                 
-                if (canMove) {
+                // Also check if we'd walk onto the player (NPCs should avoid player)
+                let wouldHitPlayer = false;
+                if (collisionSystem && collisionSystem.player) {
+                    const p = collisionSystem.player;
+                    const npcBox = { x: newX + 4, y: newY + 8, w: this.width - 8, h: this.height - 8 };
+                    const playerBox = { x: p.position.x, y: p.position.y, w: p.width, h: p.height };
+                    
+                    // AABB overlap check
+                    wouldHitPlayer = !(
+                        npcBox.x + npcBox.w < playerBox.x ||
+                        npcBox.x > playerBox.x + playerBox.w ||
+                        npcBox.y + npcBox.h < playerBox.y ||
+                        npcBox.y > playerBox.y + playerBox.h
+                    );
+                }
+                
+                if (canMove && !wouldHitPlayer) {
                     this.position.x = newX;
                     this.position.y = newY;
                     
@@ -112,7 +128,7 @@ class NPC extends Entity {
                         this.direction = dy > 0 ? 'south' : 'north';
                     }
                 } else {
-                    // Hit something, stop
+                    // Hit something or player is in the way, stop
                     this.isMoving = false;
                     this.moveTarget = null;
                 }

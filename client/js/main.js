@@ -245,6 +245,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        // Toggle faction UI (F)
+        else if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            if (game && game.factionUI) {
+                game.factionUI.toggle();
+            }
+        }
     });
 
     // Make game accessible for debugging

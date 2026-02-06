@@ -791,6 +791,7 @@ class WelcomeScreen {
 
         const beginButton = document.createElement('button');
         beginButton.textContent = 'PRESS START';
+        beginButton.disabled = true; // Disabled until intro finishes
         beginButton.style.cssText = `
             padding: 16px 40px;
             background: #c43a24;
@@ -801,9 +802,10 @@ class WelcomeScreen {
             font-weight: bold;
             cursor: pointer;
             letter-spacing: 3px;
-            pointer-events: auto;
+            pointer-events: none;
             transition: all 0.2s;
             position: relative;
+            opacity: 0.5;
         `;
         beginButton.onmouseenter = () => {
             beginButton.style.background = '#d94a32';
@@ -930,6 +932,11 @@ class WelcomeScreen {
                 console.style.opacity = '0';
                 logoPanel.style.opacity = '1';
                 logoPanel.style.pointerEvents = 'auto';
+                
+                // NOW enable the button (after intro is fully complete)
+                beginButton.disabled = false;
+                beginButton.style.pointerEvents = 'auto';
+                beginButton.style.opacity = '1';
 
                 // Fade back in from black to reveal the logo screen
                 this.sequenceTimers.push(setTimeout(() => {

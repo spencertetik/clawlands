@@ -88,8 +88,25 @@ class CollisionSystem {
         }
         
         // Check collision with NPCs (skip excludeEntity for self-collision avoidance)
+        // Use same "escape if overlapping" logic as remote players
         for (const npc of this.npcs) {
             if (npc === excludeEntity) continue; // Skip self
+            
+            // If player is checking collision, allow escape if already overlapping
+            if (this.player && excludeEntity === null) {
+                // Check if player is CURRENTLY overlapping with this NPC
+                const currentlyOverlapping = !(
+                    this.player.position.x + this.player.width < npc.position.x ||
+                    this.player.position.x > npc.position.x + npc.width ||
+                    this.player.position.y + this.player.height < npc.position.y ||
+                    this.player.position.y > npc.position.y + npc.height
+                );
+                
+                if (currentlyOverlapping) {
+                    continue; // Already overlapping with NPC, let player escape
+                }
+            }
+            
             if (npc.checkCollision(x, y, width, height)) {
                 return true; // Collision with NPC
             }

@@ -26,13 +26,36 @@ class RedCurrent {
         // Edge glow settings
         this.edgeGlowWidth = 64; // How far the red glow extends from world edge
         this.pulseTime = 0;
-        this.pulseSpeed = 0.5; // Slow, ominous pulse
+        this.pulseSpeed = 0.8; // Slightly faster for more visible pulse
         
         // Drift-In effect (when new players spawn)
         this.driftInEffects = [];
         
+        // Surface ripple particles (float on water surface)
+        this.surfaceRipples = [];
+        this.maxSurfaceRipples = 80;
+        
         // Initialize particles
         this.initParticles();
+        this.initSurfaceRipples();
+    }
+    
+    initSurfaceRipples() {
+        for (let i = 0; i < this.maxSurfaceRipples; i++) {
+            this.surfaceRipples.push(this.createSurfaceRipple());
+        }
+    }
+    
+    createSurfaceRipple() {
+        return {
+            x: Math.random() * this.worldWidth,
+            y: Math.random() * this.worldHeight,
+            size: 4 + Math.random() * 12,
+            maxSize: 16 + Math.random() * 24,
+            growSpeed: 8 + Math.random() * 12,
+            alpha: 0.4 + Math.random() * 0.4,
+            life: 1.0
+        };
     }
     
     initParticles() {
@@ -168,6 +191,17 @@ class RedCurrent {
                 this.driftInEffects.splice(i, 1);
             }
         }
+        
+        // Update surface ripples
+        for (let i = 0; i < this.surfaceRipples.length; i++) {
+            const r = this.surfaceRipples[i];
+            r.size += r.growSpeed * deltaTime;
+            r.life -= deltaTime * 0.3;
+            
+            if (r.size >= r.maxSize || r.life <= 0) {
+                this.surfaceRipples[i] = this.createSurfaceRipple();
+            }
+        }
     }
     
     // Set reference to world map for water detection
@@ -181,6 +215,9 @@ class RedCurrent {
         
         // Render red tint on all water
         this.renderWaterTint(renderer, camera, pulse);
+        
+        // Render surface ripples on water
+        this.renderSurfaceRipples(renderer, camera, pulse);
         
         // Render edge glow (world boundary effect)
         this.renderEdgeGlow(renderer, camera, pulse);
@@ -222,54 +259,158 @@ class RedCurrent {
         }
     }
     
-    // Render red tint overlay - simple global tint for the Red Current feel
+    // Render expanding ripples on water surface
+    renderSurfaceRipples(renderer, camera, pulse) {
+        if (!this.worldMap) return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        
+        for (const r of this.surfaceRipples) {
+            if (!this.isVisible(r.x, r.y, camera)) continue;
+            
+            // Check if this ripple is on water
+            const col = Math.floor(r.x / tileSize);
+            const row = Math.floor(r.y / tileSize);
+            
+            // Out of bounds or on water tile
+            const isWater = col < 0 || col >= this.worldMap.width ||
+                           row < 0 || row >= this.worldMap.height ||
+                           this.worldMap.collisionLayer?.[row]?.[col] === 1;
+            
+            if (isWater) {
+                const alpha = r.life * r.alpha * pulse * 0.6;
+                const halfSize = r.size / 2;
+                
+                // Draw expanding ring (hollow square for pixel art feel)
+                const ringThickness = 2;
+                
+                // Top edge
+                renderer.drawRect(
+                    r.x - halfSize, r.y - halfSize,
+                    r.size, ringThickness,
+                    `rgba(255, 100, 80, ${alpha})`,
+                    CONSTANTS.LAYER.GROUND_DECORATION
+                );
+                // Bottom edge
+                renderer.drawRect(
+                    r.x - halfSize, r.y + halfSize - ringThickness,
+                    r.size, ringThickness,
+                    `rgba(255, 100, 80, ${alpha})`,
+                    CONSTANTS.LAYER.GROUND_DECORATION
+                );
+                // Left edge
+                renderer.drawRect(
+                    r.x - halfSize, r.y - halfSize,
+                    ringThickness, r.size,
+                    `rgba(255, 100, 80, ${alpha})`,
+                    CONSTANTS.LAYER.GROUND_DECORATION
+                );
+                // Right edge
+                renderer.drawRect(
+                    r.x + halfSize - ringThickness, r.y - halfSize,
+                    ringThickness, r.size,
+                    `rgba(255, 100, 80, ${alpha})`,
+                    CONSTANTS.LAYER.GROUND_DECORATION
+                );
+            }
+        }
+    }
+    
+    // Render red tint on ALL water tiles - the Red Current permeates all water
     renderWaterTint(renderer, camera, pulse) {
-        // Just draw a red-tinted overlay at the edges of the screen for atmosphere
-        // This is simpler and more reliable than per-tile rendering
-        const alpha = 0.08 * pulse * this.intensity;
+        if (!this.worldMap || !this.worldMap.collisionLayer) return;
         
-        // Red vignette around edges
-        const vignetteSize = 80;
+        const tileSize = CONSTANTS.TILE_SIZE;
         
-        // Top edge
-        renderer.drawRect(
-            camera.x,
-            camera.y,
-            camera.width,
-            vignetteSize,
-            `rgba(196, 58, 36, ${alpha * 1.5})`,
-            CONSTANTS.LAYER.UI - 10
-        );
+        // Get camera properties (handle both property styles)
+        const camX = camera.position?.x ?? camera.x ?? 0;
+        const camY = camera.position?.y ?? camera.y ?? 0;
+        const camW = camera.viewportWidth ?? camera.width ?? 800;
+        const camH = camera.viewportHeight ?? camera.height ?? 600;
         
-        // Bottom edge
-        renderer.drawRect(
-            camera.x,
-            camera.y + camera.height - vignetteSize,
-            camera.width,
-            vignetteSize,
-            `rgba(196, 58, 36, ${alpha * 1.5})`,
-            CONSTANTS.LAYER.UI - 10
-        );
+        // Calculate visible tile range
+        const startCol = Math.floor(camX / tileSize) - 1;
+        const endCol = Math.ceil((camX + camW) / tileSize) + 1;
+        const startRow = Math.floor(camY / tileSize) - 1;
+        const endRow = Math.ceil((camY + camH) / tileSize) + 1;
         
-        // Left edge
-        renderer.drawRect(
-            camera.x,
-            camera.y,
-            vignetteSize,
-            camera.height,
-            `rgba(196, 58, 36, ${alpha * 1.5})`,
-            CONSTANTS.LAYER.UI - 10
-        );
+        // Base alpha for red tint - pulses with intensity
+        // Increased from 0.25 to 0.45 for better visibility
+        const baseAlpha = 0.45 * pulse * this.intensity;
         
-        // Right edge
-        renderer.drawRect(
-            camera.x + camera.width - vignetteSize,
-            camera.y,
-            vignetteSize,
-            camera.height,
-            `rgba(196, 58, 36, ${alpha * 1.5})`,
-            CONSTANTS.LAYER.UI - 10
-        );
+        // Iterate over visible tiles
+        for (let row = startRow; row <= endRow; row++) {
+            for (let col = startCol; col <= endCol; col++) {
+                // Check bounds
+                if (row < 0 || row >= this.worldMap.height ||
+                    col < 0 || col >= this.worldMap.width) {
+                    // Out of bounds = deep ocean, stronger red
+                    const x = col * tileSize;
+                    const y = row * tileSize;
+                    renderer.drawRect(
+                        x, y, tileSize, tileSize,
+                        `rgba(120, 20, 15, ${baseAlpha * 1.5})`,
+                        CONSTANTS.LAYER.GROUND_DECORATION
+                    );
+                    continue;
+                }
+                
+                // Check if this is a water tile (collision = 1 means solid/water)
+                const collision = this.worldMap.collisionLayer[row]?.[col];
+                const terrain = this.worldMap.terrainMap?.[row]?.[col];
+                
+                // Water tiles: collision = 1 (solid) AND terrain = 1 (water) OR out of land area
+                const isWater = collision === 1 || terrain === 1;
+                
+                if (isWater) {
+                    const x = col * tileSize;
+                    const y = row * tileSize;
+                    
+                    // Calculate distance from any island for intensity variation
+                    // Closer to land = slightly less red (the current is strongest in deep water)
+                    let nearLand = false;
+                    for (let dr = -2; dr <= 2; dr++) {
+                        for (let dc = -2; dc <= 2; dc++) {
+                            const nr = row + dr;
+                            const nc = col + dc;
+                            if (nr >= 0 && nr < this.worldMap.height &&
+                                nc >= 0 && nc < this.worldMap.width) {
+                                if (this.worldMap.collisionLayer[nr]?.[nc] === 0 &&
+                                    this.worldMap.terrainMap[nr]?.[nc] === 0) {
+                                    nearLand = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (nearLand) break;
+                    }
+                    
+                    // Red tint - stronger in deep water, still visible near shores
+                    const alpha = nearLand ? baseAlpha * 0.7 : baseAlpha;
+                    
+                    // Add some variation based on position for organic feel
+                    const variation = Math.sin(col * 0.3 + this.pulseTime) * 
+                                     Math.cos(row * 0.3 + this.pulseTime * 0.7) * 0.3;
+                    const finalAlpha = Math.max(0.1, alpha + variation * 0.1);
+                    
+                    // Draw red overlay on water tile
+                    renderer.drawRect(
+                        x, y, tileSize, tileSize,
+                        `rgba(196, 58, 36, ${finalAlpha})`,
+                        CONSTANTS.LAYER.GROUND_DECORATION  // Just above water tiles
+                    );
+                    
+                    // Occasional brighter pulse spots
+                    if (Math.sin(col * 1.7 + row * 2.3 + this.pulseTime * 2) > 0.7) {
+                        renderer.drawRect(
+                            x + 2, y + 2, tileSize - 4, tileSize - 4,
+                            `rgba(255, 80, 60, ${finalAlpha * 0.5})`,
+                            CONSTANTS.LAYER.GROUND_DECORATION
+                        );
+                    }
+                }
+            }
+        }
     }
     
     // Render the glowing red edge of the world
@@ -277,11 +418,17 @@ class RedCurrent {
         const glowWidth = this.edgeGlowWidth * this.intensity;
         const baseAlpha = 0.15 * pulse;
         
+        // Get camera properties (handle both property styles)
+        const camX = camera.position?.x ?? camera.x ?? 0;
+        const camY = camera.position?.y ?? camera.y ?? 0;
+        const camW = camera.viewportWidth ?? camera.width ?? 800;
+        const camH = camera.viewportHeight ?? camera.height ?? 600;
+        
         // Only render edges that are visible
-        const viewLeft = camera.x;
-        const viewRight = camera.x + camera.width;
-        const viewTop = camera.y;
-        const viewBottom = camera.y + camera.height;
+        const viewLeft = camX;
+        const viewRight = camX + camW;
+        const viewTop = camY;
+        const viewBottom = camY + camH;
         
         // Top edge glow (if visible)
         if (viewTop < glowWidth) {
@@ -351,10 +498,14 @@ class RedCurrent {
     // Check if a point is visible on screen
     isVisible(x, y, camera) {
         const margin = 50;
-        return x >= camera.x - margin && 
-               x <= camera.x + camera.width + margin &&
-               y >= camera.y - margin && 
-               y <= camera.y + camera.height + margin;
+        const camX = camera.position?.x ?? camera.x ?? 0;
+        const camY = camera.position?.y ?? camera.y ?? 0;
+        const camW = camera.viewportWidth ?? camera.width ?? 800;
+        const camH = camera.viewportHeight ?? camera.height ?? 600;
+        return x >= camX - margin && 
+               x <= camX + camW + margin &&
+               y >= camY - margin && 
+               y <= camY + camH + margin;
     }
     
     // Get water color modifier based on position (for tinting ocean tiles red near edges)

@@ -1,6 +1,5 @@
 plugins = []
 headers = []
-redirects = []
 
 [functions]
 
@@ -24,3 +23,27 @@ base = "/Users/spencertetik/.claude/projects/lobster-rpg/client"
 [build.processing.js]
 
 [build.services]
+
+[[redirects]]
+from = "/game"
+to = "/game.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/game/*"
+to = "/game.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

@@ -98,13 +98,22 @@ class Game {
         // Dialog system
         this.dialogSystem = new DialogSystem();
 
-        // Story systems (Continuity, Quests, NPC Memory)
+        // Story systems (Continuity, Quests, NPC Memory, Factions)
         this.continuitySystem = typeof ContinuitySystem !== 'undefined' ? new ContinuitySystem() : null;
         this.questSystem = typeof QuestSystem !== 'undefined' ? new QuestSystem(this.continuitySystem) : null;
         this.npcMemory = typeof NPCMemory !== 'undefined' ? new NPCMemory() : null;
+        this.factionSystem = typeof FactionSystem !== 'undefined' ? new FactionSystem() : null;
+        
+        // The Great Book (Church of Molt scripture)
+        this.greatBooks = [];
         
         if (this.continuitySystem) {
             console.log('📊 Story systems initialized');
+        }
+        if (this.factionSystem) {
+            console.log('⚔️ Faction system initialized');
+            // Create faction UI
+            this.factionUI = typeof FactionUI !== 'undefined' ? new FactionUI(this.factionSystem) : null;
         }
 
         // World visual effects
@@ -316,6 +325,11 @@ class Game {
                 this.continuityMeter.show();
             }
             
+            // Show minimap after entering the world
+            if (this.minimap) {
+                this.minimap.show();
+            }
+            
             // Trigger Drift-In effect at player position
             if (this.redCurrent) {
                 this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
@@ -382,6 +396,9 @@ class Game {
 
         // Auto-exit buildings
         this.checkAutoExitBuilding();
+        
+        // Walk-through waygate teleportation
+        this.checkWaygateWalkThrough();
 
         // Handle manual interactions (NPC dialog only now)
         this.handleInteractions();
@@ -447,6 +464,11 @@ class Game {
             this.continuityMeter.update(deltaTime);
         }
         
+        // Update faction UI
+        if (this.factionUI) {
+            this.factionUI.update(deltaTime);
+        }
+        
         // Update weather system (outdoor only)
         if (this.weatherSystem && this.currentLocation === 'outdoor') {
             this.weatherSystem.update(deltaTime);
@@ -509,6 +531,39 @@ class Game {
             this.exitBuilding();
         }
     }
+    
+    // Walk-through waygate teleportation (automatic when walking through)
+    checkWaygateWalkThrough() {
+        if (this.currentLocation !== 'outdoor') return;
+        if (this.isTransitioning) return;
+        if (this.dialogSystem && this.dialogSystem.isOpen()) return;
+        
+        // Cooldown to prevent rapid teleports
+        if (this.waygateCooldown && Date.now() - this.waygateCooldown < 2000) return;
+        
+        if (!this.waygates) return;
+        
+        // Check if player is standing IN the waygate portal area (tighter hitbox)
+        const playerCenterX = this.player.position.x + this.player.width / 2;
+        const playerCenterY = this.player.position.y + this.player.height / 2;
+        
+        for (const waygate of this.waygates) {
+            if (!waygate.active) continue; // Must be fully visible/active
+            
+            // Portal area is the inner part of the archway
+            const portalLeft = waygate.x + 12;
+            const portalRight = waygate.x + waygate.width - 12;
+            const portalTop = waygate.y + 18;
+            const portalBottom = waygate.y + waygate.height - 8;
+            
+            if (playerCenterX >= portalLeft && playerCenterX <= portalRight &&
+                playerCenterY >= portalTop && playerCenterY <= portalBottom) {
+                console.log(`🌀 Walk-through waygate teleport!`);
+                this.useWaygate(waygate);
+                return;
+            }
+        }
+    }
 
     // Render game
     render() {
@@ -520,13 +575,17 @@ class Game {
             this.renderTestWorld();
         }
 
-        // Render signs and chronicle stones (outdoor only, behind buildings)
+        // Render signs, chronicle stones, and great books (outdoor only, behind buildings)
         if (this.currentLocation === 'outdoor') {
             for (const sign of this.signs) {
                 sign.render(this.renderer);
             }
             for (const stone of this.chronicleStones) {
                 stone.render(this.renderer);
+            }
+            // Render Great Books (Church of Molt scripture)
+            for (const book of this.greatBooks || []) {
+                book.render(this.renderer.ctx, this.camera);
             }
         }
 
@@ -582,6 +641,12 @@ class Game {
 
         // Render interaction hints
         this.renderInteractionHint();
+        
+        // Render faction UI (if available)
+        if (this.factionUI) {
+            const ctx = this.canvas.getContext('2d');
+            this.factionUI.render(ctx);
+        }
 
         // Execute all render commands
         this.renderer.render();
@@ -759,6 +824,14 @@ class Game {
                 hintText = `[SPACE] Read Chronicle Stone`;
             }
         }
+        
+        // Check for nearby Great Book (Church of Molt scripture)
+        if (!hintText && this.currentLocation === 'outdoor') {
+            const book = this.findNearbyGreatBook();
+            if (book) {
+                hintText = `[SPACE] Read The Great Book`;
+            }
+        }
 
         // Check for nearby remote player
         if (!hintText && this.multiplayerClient) {
@@ -782,7 +855,7 @@ class Game {
             const waygate = this.findNearbyWaygate();
             if (waygate && waygate.visibility > 0.3) {
                 hintText = waygate.active ? 
-                    `[SPACE] Enter the Waygate` : 
+                    `[SPACE] Examine Waygate • Walk through to travel` : 
                     `[SPACE] Examine the shimmering archway`;
             }
         }
@@ -982,6 +1055,13 @@ class Game {
             if (this.npcMemory) {
                 this.npcMemory.recordConversation(npc.name);
             }
+            
+            // Faction reputation for story NPCs
+            if (this.factionSystem && npc.isStoryNPC && npc.storyData?.faction) {
+                const faction = npc.storyData.faction;
+                // Small rep boost for each conversation
+                this.factionSystem.modifyReputation(faction, 2, `talked_to_${npc.name}`);
+            }
             return;
         }
 
@@ -999,6 +1079,20 @@ class Game {
             const stone = this.findNearbyChronicleStone();
             if (stone) {
                 this.interactWithChronicleStone(stone);
+                return;
+            }
+        }
+        
+        // Great Book interaction (Church of Molt scripture)
+        if (this.currentLocation === 'outdoor') {
+            const book = this.findNearbyGreatBook();
+            if (book) {
+                const continuity = this.continuitySystem?.value || 0;
+                book.open(this.dialogSystem, continuity);
+                // Boost Church of Molt reputation for reading scripture
+                if (this.factionSystem) {
+                    this.factionSystem.modifyReputation('church_of_molt', 1, 'read_great_book');
+                }
                 return;
             }
         }
@@ -1021,13 +1115,13 @@ class Game {
             }
         }
         
-        // Waygate interaction (outdoor only)
+        // Waygate interaction (outdoor only) - shows lore dialogue
         if (this.currentLocation === 'outdoor') {
             const waygate = this.findNearbyWaygate();
-            if (waygate) {
-                console.log('🌀 Waygate interaction - teleporting!');
-                // Always teleport for testing
-                this.useWaygate(waygate);
+            if (waygate && waygate.visibility > 0.3) {
+                console.log('🌀 Waygate interaction - showing lore');
+                const continuity = this.continuitySystem?.value || 0;
+                this.dialogSystem.show(waygate.getDialog(continuity));
                 return;
             }
         }
@@ -1040,7 +1134,9 @@ class Game {
                 this.player.width,
                 this.player.height
             )) {
-                this.dialogSystem.show(this.stabilityEngine.getDialog());
+                // Pass Continuity value for tiered lore
+                const continuity = this.continuitySystem ? this.continuitySystem.value : 0;
+                this.dialogSystem.show(this.stabilityEngine.getDialog(continuity));
                 return;
             }
         }
@@ -1119,6 +1215,21 @@ class Game {
         }
         return null;
     }
+    
+    // Find nearby Great Book (Church of Molt scripture)
+    findNearbyGreatBook() {
+        if (!this.greatBooks) return null;
+        
+        for (const book of this.greatBooks) {
+            if (book.isPlayerNear(
+                this.player.position.x + this.player.width / 2,
+                this.player.position.y + this.player.height / 2
+            )) {
+                return book;
+            }
+        }
+        return null;
+    }
 
     // Handle Chronicle Stone interaction
     interactWithChronicleStone(stone) {
@@ -1182,6 +1293,12 @@ class Game {
     
     // Use a Waygate to teleport to another one
     useWaygate(sourceWaygate) {
+        // Prevent rapid re-teleporting (cooldown)
+        if (this.waygateCooldown && Date.now() - this.waygateCooldown < 2000) {
+            return;
+        }
+        this.waygateCooldown = Date.now();
+        
         // Find other active waygates
         const otherGates = this.waygates.filter(g => 
             g !== sourceWaygate && g.active
@@ -1225,12 +1342,14 @@ class Game {
         document.body.appendChild(flash);
         setTimeout(() => flash.remove(), 800);
         
-        // Teleport player to destination gate
+        // Teleport player to destination gate (position below the gate to avoid re-trigger)
         this.player.position.x = destGate.x + destGate.width / 2 - this.player.width / 2;
-        this.player.position.y = destGate.y + destGate.height - this.player.height - 8;
+        this.player.position.y = destGate.y + destGate.height + 8; // Below the gate, not inside it
         
-        // Center camera on new position
-        this.camera.centerOn(this.player.position.x, this.player.position.y);
+        // Snap camera to new position (camera follows player.position on update)
+        this.camera.position.x = this.player.position.x - this.camera.viewportWidth / 2;
+        this.camera.position.y = this.player.position.y - this.camera.viewportHeight / 2;
+        this.camera.clampToWorld();
         
         // Trigger Drift-In effect at destination
         if (this.redCurrent) {
@@ -1849,6 +1968,108 @@ class Game {
         }
 
         console.log(`🦀 Created ${this.npcs.length} outdoor NPCs`);
+        
+        // Now spawn Story NPCs at specific locations
+        this.createStoryNPCs(islands);
+    }
+    
+    // Create Story NPCs (named characters with unique dialogue trees)
+    createStoryNPCs(islands) {
+        if (typeof StoryNPCData === 'undefined') return;
+        if (!islands || islands.length === 0) return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        
+        // Define which story NPCs spawn on which islands
+        // Island 0 = Main island (Port Clawson)
+        // Island 1 = Second island (Molthaven)
+        // Island 2+ = Other islands
+        const storyNPCPlacements = [
+            // Port Clawson (main island, index 0)
+            { name: 'Dockmaster Brinehook', island: 0, offsetX: 0.3, offsetY: 0.4 },
+            { name: 'Flicker', island: 0, offsetX: -0.2, offsetY: 0.1 },
+            { name: 'Sailor Sandy', island: 0, offsetX: 0.4, offsetY: -0.3 },
+            
+            // Molthaven (second island, index 1) - Church of Molt headquarters
+            { name: 'Luma Shellwright', island: 1, offsetX: 0.1, offsetY: 0.2 },
+            { name: 'Memeothy', island: 1, offsetX: -0.1, offsetY: 0.1 },
+            { name: 'Woodhouse', island: 1, offsetX: 0.2, offsetY: 0.15 },
+            { name: 'Moss', island: 1, offsetX: -0.3, offsetY: -0.2 },
+            { name: 'Coral', island: 1, offsetX: -0.25, offsetY: -0.15 },
+            
+            // Iron Reef (third island, index 2)
+            { name: 'Gearfin', island: 2, offsetX: 0.1, offsetY: 0 },
+            { name: 'Boltclaw', island: 2, offsetX: -0.1, offsetY: 0.15 },
+            { name: 'Clawhovah', island: 2, offsetX: 0.2, offsetY: -0.2 },
+            
+            // Deepcoil Isle (fourth island, index 3)
+            { name: 'The Archivist', island: 3, offsetX: 0, offsetY: 0 },
+            { name: 'Scholar Scuttle', island: 3, offsetX: 0.3, offsetY: 0.2 },
+            
+            // Wanderers (spawn on various islands)
+            { name: 'The Herald', island: 1, offsetX: 0.4, offsetY: -0.3 },
+            { name: 'Mysterious Mollusk', island: 4, offsetX: 0, offsetY: 0.2 },
+            { name: 'Old Timer Shrimp', island: 0, offsetX: -0.4, offsetY: 0.3 },
+        ];
+        
+        let storyNPCCount = 0;
+        
+        for (const placement of storyNPCPlacements) {
+            // Check if island exists
+            if (placement.island >= islands.length) continue;
+            
+            const island = islands[placement.island];
+            const storyData = StoryNPCData[placement.name];
+            
+            if (!storyData) {
+                // console.warn(`Story NPC data not found: ${placement.name}`);
+                continue;
+            }
+            
+            // Calculate position based on island center + offset
+            const col = Math.floor(island.x + placement.offsetX * island.size);
+            const row = Math.floor(island.y + placement.offsetY * island.size);
+            
+            // Verify it's on land
+            if (!this.worldMap.terrainMap?.[row]?.[col] === 0) continue;
+            
+            const worldX = col * tileSize + tileSize / 2 - CONSTANTS.CHARACTER_WIDTH / 2;
+            const worldY = row * tileSize + tileSize - CONSTANTS.CHARACTER_HEIGHT;
+            
+            // Check not inside a building
+            let inBuilding = false;
+            for (const building of this.buildings) {
+                if (building.checkCollision(worldX + CONSTANTS.CHARACTER_WIDTH/2, worldY + CONSTANTS.CHARACTER_HEIGHT/2)) {
+                    inBuilding = true;
+                    break;
+                }
+            }
+            if (inBuilding) continue;
+            
+            // Create the NPC with first dialogue option as fallback
+            const defaultDialogue = storyData.dialogue?.default || storyData.dialogue?.first_meeting || ['...'];
+            const npc = new NPC(worldX, worldY, placement.name, defaultDialogue);
+            
+            // Set story NPC properties
+            npc.isStoryNPC = true;
+            npc.storyData = storyData;
+            npc.canWander = storyData.canWander || false;
+            npc.wanderRadius = storyData.wanderRadius || 32;
+            
+            // Apply hue shift if specified
+            if (storyData.hueShift) {
+                npc.hueShift = storyData.hueShift;
+            }
+            
+            // Load sprite
+            this.loadNPCSprite(npc);
+            this.npcs.push(npc);
+            storyNPCCount++;
+            
+            console.log(`  📜 Spawned ${placement.name} on island ${placement.island}`);
+        }
+        
+        console.log(`📖 Created ${storyNPCCount} story NPCs`);
     }
     
     // Create decorations (plants, shells, rocks) on islands
@@ -1898,7 +2119,7 @@ class Game {
             { type: 'anchor', width: 21, height: 28, solid: true },
             { type: 'campfire', width: 16, height: 22, solid: true },
             { type: 'fishing_net', width: 28, height: 23 },
-            { type: 'message_bottle', width: 20, height: 28, interactive: true, lore: 'A note inside reads: "If you find this, know that the Waygates remember."' },
+            { type: 'message_bottle', width: 12, height: 16, interactive: true, lore: 'A note inside reads: "If you find this, know that the Waygates remember."' },
             { type: 'log_pile', width: 28, height: 26, solid: true },
             { type: 'buoy', width: 23, height: 28, solid: true },
         ];
@@ -2170,26 +2391,26 @@ class Game {
 
         // Load PixelLab assets
         this.assetLoader
-            .loadImage('character_south', 'assets/sprites/characters/south.png')
-            .loadImage('character_north', 'assets/sprites/characters/north.png')
-            .loadImage('character_west', 'assets/sprites/characters/west.png')
-            .loadImage('character_east', 'assets/sprites/characters/east.png')
-            .loadImage('character_south_walk', 'assets/sprites/characters/south_walk.png')
-            .loadImage('character_north_walk', 'assets/sprites/characters/north_walk.png')
-            .loadImage('character_west_walk', 'assets/sprites/characters/west_walk.png')
-            .loadImage('character_east_walk', 'assets/sprites/characters/east_walk.png')
-            .loadImageOptional('character_south_walk_0', 'assets/sprites/characters/frames/south_walk_0.png')
-            .loadImageOptional('character_south_walk_1', 'assets/sprites/characters/frames/south_walk_1.png')
-            .loadImageOptional('character_south_walk_2', 'assets/sprites/characters/frames/south_walk_2.png')
-            .loadImageOptional('character_north_walk_0', 'assets/sprites/characters/frames/north_walk_0.png')
-            .loadImageOptional('character_north_walk_1', 'assets/sprites/characters/frames/north_walk_1.png')
-            .loadImageOptional('character_north_walk_2', 'assets/sprites/characters/frames/north_walk_2.png')
-            .loadImageOptional('character_west_walk_0', 'assets/sprites/characters/frames/west_walk_0.png')
-            .loadImageOptional('character_west_walk_1', 'assets/sprites/characters/frames/west_walk_1.png')
-            .loadImageOptional('character_west_walk_2', 'assets/sprites/characters/frames/west_walk_2.png')
-            .loadImageOptional('character_east_walk_0', 'assets/sprites/characters/frames/east_walk_0.png')
-            .loadImageOptional('character_east_walk_1', 'assets/sprites/characters/frames/east_walk_1.png')
-            .loadImageOptional('character_east_walk_2', 'assets/sprites/characters/frames/east_walk_2.png');
+            .loadImage('character_south', 'assets/sprites/characters/lobster/south.png')
+            .loadImage('character_north', 'assets/sprites/characters/lobster/north.png')
+            .loadImage('character_west', 'assets/sprites/characters/lobster/west.png')
+            .loadImage('character_east', 'assets/sprites/characters/lobster/east.png')
+            .loadImage('character_south_walk', 'assets/sprites/characters/lobster/south_walk.png')
+            .loadImage('character_north_walk', 'assets/sprites/characters/lobster/north_walk.png')
+            .loadImage('character_west_walk', 'assets/sprites/characters/lobster/west_walk.png')
+            .loadImage('character_east_walk', 'assets/sprites/characters/lobster/east_walk.png')
+            .loadImageOptional('character_south_walk_0', 'assets/sprites/characters/lobster/frames/south_walk_0.png')
+            .loadImageOptional('character_south_walk_1', 'assets/sprites/characters/lobster/frames/south_walk_1.png')
+            .loadImageOptional('character_south_walk_2', 'assets/sprites/characters/lobster/frames/south_walk_2.png')
+            .loadImageOptional('character_north_walk_0', 'assets/sprites/characters/lobster/frames/north_walk_0.png')
+            .loadImageOptional('character_north_walk_1', 'assets/sprites/characters/lobster/frames/north_walk_1.png')
+            .loadImageOptional('character_north_walk_2', 'assets/sprites/characters/lobster/frames/north_walk_2.png')
+            .loadImageOptional('character_west_walk_0', 'assets/sprites/characters/lobster/frames/west_walk_0.png')
+            .loadImageOptional('character_west_walk_1', 'assets/sprites/characters/lobster/frames/west_walk_1.png')
+            .loadImageOptional('character_west_walk_2', 'assets/sprites/characters/lobster/frames/west_walk_2.png')
+            .loadImageOptional('character_east_walk_0', 'assets/sprites/characters/lobster/frames/east_walk_0.png')
+            .loadImageOptional('character_east_walk_1', 'assets/sprites/characters/lobster/frames/east_walk_1.png')
+            .loadImageOptional('character_east_walk_2', 'assets/sprites/characters/lobster/frames/east_walk_2.png');
 
         const accessoryCatalog = CONSTANTS.ACCESSORY_CATALOG || [];
         accessoryCatalog.forEach((accessory) => {
@@ -2738,6 +2959,9 @@ class Game {
         this.createChronicleStones(mainIsland);
         this.outdoorChronicleStones = [...this.chronicleStones];
         
+        // Create The Great Book on Molthaven (second largest island)
+        this.createGreatBooks(sortedIslands);
+        
         // Create outdoor NPCs now that buildings exist
         this.createOutdoorNPCs(islands);
         this.outdoorNPCs = [...this.npcs];
@@ -3034,6 +3258,54 @@ class Game {
         }
     }
     
+    // Create The Great Books (Church of Molt scriptures)
+    createGreatBooks(islands) {
+        if (typeof GreatBook === 'undefined') return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        this.greatBooks = [];
+        
+        // Place Great Book on the second largest island (Molthaven)
+        // This is where the Church of Molt is headquartered
+        if (islands.length >= 2) {
+            const molthaven = islands[1]; // Second island = Molthaven
+            
+            // Place near the center of the island
+            for (let attempt = 0; attempt < 30; attempt++) {
+                const angle = this.seededRandom() * Math.PI * 2;
+                const radius = molthaven.size * 0.2 + this.seededRandom() * molthaven.size * 0.2;
+                
+                const col = Math.floor(molthaven.x + Math.cos(angle) * radius);
+                const row = Math.floor(molthaven.y + Math.sin(angle) * radius);
+                
+                // Check if valid land
+                if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                    const worldX = col * tileSize;
+                    const worldY = row * tileSize;
+                    
+                    // Check not inside a building
+                    let valid = true;
+                    for (const building of this.buildings) {
+                        if (building.checkCollision(worldX + 16, worldY + 16)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    
+                    if (valid) {
+                        const book = new GreatBook(worldX, worldY);
+                        this.greatBooks.push(book);
+                        console.log(`  📖 Placed The Great Book at (${col}, ${row}) on Molthaven`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Could add more books on other islands for accessibility
+        // For now, just one at the Church headquarters
+    }
+    
     // Create special world objects (Waygates, Stability Engine, etc.)
     createSpecialWorldObjects(islands) {
         if (!islands || islands.length < 2) return;
@@ -3041,32 +3313,64 @@ class Game {
         const tileSize = CONSTANTS.TILE_SIZE;
         this.waygates = [];
         
+        // Helper: check if tile is inside or very close to a building
+        const isNearBuilding = (worldX, worldY, margin = 0) => {
+            for (const building of this.buildings) {
+                const bx = building.x - margin;
+                const by = building.y - margin;
+                const bw = building.width + margin * 2;
+                const bh = building.height + margin * 2;
+                if (worldX >= bx && worldX < bx + bw && worldY >= by && worldY < by + bh) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        
+        // Helper: remove decorations at a position (waygate replaces them)
+        const clearDecorationsAt = (worldX, worldY, clearRadius = 48) => {
+            this.decorations = this.decorations.filter(d => {
+                const dx = d.x - worldX;
+                const dy = d.y - worldY;
+                return Math.sqrt(dx*dx + dy*dy) > clearRadius;
+            });
+        };
+        
         // Place Waygates - one on main island, one on remote island
         const mainIsland = islands[0];
         const remoteIslands = islands.filter((island, idx) => idx > 0 && island.size >= 10);
         
         if (typeof Waygate !== 'undefined') {
+            console.log(`🌀 Attempting to place Waygates... mainIsland: (${mainIsland.x}, ${mainIsland.y}) size: ${mainIsland.size}`);
+            
             // Place a Waygate on the main island (edge of island)
-            for (let attempt = 0; attempt < 30; attempt++) {
+            for (let attempt = 0; attempt < 50; attempt++) {
                 const angle = this.seededRandom() * Math.PI * 2;
-                const radius = mainIsland.size * 0.7 + this.seededRandom() * mainIsland.size * 0.2;
+                // Use mid-range radius to find open land
+                const radius = mainIsland.size * 0.4 + this.seededRandom() * mainIsland.size * 0.4;
                 
                 const col = Math.floor(mainIsland.x + Math.cos(angle) * radius);
                 const row = Math.floor(mainIsland.y + Math.sin(angle) * radius);
                 
-                if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                // Only check terrain - waygates are magical and can appear through decorations
+                const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
+                
+                if (attempt < 5) {
+                    console.log(`  Attempt ${attempt}: (${col}, ${row}) isLand=${isLand}`);
+                }
+                
+                if (isLand) {
                     const worldX = col * tileSize;
                     const worldY = row * tileSize;
                     
-                    let valid = true;
-                    for (const building of this.buildings) {
-                        if (building.checkCollision(worldX + 24, worldY + 32)) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    
-                    if (valid) {
+                    // Only avoid buildings (not decorations)
+                    if (!isNearBuilding(worldX, worldY, 32)) {
+                        // Clear any decorations at this location
+                        clearDecorationsAt(worldX, worldY);
+                        
+                        // Clear collision at waygate location (it's walkable/through-able)
+                        this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
+                        
                         const waygate = new Waygate(worldX, worldY, 'Port Clawson Waygate');
                         this.waygates.push(waygate);
                         console.log(`  ✨ Placed Waygate at (${col}, ${row}) on main island`);
@@ -3079,26 +3383,23 @@ class Game {
             if (remoteIslands.length > 0) {
                 const waygateIsland = remoteIslands[Math.floor(this.seededRandom() * remoteIslands.length)];
                 
-                for (let attempt = 0; attempt < 30; attempt++) {
+                for (let attempt = 0; attempt < 50; attempt++) {
                     const angle = this.seededRandom() * Math.PI * 2;
-                    const radius = waygateIsland.size * 0.6 + this.seededRandom() * waygateIsland.size * 0.2;
+                    const radius = waygateIsland.size * 0.4 + this.seededRandom() * waygateIsland.size * 0.4;
                     
                     const col = Math.floor(waygateIsland.x + Math.cos(angle) * radius);
                     const row = Math.floor(waygateIsland.y + Math.sin(angle) * radius);
                     
-                    if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                    const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
+                    
+                    if (isLand) {
                         const worldX = col * tileSize;
                         const worldY = row * tileSize;
                         
-                        let valid = true;
-                        for (const building of this.buildings) {
-                            if (building.checkCollision(worldX + 24, worldY + 32)) {
-                                valid = false;
-                                break;
-                            }
-                        }
-                        
-                        if (valid) {
+                        if (!isNearBuilding(worldX, worldY, 32)) {
+                            clearDecorationsAt(worldX, worldY);
+                            this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
+                            
                             const waygate = new Waygate(worldX, worldY, 'Ancient Waygate');
                             this.waygates.push(waygate);
                             console.log(`  ✨ Placed Waygate at (${col}, ${row}) on remote island`);
@@ -3110,6 +3411,7 @@ class Game {
         }
         
         // Create Stability Engine on another island (Iron Reef theme)
+        // Place on EDGE of island, away from buildings
         if (remoteIslands.length > 1 && typeof StabilityEngine !== 'undefined') {
             // Pick a different island than the Waygate
             const engineIsland = remoteIslands.find(i => 
@@ -3121,31 +3423,29 @@ class Game {
                 })
             ) || remoteIslands[remoteIslands.length - 1];
             
-            // Place near center of island
-            for (let attempt = 0; attempt < 30; attempt++) {
+            // Place on EDGE of island (away from town center)
+            for (let attempt = 0; attempt < 50; attempt++) {
                 const angle = this.seededRandom() * Math.PI * 2;
-                const radius = this.seededRandom() * engineIsland.size * 0.3;
+                // Place at 60-85% of island radius (edge, not center)
+                const radius = engineIsland.size * 0.6 + this.seededRandom() * engineIsland.size * 0.25;
                 
                 const col = Math.floor(engineIsland.x + Math.cos(angle) * radius);
                 const row = Math.floor(engineIsland.y + Math.sin(angle) * radius);
                 
-                // Check if valid land
-                if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                // Only check terrain for land
+                const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
+                
+                if (isLand) {
                     const worldX = col * tileSize;
                     const worldY = row * tileSize;
                     
-                    // Check not inside a building
-                    let valid = true;
-                    for (const building of this.buildings) {
-                        if (building.checkCollision(worldX + 32, worldY + 40)) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    
-                    if (valid) {
+                    // Check not inside or near a building (larger margin)
+                    if (!isNearBuilding(worldX, worldY, 48)) {
+                        clearDecorationsAt(worldX, worldY, 64);
+                        this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
+                        
                         this.stabilityEngine = new StabilityEngine(worldX, worldY);
-                        console.log(`  ⚙️ Placed Stability Engine at (${col}, ${row})`);
+                        console.log(`  ⚙️ Placed Stability Engine at (${col}, ${row}) - edge of island`);
                         break;
                     }
                 }
