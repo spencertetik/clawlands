@@ -106,6 +106,22 @@ async function initDatabase() {
         CREATE INDEX IF NOT EXISTS chat_time_idx ON chat_messages(created_at DESC);
     `);
 
+        // Bot API keys table for self-service registration
+        await db.query(`
+        CREATE TABLE IF NOT EXISTS bot_api_keys (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            api_key_hash TEXT UNIQUE NOT NULL,
+            bot_name TEXT NOT NULL,
+            owner_name TEXT,
+            owner_email TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            last_used TIMESTAMPTZ,
+            is_active BOOLEAN DEFAULT true,
+            uses INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS bot_keys_hash_idx ON bot_api_keys(api_key_hash);
+        `);
+
         console.log('✅ Database tables ready');
     } catch (err) {
         console.error('⚠️ Table creation failed:', err.message);
@@ -132,6 +148,7 @@ function hashToken(token) {
 
 const players = new Map();  // id -> { ws, name, x, y, species, color, facing, isBot }
 const rateLimits = new Map();  // ip -> { count, resetTime }
+const botRegRateLimits = new Map();  // ip -> { count, resetTime } for bot registration
 
 function checkRateLimit(ip) {
     const now = Date.now();
@@ -145,6 +162,54 @@ function checkRateLimit(ip) {
     rateLimits.set(ip, entry);
     
     return entry.count <= RATE_LIMIT.maxRequests;
+}
+
+function checkBotRegRateLimit(ip) {
+    const now = Date.now();
+    let entry = botRegRateLimits.get(ip);
+    if (!entry || now > entry.resetTime) {
+        entry = { count: 0, resetTime: now + 3600000 }; // 1 hour window
+    }
+    entry.count++;
+    botRegRateLimits.set(ip, entry);
+    return entry.count <= 3; // max 3 registrations per IP per hour
+}
+
+async function verifyDbApiKey(apiKey) {
+    if (!db) return null;
+    try {
+        const keyHash = hashToken(apiKey);
+        const result = await db.query(
+            'SELECT bot_name, is_active FROM bot_api_keys WHERE api_key_hash = $1',
+            [keyHash]
+        );
+        if (result.rows.length > 0 && result.rows[0].is_active) {
+            // Update last_used and increment uses
+            db.query(
+                'UPDATE bot_api_keys SET last_used = NOW(), uses = uses + 1 WHERE api_key_hash = $1',
+                [keyHash]
+            ).catch(() => {});
+            return result.rows[0];
+        }
+    } catch (err) {
+        console.error('⚠️ Bot key DB check failed:', err.message);
+    }
+    return null;
+}
+
+function parseBody(req) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', () => {
+            try {
+                resolve(JSON.parse(Buffer.concat(chunks).toString()));
+            } catch (e) {
+                reject(new Error('Invalid JSON'));
+            }
+        });
+        req.on('error', reject);
+    });
 }
 
 function broadcast(message, excludeId = null) {
@@ -173,7 +238,7 @@ function getPlayerList() {
 // HTTP Server
 // ============================================
 
-const httpServer = http.createServer((req, res) => {
+const httpServer = http.createServer(async (req, res) => {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -220,6 +285,107 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
 </body>
 </html>
         `);
+    } else if (url.pathname === '/api/bot/register' && req.method === 'POST') {
+        // Self-service bot API key registration
+        if (!db) {
+            res.writeHead(503, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Registration unavailable - no database' }));
+            return;
+        }
+
+        const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+        if (!checkBotRegRateLimit(ip)) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Rate limited - max 3 keys per hour' }));
+            return;
+        }
+
+        try {
+            const body = await parseBody(req);
+            const botName = body.botName?.trim();
+
+            if (!botName) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'botName is required' }));
+                return;
+            }
+            if (botName.length > 30 || !/^[a-zA-Z0-9 -]+$/.test(botName)) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'botName must be 1-30 chars, alphanumeric + spaces + dashes only' }));
+                return;
+            }
+
+            const apiKey = crypto.randomBytes(16).toString('hex');
+            const keyHash = hashToken(apiKey);
+            const ownerName = body.ownerName?.trim()?.slice(0, 100) || null;
+            const email = body.email?.trim()?.slice(0, 200) || null;
+
+            await db.query(
+                'INSERT INTO bot_api_keys (api_key_hash, bot_name, owner_name, owner_email) VALUES ($1, $2, $3, $4)',
+                [keyHash, botName, ownerName, email]
+            );
+
+            console.log(`🔑 New bot key registered: "${botName}" by ${ownerName || 'anonymous'}`);
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: true,
+                apiKey,
+                botName,
+                message: "Save this key! It won't be shown again."
+            }));
+        } catch (err) {
+            console.error('❌ Bot registration error:', err.message);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Registration failed' }));
+        }
+
+    } else if (url.pathname === '/api/bot/verify' && req.method === 'GET') {
+        const key = url.searchParams.get('key');
+        if (!key || !db) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ valid: false }));
+            return;
+        }
+        try {
+            const keyHash = hashToken(key);
+            const result = await db.query(
+                'SELECT bot_name FROM bot_api_keys WHERE api_key_hash = $1 AND is_active = true',
+                [keyHash]
+            );
+            if (result.rows.length > 0) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ valid: true, botName: result.rows[0].bot_name }));
+            } else {
+                // Also check admin keys
+                const isAdmin = BOT_API_KEYS.includes(key);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ valid: isAdmin, ...(isAdmin ? { botName: 'Admin' } : {}) }));
+            }
+        } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ valid: false }));
+        }
+
+    } else if (url.pathname === '/api/bot/stats' && req.method === 'GET') {
+        if (!db) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ totalBots: 0, activeBots: 0 }));
+            return;
+        }
+        try {
+            const total = await db.query('SELECT COUNT(*) FROM bot_api_keys WHERE is_active = true');
+            const active = await db.query("SELECT COUNT(*) FROM bot_api_keys WHERE is_active = true AND last_used > NOW() - INTERVAL '24 hours'");
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                totalBots: parseInt(total.rows[0].count),
+                activeBots: parseInt(active.rows[0].count)
+            }));
+        } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ totalBots: 0, activeBots: 0 }));
+        }
+
     } else {
         res.writeHead(404);
         res.end('Not found');
@@ -255,12 +421,22 @@ wss.on('connection', async (ws, req) => {
 
     // Bot authentication
     if (isBot) {
-        if (!BOT_API_KEYS.includes(apiKey)) {
+        // First check admin keys from env var
+        let botAuthed = BOT_API_KEYS.includes(apiKey);
+        let botKeyInfo = null;
+
+        // Then check self-service keys from database
+        if (!botAuthed && apiKey) {
+            botKeyInfo = await verifyDbApiKey(apiKey);
+            botAuthed = !!botKeyInfo;
+        }
+
+        if (!botAuthed) {
             ws.close(4001, 'Invalid API key');
             console.log('❌ Bot rejected: invalid key');
             return;
         }
-        console.log('🤖 Bot connected');
+        console.log(`🤖 Bot connected${botKeyInfo ? ` (${botKeyInfo.bot_name})` : ' (admin key)'}`);
     } else {
         console.log('👤 Player connected');
     }
