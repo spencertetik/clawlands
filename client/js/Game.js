@@ -135,6 +135,9 @@ class Game {
         if (this.weatherSystem) {
             console.log(`🌤️ Weather system initialized (${this.weatherSystem.getWeatherName()})`);
         }
+        
+        // Minimap (created after world is generated)
+        this.minimap = null;
 
         // Map state
         this.currentLocation = 'outdoor';
@@ -443,6 +446,12 @@ class Game {
         // Update weather system (outdoor only)
         if (this.weatherSystem && this.currentLocation === 'outdoor') {
             this.weatherSystem.update(deltaTime);
+        }
+        
+        // Update minimap (outdoor only)
+        if (this.minimap && this.currentLocation === 'outdoor') {
+            this.minimap.update(deltaTime, this.player, this.npcs, this.buildings, this.waygates);
+            this.minimap.render();
         }
     }
 
@@ -2662,6 +2671,12 @@ class Game {
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
         console.log(`✨ Created ${this.waygates.length} waygates, stability engine: ${this.stabilityEngine ? 'yes' : 'no'}`);
+        
+        // Initialize minimap now that world is generated
+        if (typeof Minimap !== 'undefined' && !this.minimap) {
+            this.minimap = new Minimap(this.worldMap, this.worldWidth, this.worldHeight);
+            console.log('🗺️ Minimap initialized');
+        }
     }
 
     // Generate paths connecting buildings on islands
