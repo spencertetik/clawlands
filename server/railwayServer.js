@@ -45,13 +45,29 @@ async function initDatabase() {
         return;
     }
 
-    db = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
+    try {
+        db = new Pool({
+            connectionString: process.env.DATABASE_URL,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000,
+            max: 10
+        });
+
+        // Test connection first
+        const client = await db.connect();
+        console.log('✅ Database connected');
+        client.release();
+    } catch (err) {
+        console.error('⚠️ Database connection failed:', err.message);
+        console.log('⚠️ Running without persistence');
+        db = null;
+        return;
+    }
 
     // Create tables if they don't exist
-    await db.query(`
+    try {
+        await db.query(`
         CREATE TABLE IF NOT EXISTS players (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name TEXT UNIQUE NOT NULL,
@@ -78,7 +94,12 @@ async function initDatabase() {
         CREATE INDEX IF NOT EXISTS chat_time_idx ON chat_messages(created_at DESC);
     `);
 
-    console.log('✅ Database connected');
+        console.log('✅ Database tables ready');
+    } catch (err) {
+        console.error('⚠️ Table creation failed:', err.message);
+        console.log('⚠️ Running without persistence');
+        db = null;
+    }
 }
 
 // ============================================
