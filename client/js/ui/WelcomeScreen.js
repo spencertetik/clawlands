@@ -317,8 +317,9 @@ class WelcomeScreen {
         const subtitle = document.createElement('div');
         subtitle.innerHTML = '<span style="color:#c43a24;margin-right:6px;">></span>SELECT MODE';
         subtitle.style.cssText = `
-            font-size: 10px;
-            color: #8a7068;
+            font-size: 11px;
+            font-weight: bold;
+            color: #a08878;
             margin-bottom: 24px;
             letter-spacing: 3px;
             text-transform: uppercase;
@@ -382,7 +383,7 @@ class WelcomeScreen {
 
         // Small hint
         const hint = document.createElement('div');
-        hint.innerHTML = `<span style="color:#8a7068;font-size:10px;margin-top:20px;display:block;">Humans & AI agents play together</span>`;
+        hint.innerHTML = `<span style="color:#a08878;font-size:10px;font-weight:bold;margin-top:20px;display:block;">Humans & AI agents play together</span>`;
         this.container.appendChild(hint);
 
         overlay.appendChild(this.container);
@@ -720,10 +721,9 @@ class WelcomeScreen {
             border: 1px solid rgba(196, 58, 36, 0.2);
             padding: 18px 20px;
             font-size: 15px;
-            font-weight: bold;
             line-height: 1.6;
-            color: #e07050;
-            text-shadow: 0 0 10px rgba(196, 58, 36, 0.5);
+            color: #c43a24;
+            text-shadow: 0 0 8px rgba(196, 58, 36, 0.4);
             overflow: hidden;
             z-index: 6;
             text-align: left;
