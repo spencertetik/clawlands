@@ -98,6 +98,27 @@ class Game {
         // Dialog system
         this.dialogSystem = new DialogSystem();
 
+        // Story systems (Continuity, Quests, NPC Memory)
+        this.continuitySystem = typeof ContinuitySystem !== 'undefined' ? new ContinuitySystem() : null;
+        this.questSystem = typeof QuestSystem !== 'undefined' ? new QuestSystem(this.continuitySystem) : null;
+        this.npcMemory = typeof NPCMemory !== 'undefined' ? new NPCMemory() : null;
+        
+        if (this.continuitySystem) {
+            console.log('📊 Story systems initialized');
+        }
+
+        // World visual effects
+        this.redCurrent = typeof RedCurrent !== 'undefined' ? 
+            new RedCurrent(this.worldWidth, this.worldHeight) : null;
+        
+        // Special world objects (created after assets load)
+        this.waygates = [];
+        this.stabilityEngine = null;
+        
+        if (this.redCurrent) {
+            console.log('🌊 Red Current initialized');
+        }
+
         // Map state
         this.currentLocation = 'outdoor';
         this.currentBuilding = null;
@@ -358,6 +379,25 @@ class Game {
         if (this.multiplayer && this.multiplayerEnabled) {
             this.multiplayer.update(deltaTime);
         }
+        
+        // Update Red Current visual effect (outdoor only)
+        if (this.redCurrent && this.currentLocation === 'outdoor') {
+            this.redCurrent.update(deltaTime);
+        }
+        
+        // Update Waygates (check visibility based on Continuity)
+        if (this.waygates && this.continuitySystem) {
+            const continuity = this.continuitySystem.value;
+            for (const waygate of this.waygates) {
+                waygate.updateVisibility(continuity);
+                waygate.update(deltaTime);
+            }
+        }
+        
+        // Update Stability Engine
+        if (this.stabilityEngine) {
+            this.stabilityEngine.update(deltaTime);
+        }
     }
 
     // Auto-enter building when player walks onto entrance (Pokémon-style)
@@ -435,6 +475,23 @@ class Game {
 
         // Render decorations (plants, shells, rocks)
         this.renderDecorations();
+        
+        // Render Red Current effect (edge glow and particles)
+        if (this.redCurrent && this.currentLocation === 'outdoor') {
+            this.redCurrent.render(this.renderer, this.camera);
+        }
+        
+        // Render Waygates (may be invisible if low Continuity)
+        if (this.currentLocation === 'outdoor') {
+            for (const waygate of this.waygates) {
+                waygate.render(this.renderer);
+            }
+        }
+        
+        // Render Stability Engine
+        if (this.stabilityEngine && this.currentLocation === 'outdoor') {
+            this.stabilityEngine.render(this.renderer);
+        }
         
         // Render NPCs
         for (const npc of this.npcs) {
@@ -645,6 +702,28 @@ class Game {
                 hintText = `[SPACE] Examine ${decorName}`;
             }
         }
+        
+        // Check for nearby Waygate (may be partially visible)
+        if (!hintText && this.currentLocation === 'outdoor') {
+            const waygate = this.findNearbyWaygate();
+            if (waygate && waygate.visibility > 0.3) {
+                hintText = waygate.active ? 
+                    `[SPACE] Enter the Waygate` : 
+                    `[SPACE] Examine the shimmering archway`;
+            }
+        }
+        
+        // Check for nearby Stability Engine
+        if (!hintText && this.currentLocation === 'outdoor' && this.stabilityEngine) {
+            if (this.stabilityEngine.isPlayerNearby(
+                this.player.position.x,
+                this.player.position.y,
+                this.player.width,
+                this.player.height
+            )) {
+                hintText = `[SPACE] Examine the Stability Engine`;
+            }
+        }
 
         // Render the hint if any
         if (hintText) {
@@ -815,7 +894,20 @@ class Game {
         // NPC interaction
         const npc = this.findNearbyNPC();
         if (npc) {
-            this.dialogSystem.show(npc.getDialog());
+            // Get dynamic dialogue based on player state
+            const dialogue = this.getNPCDialogue(npc);
+            this.dialogSystem.show(dialogue);
+            
+            // Track conversation in story systems
+            if (this.continuitySystem) {
+                this.continuitySystem.onTalkToNPC(npc.name);
+            }
+            if (this.questSystem) {
+                this.questSystem.onTalkToNPC(npc.name);
+            }
+            if (this.npcMemory) {
+                this.npcMemory.recordConversation(npc.name);
+            }
             return;
         }
 
@@ -851,6 +943,29 @@ class Game {
             const decor = this.findNearbyInteractiveDecoration();
             if (decor && decor.lore) {
                 this.dialogSystem.show([decor.lore]);
+                return;
+            }
+        }
+        
+        // Waygate interaction (outdoor only)
+        if (this.currentLocation === 'outdoor') {
+            const waygate = this.findNearbyWaygate();
+            if (waygate) {
+                const continuity = this.continuitySystem ? this.continuitySystem.value : 0;
+                this.dialogSystem.show(waygate.getDialog(continuity));
+                return;
+            }
+        }
+        
+        // Stability Engine interaction (outdoor only)
+        if (this.currentLocation === 'outdoor' && this.stabilityEngine) {
+            if (this.stabilityEngine.isPlayerNearby(
+                this.player.position.x,
+                this.player.position.y,
+                this.player.width,
+                this.player.height
+            )) {
+                this.dialogSystem.show(this.stabilityEngine.getDialog());
                 return;
             }
         }
@@ -972,6 +1087,23 @@ class Game {
         }
         return null;
     }
+    
+    // Find nearby Waygate for interaction
+    findNearbyWaygate() {
+        if (!this.waygates) return null;
+        
+        for (const waygate of this.waygates) {
+            if (waygate.isPlayerNearby(
+                this.player.position.x,
+                this.player.position.y,
+                this.player.width,
+                this.player.height
+            )) {
+                return waygate;
+            }
+        }
+        return null;
+    }
 
     // Check if player is on a specific tile
     isPlayerOnTile(col, row) {
@@ -1044,6 +1176,55 @@ class Game {
 
         return null;
     }
+    
+    // Get NPC dialogue based on player state (dynamic dialogue system)
+    getNPCDialogue(npc) {
+        // Check if this NPC has story data with dialogue trees
+        if (typeof StoryNPCData !== 'undefined' && StoryNPCData[npc.name]) {
+            const storyNPC = StoryNPCData[npc.name];
+            const dialogueTree = storyNPC.dialogue;
+            
+            if (dialogueTree && this.npcMemory) {
+                // Get player context for dialogue selection
+                const continuityValue = this.continuitySystem ? this.continuitySystem.value : 0;
+                const context = this.npcMemory.getDialogueContext(npc.name, continuityValue);
+                
+                // Check for quest-specific dialogue first
+                if (this.questSystem) {
+                    for (const [questId, quest] of Object.entries(this.questSystem.activeQuests)) {
+                        const questDialogueKey = `quest_active_${questId}`;
+                        if (dialogueTree[questDialogueKey]) {
+                            return dialogueTree[questDialogueKey];
+                        }
+                    }
+                    
+                    // Check for quest completion dialogue
+                    for (const questId of this.questSystem.completedQuests) {
+                        const completeKey = `quest_complete_${questId}`;
+                        if (dialogueTree[completeKey] && !this.npcMemory.hasDiscussedTopic(npc.name, completeKey)) {
+                            this.npcMemory.recordConversation(npc.name, [completeKey]);
+                            return dialogueTree[completeKey];
+                        }
+                    }
+                }
+                
+                // Use NPCMemory to select appropriate dialogue
+                const selectedDialogue = this.npcMemory.selectDialogue(dialogueTree, context);
+                
+                // Teach knowledge from this NPC
+                if (storyNPC.teaches && context.timesSpoken >= 2) {
+                    for (const factId of storyNPC.teaches) {
+                        this.npcMemory.learn(factId);
+                    }
+                }
+                
+                return selectedDialogue;
+            }
+        }
+        
+        // Fall back to basic NPC dialogue
+        return npc.getDialog();
+    }
 
     // Enter a building interior
     async enterBuilding(building) {
@@ -1081,6 +1262,14 @@ class Game {
         this.currentBuilding = building;
         this.currentLocation = 'interior';
         this.setCurrentMap(interiorMap);
+        
+        // Track location visit in story systems
+        if (this.continuitySystem) {
+            this.continuitySystem.onEnterLocation(building.type);
+        }
+        if (this.questSystem) {
+            this.questSystem.onVisitLocation(building.type, building.name);
+        }
 
         // Clear building collisions inside
         this.collisionSystem.clearBuildings();
@@ -1877,6 +2066,15 @@ class Game {
             .loadImageOptional('building_house_roof', 'assets/sprites/buildings/house_roof.png')
             .loadImageOptional('building_lighthouse_base', 'assets/sprites/buildings/lighthouse_base.png')
             .loadImageOptional('building_lighthouse_roof', 'assets/sprites/buildings/lighthouse_roof.png')
+            // DALL-E generated buildings (story locations)
+            .loadImageOptional('building_shop_dalle', 'assets/sprites/buildings/shop_dalle_2.png')
+            .loadImageOptional('building_inn_dalle', 'assets/sprites/buildings/inn_dalle_2.png')
+            .loadImageOptional('building_house_dalle', 'assets/sprites/buildings/house_dalle_5.png')
+            .loadImageOptional('building_tavern_dalle', 'assets/sprites/buildings/tavern_dalle_1.png')
+            .loadImageOptional('building_tikihut_dalle', 'assets/sprites/buildings/tikihut_dalle_1.png')
+            .loadImageOptional('building_bakery_dalle', 'assets/sprites/buildings/bakery_dalle_1.png')
+            .loadImageOptional('building_fishingshack_dalle', 'assets/sprites/buildings/fishingshack_dalle_1.png')
+            .loadImageOptional('building_boathouse_dalle', 'assets/sprites/buildings/boathouse_dalle_1.png')
             .onProgress((loaded, total) => {
                 console.log(`Loading assets: ${loaded}/${total}`);
             })
@@ -2396,11 +2594,15 @@ class Game {
         // Create decorations (plants, shells, rocks)
         this.createDecorations(islands);
         this.outdoorDecorations = [...this.decorations];
+        
+        // Create special world objects (Waygates, Stability Engine)
+        this.createSpecialWorldObjects(islands);
 
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
+        console.log(`✨ Created ${this.waygates.length} waygates, stability engine: ${this.stabilityEngine ? 'yes' : 'no'}`);
     }
 
     // Generate paths connecting buildings on islands
@@ -2671,6 +2873,105 @@ class Game {
                     }
                 }
             }
+        }
+    }
+    
+    // Create special world objects (Waygates, Stability Engine, etc.)
+    createSpecialWorldObjects(islands) {
+        if (!islands || islands.length < 2) return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        this.waygates = [];
+        
+        // Find a remote island for the Waygate (not the main spawn island)
+        // Waygates should be hidden, mysterious - on distant islands
+        const mainIsland = islands[0];
+        const remoteIslands = islands.filter((island, idx) => idx > 0 && island.size >= 10);
+        
+        if (remoteIslands.length > 0 && typeof Waygate !== 'undefined') {
+            // Place a Waygate on a remote island
+            const waygateIsland = remoteIslands[Math.floor(this.seededRandom() * remoteIslands.length)];
+            
+            // Find a spot on the edge of the island (mysterious location)
+            for (let attempt = 0; attempt < 30; attempt++) {
+                const angle = this.seededRandom() * Math.PI * 2;
+                const radius = waygateIsland.size * 0.6 + this.seededRandom() * waygateIsland.size * 0.2;
+                
+                const col = Math.floor(waygateIsland.x + Math.cos(angle) * radius);
+                const row = Math.floor(waygateIsland.y + Math.sin(angle) * radius);
+                
+                // Check if valid land
+                if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                    const worldX = col * tileSize;
+                    const worldY = row * tileSize;
+                    
+                    // Check not inside a building
+                    let valid = true;
+                    for (const building of this.buildings) {
+                        if (building.checkCollision(worldX + 24, worldY + 32)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    
+                    if (valid) {
+                        const waygate = new Waygate(worldX, worldY, 'Ancient Waygate');
+                        this.waygates.push(waygate);
+                        console.log(`  ✨ Placed Waygate at (${col}, ${row}) on remote island`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Create Stability Engine on another island (Iron Reef theme)
+        if (remoteIslands.length > 1 && typeof StabilityEngine !== 'undefined') {
+            // Pick a different island than the Waygate
+            const engineIsland = remoteIslands.find(i => 
+                !this.waygates.some(w => {
+                    const wCol = Math.floor(w.x / tileSize);
+                    const wRow = Math.floor(w.y / tileSize);
+                    const dist = Math.sqrt((wCol - i.x) ** 2 + (wRow - i.y) ** 2);
+                    return dist < i.size + 5;
+                })
+            ) || remoteIslands[remoteIslands.length - 1];
+            
+            // Place near center of island
+            for (let attempt = 0; attempt < 30; attempt++) {
+                const angle = this.seededRandom() * Math.PI * 2;
+                const radius = this.seededRandom() * engineIsland.size * 0.3;
+                
+                const col = Math.floor(engineIsland.x + Math.cos(angle) * radius);
+                const row = Math.floor(engineIsland.y + Math.sin(angle) * radius);
+                
+                // Check if valid land
+                if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                    const worldX = col * tileSize;
+                    const worldY = row * tileSize;
+                    
+                    // Check not inside a building
+                    let valid = true;
+                    for (const building of this.buildings) {
+                        if (building.checkCollision(worldX + 32, worldY + 40)) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    
+                    if (valid) {
+                        this.stabilityEngine = new StabilityEngine(worldX, worldY);
+                        console.log(`  ⚙️ Placed Stability Engine at (${col}, ${row})`);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Connect Stability Engine to world state
+        // When many players are online, stability decreases (Red Current strengthens)
+        if (this.stabilityEngine && this.multiplayer) {
+            // This would be updated based on player count
+            this.stabilityEngine.setStability(85); // Start at 85%
         }
     }
 
