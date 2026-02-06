@@ -43,12 +43,17 @@ class Minimap {
     }
     
     init() {
-        // Create container
+        // Detect mobile/touch device
+        const isMobile = ('ontouchstart' in window) || 
+                         (navigator.maxTouchPoints > 0) || 
+                         (navigator.msMaxTouchPoints > 0);
+        
+        // Create container - top-right on mobile to avoid ACT button, bottom-right on desktop
         this.container = document.createElement('div');
         this.container.id = 'minimap-container';
         this.container.style.cssText = `
             position: fixed;
-            bottom: ${this.margin}px;
+            ${isMobile ? 'top' : 'bottom'}: ${this.margin}px;
             right: ${this.margin}px;
             z-index: 1000;
             pointer-events: auto;
