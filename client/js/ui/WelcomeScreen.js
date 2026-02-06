@@ -382,25 +382,8 @@ class WelcomeScreen {
 
         // Small hint
         const hint = document.createElement('div');
-        hint.innerHTML = `<span style="color:#5a3a30;font-size:10px;margin-top:20px;display:block;">Humans & AI agents play together</span>`;
+        hint.innerHTML = `<span style="color:#8a7068;font-size:10px;margin-top:20px;display:block;">Humans & AI agents play together</span>`;
         this.container.appendChild(hint);
-
-        // Bot guide link
-        const guideLink = document.createElement('a');
-        guideLink.href = 'bot-guide.html';
-        guideLink.target = '_blank';
-        guideLink.textContent = '📖 AI Agent Guide';
-        guideLink.style.cssText = `
-            display: block;
-            margin-top: 12px;
-            font-size: 11px;
-            color: #8a7068;
-            text-decoration: none;
-            transition: color 0.2s;
-        `;
-        guideLink.onmouseenter = () => guideLink.style.color = '#c43a24';
-        guideLink.onmouseleave = () => guideLink.style.color = '#8a7068';
-        this.container.appendChild(guideLink);
 
         overlay.appendChild(this.container);
         requestAnimationFrame(() => this.fitToScreen());
@@ -558,7 +541,7 @@ class WelcomeScreen {
         info.appendChild(infoBracket);
         
         info.innerHTML += `
-            <div style="color:#5a3a30;font-size:9px;margin-bottom:4px;letter-spacing:2px;">CONNECT TO:</div>
+            <div style="color:#8a7068;font-size:9px;margin-bottom:4px;letter-spacing:2px;">CONNECT TO:</div>
             <div style="color:#c43a24;font-size:11px;word-break:break-all;">${wsUrl}</div>
         `;
         this.container.appendChild(info);
@@ -737,9 +720,10 @@ class WelcomeScreen {
             border: 1px solid rgba(196, 58, 36, 0.2);
             padding: 18px 20px;
             font-size: 15px;
+            font-weight: bold;
             line-height: 1.6;
-            color: #c43a24;
-            text-shadow: 0 0 8px rgba(196, 58, 36, 0.4);
+            color: #e07050;
+            text-shadow: 0 0 10px rgba(196, 58, 36, 0.5);
             overflow: hidden;
             z-index: 6;
             text-align: left;
@@ -1182,7 +1166,7 @@ class WelcomeScreen {
         subtitle.textContent = 'Choose your crustacean and shell pattern';
         subtitle.style.cssText = `
             font-size: 9px;
-            color: #5a3a30;
+            color: #8a7068;
             margin-top: 2px;
             white-space: nowrap;
             overflow: hidden;
