@@ -91,35 +91,22 @@ class CollisionSystem {
         for (const npc of this.npcs) {
             if (npc === excludeEntity) continue; // Skip self
             
-            // If player is checking collision, allow escape if already overlapping
-            // This prevents the player getting permanently stuck when an NPC walks into them
+            // If player is checking collision, skip any NPC they're already overlapping with.
+            // This prevents getting permanently stuck when an NPC walks into the player
+            // or when the player spawns on top of an NPC. Once free, normal collision resumes.
             if (this.player && !excludeEntity) {
-                // Check if player is CURRENTLY overlapping with this NPC
                 const px = this.player.position.x;
                 const py = this.player.position.y;
                 const pw = this.player.width;
                 const ph = this.player.height;
-                const nx = npc.position.x;
-                const ny = npc.position.y;
-                const nw = npc.width;
-                const nh = npc.height;
                 
                 const currentlyOverlapping = !(
-                    px + pw <= nx || px >= nx + nw ||
-                    py + ph <= ny || py >= ny + nh
+                    px + pw <= npc.position.x || px >= npc.position.x + npc.width ||
+                    py + ph <= npc.position.y || py >= npc.position.y + npc.height
                 );
                 
                 if (currentlyOverlapping) {
-                    // Already stuck — check if this move takes us FURTHER from the NPC
-                    const npcCenterX = nx + nw / 2;
-                    const npcCenterY = ny + nh / 2;
-                    const currentDist = Math.abs(px + pw/2 - npcCenterX) + Math.abs(py + ph/2 - npcCenterY);
-                    const newDist = Math.abs(x + width/2 - npcCenterX) + Math.abs(y + height/2 - npcCenterY);
-                    
-                    if (newDist >= currentDist) {
-                        continue; // Moving away or same distance — allow escape
-                    }
-                    // Moving closer — still block to prevent walking through
+                    continue; // Already overlapping — ignore this NPC entirely until free
                 }
             }
             
