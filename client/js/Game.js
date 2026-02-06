@@ -115,8 +115,14 @@ class Game {
         this.waygates = [];
         this.stabilityEngine = null;
         
+        // Day/night cycle
+        this.dayNightCycle = typeof DayNightCycle !== 'undefined' ? new DayNightCycle() : null;
+        
         if (this.redCurrent) {
             console.log('🌊 Red Current initialized');
+        }
+        if (this.dayNightCycle) {
+            console.log(`🌅 Day/Night cycle initialized (${this.dayNightCycle.getTimePeriodName()})`);
         }
 
         // Map state
@@ -397,6 +403,12 @@ class Game {
         // Update Stability Engine
         if (this.stabilityEngine) {
             this.stabilityEngine.update(deltaTime);
+        }
+        
+        // Update day/night cycle
+        if (this.dayNightCycle) {
+            this.dayNightCycle.update(deltaTime);
+            this.dayNightCycle.render();
         }
     }
 
@@ -2167,6 +2179,14 @@ class Game {
 
                 this.assetsLoaded = true;
                 console.log('✅ Assets loaded successfully');
+                
+                // Attach day/night cycle overlay to game container
+                if (this.dayNightCycle) {
+                    const gameContainer = document.getElementById('game-container');
+                    if (gameContainer) {
+                        this.dayNightCycle.attachTo(gameContainer);
+                    }
+                }
                 
                 // Preload audio (don't await - let it load in background)
                 if (typeof audioManager !== 'undefined') {

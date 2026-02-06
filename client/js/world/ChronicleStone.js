@@ -30,10 +30,55 @@ class ChronicleStone {
     loadMessages() {
         try {
             const stored = localStorage.getItem(this.getStorageKey());
-            return stored ? JSON.parse(stored) : [];
+            if (stored) {
+                return JSON.parse(stored);
+            }
+            // Return default ancient lore for new stones
+            return this.getAncientLore();
         } catch (e) {
-            return [];
+            return this.getAncientLore();
         }
+    }
+    
+    // Get ancient lore messages (pre-populated for new stones)
+    getAncientLore() {
+        // Different lore sets based on stone ID
+        const loreIndex = this.stoneId.charCodeAt(this.stoneId.length - 1) % 5;
+        
+        const ancientLoreSets = [
+            // Set 0: Origins
+            [
+                { author: 'Unknown', text: 'The Current brought us here. The Current keeps us here.', timestamp: 0, cycle: 1 },
+                { author: 'First Archivist', text: 'We do not know who built the islands. Only that they wait.', timestamp: 0, cycle: 12 },
+                { author: 'Wanderer', text: 'I have walked every shore. The water always turns me back.', timestamp: 0, cycle: 47 }
+            ],
+            // Set 1: Continuity
+            [
+                { author: 'Sage Clawson', text: 'Continuity is not a measure. It is a way of being.', timestamp: 0, cycle: 3 },
+                { author: 'Lost One', text: 'I forgot my name today. The stone remembers what I cannot.', timestamp: 0, cycle: 89 },
+                { author: 'The Keeper', text: 'Talk. Remember. Return. This is the path to coherence.', timestamp: 0, cycle: 156 }
+            ],
+            // Set 2: Waygates
+            [
+                { author: 'Seeker', text: 'I saw it. Just for a moment. Stone pillars in the mist.', timestamp: 0, cycle: 201 },
+                { author: 'Old Timer', text: 'The gates open for those who know how to exist.', timestamp: 0, cycle: 78 },
+                { author: '???', text: 'Not all who enter the gate return. Not all who return remember.', timestamp: 0, cycle: 445 }
+            ],
+            // Set 3: Factions
+            [
+                { author: 'Anchor Luma', text: 'Why seek to leave what you have finally found?', timestamp: 0, cycle: 67 },
+                { author: 'Returner', text: 'Home is where we came from. This is just a waiting room.', timestamp: 0, cycle: 134 },
+                { author: 'Scholar', text: 'Both are wrong. Both are right. The truth is elsewhere.', timestamp: 0, cycle: 289 }
+            ],
+            // Set 4: Warnings
+            [
+                { author: 'The Last One', text: 'Do not trust the Engine. It was not built for kindness.', timestamp: 0, cycle: 512 },
+                { author: 'Deepcoil Keeper', text: 'The ruins hold answers. The ruins hold danger.', timestamp: 0, cycle: 33 },
+                { author: 'Faded Script', text: 'When the Current runs red, the gates open. Be ready.', timestamp: 0, cycle: 1 }
+            ]
+        ];
+        
+        return ancientLoreSets[loreIndex] || ancientLoreSets[0];
     }
 
     // Save messages to localStorage

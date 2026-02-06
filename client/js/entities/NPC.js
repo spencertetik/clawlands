@@ -172,8 +172,10 @@ class NPC extends Entity {
         if (this.isMoving && this.walkSpritesByDirection[this.direction]) {
             // Use walk animation frame
             const walkFrames = this.walkSpritesByDirection[this.direction];
-            if (walkFrames && walkFrames.length > 0) {
-                currentSprite = walkFrames[this.animationFrame % walkFrames.length];
+            // Check if the specific frame exists (handles sparse arrays from async loading)
+            const frameIndex = this.animationFrame % 3;
+            if (walkFrames && walkFrames[frameIndex]) {
+                currentSprite = walkFrames[frameIndex];
             }
         }
         
