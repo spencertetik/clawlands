@@ -195,8 +195,42 @@ class TouchControls {
             display: flex;
             flex-direction: column;
             gap: 10px;
+            align-items: center;
             pointer-events: auto;
         `;
+
+        // Inventory button (I key equivalent)
+        const inventory = document.createElement('div');
+        inventory.style.cssText = `
+            width: 44px;
+            height: 44px;
+            background: rgba(196, 58, 36, 0.3);
+            border: 2px solid rgba(196, 58, 36, 0.7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        `;
+        inventory.innerHTML = '🎒';
+
+        inventory.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            inventory.style.background = 'rgba(196, 58, 36, 0.6)';
+            // Simulate pressing I key
+            this.pressKey('i');
+            setTimeout(() => this.releaseKey('i'), 100);
+        }, { passive: false });
+
+        inventory.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            inventory.style.background = 'rgba(196, 58, 36, 0.3)';
+        }, { passive: false });
+
+        actions.appendChild(inventory);
 
         // Interact button (Space key equivalent)
         const interact = document.createElement('div');

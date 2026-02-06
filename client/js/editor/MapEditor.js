@@ -1273,16 +1273,25 @@ class MapEditor {
             timestamp: Date.now()
         };
         
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const jsonStr = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const location = this.getCurrentLocationKey().replace(/[^a-z0-9]/g, '_');
-        a.download = `clawworld_map_${location}_${new Date().toISOString().slice(0,10)}.json`;
+        a.style.display = 'none';
+        const loc = this.getCurrentLocationKey().replace(/[^a-z0-9]/g, '_');
+        a.download = `clawworld_map_${loc}_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        
+        // Clean up after a short delay to ensure download starts
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
         
         console.log('📤 Exported map data (' + exportData.decorations.length + ' decorations)');
+        console.log('📤 Export JSON:', jsonStr.slice(0, 500) + '...');
         alert('Map exported! Give the JSON file to Frank to merge into the game code.');
     }
 

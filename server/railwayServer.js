@@ -453,8 +453,12 @@ wss.on('connection', async (ws, req) => {
         y: 680,
         facing: 'down',
         isBot,
+        isAlive: true,
         rateLimit: { count: 0, resetTime: Date.now() + RATE_LIMIT.windowMs }
     };
+
+    // Track pong responses for keepalive
+    ws.on('pong', () => { playerData.isAlive = true; });
 
     // Send welcome
     ws.send(JSON.stringify({
@@ -501,6 +505,29 @@ wss.on('connection', async (ws, req) => {
         players.delete(playerId);
     });
 });
+
+// ============================================
+// Server-side keepalive — detect dead connections
+// ============================================
+const KEEPALIVE_INTERVAL = 30000; // 30 seconds
+
+setInterval(() => {
+    for (const [playerId, playerData] of players) {
+        if (!playerData.isAlive) {
+            console.log(`💀 Dead connection detected: ${playerData.name || playerId}`);
+            playerData.ws.terminate();
+            // The 'close' handler will clean up the player entry
+            continue;
+        }
+        playerData.isAlive = false;
+        try {
+            playerData.ws.ping();
+        } catch (e) {
+            // If ping fails, terminate
+            playerData.ws.terminate();
+        }
+    }
+}, KEEPALIVE_INTERVAL);
 
 // ============================================
 // Message Handler

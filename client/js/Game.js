@@ -546,7 +546,8 @@ class Game {
         
         // Update minimap (outdoor only)
         if (this.minimap && this.currentLocation === 'outdoor') {
-            this.minimap.update(deltaTime, this.player, this.npcs, this.buildings, this.waygates);
+            const remotes = this.multiplayerClient ? Array.from(this.multiplayerClient.remotePlayers.values()) : [];
+            this.minimap.update(deltaTime, this.player, this.npcs, this.buildings, this.waygates, remotes);
             this.minimap.render();
         }
         

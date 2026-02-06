@@ -166,7 +166,7 @@ class Minimap {
     }
     
     // Update minimap
-    update(deltaTime, player, npcs, buildings, waygates) {
+    update(deltaTime, player, npcs, buildings, waygates, remotePlayers) {
         if (!this.visible) return;
         
         this.pulseTime += deltaTime * 3;
@@ -176,6 +176,7 @@ class Minimap {
         this.npcs = npcs || [];
         this.buildings = buildings || [];
         this.waygates = waygates || [];
+        this.remotePlayers = remotePlayers || [];
     }
     
     // Render the minimap
@@ -236,6 +237,32 @@ class Minimap {
             ctx.beginPath();
             ctx.arc(x, y, 2, 0, Math.PI * 2);
             ctx.fill();
+        }
+        
+        // Draw remote players (other humans/bots)
+        for (const remote of this.remotePlayers) {
+            const rx = remote.position.x * scale;
+            const ry = remote.position.y * scale;
+            
+            if (remote.isBot) {
+                // Bots: cyan dot
+                ctx.fillStyle = 'rgba(94, 234, 212, 0.7)';
+                ctx.beginPath();
+                ctx.arc(rx, ry, 3, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Other humans: yellow dot with pulse
+                const pulse = 0.6 + Math.sin(this.pulseTime * 0.8) * 0.4;
+                ctx.fillStyle = `rgba(255, 220, 100, ${pulse})`;
+                ctx.beginPath();
+                ctx.arc(rx, ry, 3, 0, Math.PI * 2);
+                ctx.fill();
+                // White core
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.beginPath();
+                ctx.arc(rx, ry, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
         
         // Draw player
