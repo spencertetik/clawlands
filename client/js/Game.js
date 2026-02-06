@@ -1182,7 +1182,7 @@ class Game {
             this.playerCountEl.id = 'player-count';
             this.playerCountEl.style.cssText = `
                 position: fixed;
-                top: 8px;
+                top: 50px;
                 right: 8px;
                 background: rgba(13, 8, 6, 0.75);
                 border: 1px solid rgba(196, 58, 36, 0.4);
