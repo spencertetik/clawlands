@@ -1026,7 +1026,20 @@ class Game {
             const waygate = this.findNearbyWaygate();
             if (waygate) {
                 const continuity = this.continuitySystem ? this.continuitySystem.value : 0;
-                this.dialogSystem.show(waygate.getDialog(continuity));
+                
+                // If gate is active, offer to use it
+                if (waygate.active) {
+                    this.dialogSystem.show([
+                        'The Waygate pulses with energy.',
+                        'You feel it pulling at your essence...',
+                        'Step through?'
+                    ], () => {
+                        // After dialog, teleport to another waygate
+                        this.useWaygate(waygate);
+                    });
+                } else {
+                    this.dialogSystem.show(waygate.getDialog(continuity));
+                }
                 return;
             }
         }
@@ -1177,6 +1190,75 @@ class Game {
             }
         }
         return null;
+    }
+    
+    // Use a Waygate to teleport to another one
+    useWaygate(sourceWaygate) {
+        // Find other active waygates
+        const otherGates = this.waygates.filter(g => 
+            g !== sourceWaygate && g.active
+        );
+        
+        if (otherGates.length === 0) {
+            // No other gates - teleport to a random island spawn
+            if (gameNotifications) {
+                gameNotifications.success('The Waygate whispers... but there is nowhere else to go yet.');
+            }
+            return;
+        }
+        
+        // Pick a random destination gate
+        const destGate = otherGates[Math.floor(Math.random() * otherGates.length)];
+        
+        // Visual effect - flash screen
+        const flash = document.createElement('div');
+        flash.style.cssText = `
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(100, 200, 255, 0.8);
+            z-index: 9999;
+            pointer-events: none;
+            animation: waygateFlash 0.8s ease-out forwards;
+        `;
+        
+        // Add animation keyframes
+        if (!document.getElementById('waygate-styles')) {
+            const style = document.createElement('style');
+            style.id = 'waygate-styles';
+            style.textContent = `
+                @keyframes waygateFlash {
+                    0% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 800);
+        
+        // Teleport player to destination gate
+        this.player.position.x = destGate.x + destGate.width / 2 - this.player.width / 2;
+        this.player.position.y = destGate.y + destGate.height - this.player.height - 8;
+        
+        // Center camera on new position
+        this.camera.centerOn(this.player.position.x, this.player.position.y);
+        
+        // Trigger Drift-In effect at destination
+        if (this.redCurrent) {
+            this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
+        }
+        
+        // Add continuity for using waygate
+        if (this.continuitySystem) {
+            this.continuitySystem.addContinuity(5, 'waygate_travel');
+        }
+        
+        if (gameNotifications) {
+            gameNotifications.success('You step through the Waygate...');
+        }
+        
+        console.log(`🌀 Waygate travel: ${sourceWaygate.name} → ${destGate.name}`);
     }
 
     // Check if player is on a specific tile
