@@ -153,6 +153,7 @@ class MapEditor {
                 <button class="action-btn" id="editor-save">💾 Save</button>
                 <button class="action-btn" id="editor-clear">🗑️ Clear All</button>
                 <button class="action-btn" id="editor-export">📤 Export</button>
+                <button class="action-btn" id="editor-import">📥 Import</button>
             </div>
             
             <div class="editor-status">
@@ -380,6 +381,7 @@ class MapEditor {
         document.getElementById('editor-save')?.addEventListener('click', () => this.saveEdits());
         document.getElementById('editor-clear')?.addEventListener('click', () => this.clearAll());
         document.getElementById('editor-export')?.addEventListener('click', () => this.exportMap());
+        document.getElementById('editor-import')?.addEventListener('click', () => this.importMap());
         
         // Canvas mouse handling for drag painting and rectangle fill
         window.addEventListener('mousedown', (e) => {
@@ -1254,6 +1256,8 @@ class MapEditor {
     
     exportMap() {
         const exportData = {
+            version: 2,
+            location: this.getCurrentLocationKey(),
             decorations: this.game.decorations.map(d => ({
                 x: d.x,
                 y: d.y,
@@ -1261,8 +1265,11 @@ class MapEditor {
                 width: d.width,
                 height: d.height,
                 layer: d.layer,
-                ground: d.ground
+                ground: d.ground,
+                editorPlaced: d.editorPlaced || false
             })),
+            editorPlaced: this.placedItems,
+            deleted: Array.from(this.deletedItems),
             timestamp: Date.now()
         };
         
@@ -1270,11 +1277,74 @@ class MapEditor {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `clawworld_map_${Date.now()}.json`;
+        const location = this.getCurrentLocationKey().replace(/[^a-z0-9]/g, '_');
+        a.download = `clawworld_map_${location}_${new Date().toISOString().slice(0,10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
         
-        console.log('📤 Exported map data');
+        console.log('📤 Exported map data (' + exportData.decorations.length + ' decorations)');
+        alert('Map exported! Give the JSON file to Frank to merge into the game code.');
+    }
+
+    importMap() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (!data.decorations || !Array.isArray(data.decorations)) {
+                        alert('Invalid map file — no decorations found.');
+                        return;
+                    }
+                    
+                    const count = data.decorations.length;
+                    if (!confirm(`Import ${count} decorations from "${file.name}"?\n\nThis will replace current editor placements.`)) {
+                        return;
+                    }
+                    
+                    // Clear existing editor placements
+                    this.game.decorations = this.game.decorations.filter(d => !d.editorPlaced);
+                    this.placedItems = [];
+                    
+                    // Import editor-placed items
+                    let imported = 0;
+                    for (const item of data.decorations) {
+                        if (item.editorPlaced) {
+                            let sprite = null;
+                            if (this.categories?.furniture?.assets?.includes(item.type)) {
+                                sprite = this.game.interiorLoader?.getSprite(item.type);
+                            } else {
+                                sprite = this.game.decorationLoader?.getSprite(item.type);
+                            }
+                            
+                            this.game.decorations.push({
+                                ...item,
+                                sprite: sprite,
+                                editorPlaced: true
+                            });
+                            this.placedItems.push(item);
+                            imported++;
+                        }
+                    }
+                    
+                    // Auto-save to localStorage
+                    this.saveEdits();
+                    
+                    console.log(`📥 Imported ${imported} editor items from ${file.name}`);
+                    alert(`Imported ${imported} decorations!`);
+                } catch (err) {
+                    alert('Failed to parse map file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     }
     
     // Test: place decoration at player's feet (call from console with mapEditor.testPlace())
