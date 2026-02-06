@@ -152,6 +152,10 @@ class Game {
         // Footstep effects
         this.footstepEffects = typeof FootstepEffects !== 'undefined' ? new FootstepEffects() : null;
 
+        // Player count overlay
+        this.playerCountEl = null;
+        this.playerCountTimer = 0;
+
         // Map state
         this.currentLocation = 'outdoor';
         this.currentBuilding = null;
@@ -429,6 +433,12 @@ class Game {
         // Update multiplayer (other players)
         if (this.multiplayer && this.multiplayerEnabled) {
             this.multiplayer.update(deltaTime);
+            // Update player count display every 2 seconds
+            this.playerCountTimer += deltaTime;
+            if (this.playerCountTimer >= 2.0) {
+                this.playerCountTimer = 0;
+                this.updatePlayerCount();
+            }
         }
         
         // Update Red Current visual effect (outdoor only)
@@ -1163,6 +1173,43 @@ class Game {
             }
         }
         return null;
+    }
+
+    // Create and update player count overlay
+    updatePlayerCount() {
+        if (!this.playerCountEl) {
+            this.playerCountEl = document.createElement('div');
+            this.playerCountEl.id = 'player-count';
+            this.playerCountEl.style.cssText = `
+                position: fixed;
+                top: 8px;
+                left: 8px;
+                background: rgba(13, 8, 6, 0.75);
+                border: 1px solid rgba(196, 58, 36, 0.4);
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                color: #e8d5cc;
+                z-index: 100;
+                pointer-events: none;
+                letter-spacing: 0.5px;
+            `;
+            document.body.appendChild(this.playerCountEl);
+        }
+        
+        let humans = 1; // count self
+        let bots = 0;
+        
+        if (this.multiplayerClient) {
+            this.multiplayerClient.remotePlayers.forEach(p => {
+                if (p.isBot) bots++;
+                else humans++;
+            });
+        }
+        
+        const total = humans + bots;
+        this.playerCountEl.innerHTML = `👤 ${humans} &nbsp;🤖 ${bots} &nbsp;<span style="color:#8a7068">•</span>&nbsp; <span style="color:#8a7068">${total} online</span>`;
     }
 
     // Find nearby remote player for interaction
