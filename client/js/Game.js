@@ -104,6 +104,9 @@ class Game {
         // Dialog system
         this.dialogSystem = new DialogSystem();
 
+        // Sound effects system
+        this.sfx = new SoundEffects();
+
         // Story systems (Continuity, Quests, NPC Memory, Factions)
         this.continuitySystem = typeof ContinuitySystem !== 'undefined' ? new ContinuitySystem() : null;
         this.questSystem = typeof QuestSystem !== 'undefined' ? new QuestSystem(this.continuitySystem) : null;
@@ -122,6 +125,15 @@ class Game {
         this.questManager = typeof QuestManager !== 'undefined' ? new QuestManager('default') : null;
         if (this.questManager) {
             console.log('📦 Quest manager initialized');
+        }
+        
+        // Quest Log UI
+        this.questLogUI = null;
+        if (this.questSystem || this.questManager) {
+            this.questLogUI = typeof QuestLogUI !== 'undefined' ? new QuestLogUI(this.questSystem, this.questManager) : null;
+            if (this.questLogUI) {
+                console.log('📜 Quest Log UI initialized');
+            }
         }
         
         // Opened chest tracking (persisted per player)
@@ -447,10 +459,11 @@ class Game {
         // Update input manager
         this.inputManager.update();
 
-        // Update player (but freeze during dialog or inventory)
+        // Update player (but freeze during dialog, inventory, or quest log)
         const dialogOpen = this.dialogSystem && this.dialogSystem.isOpen();
         const inventoryOpen = this.inventoryUI && this.inventoryUI.isOpen();
-        if (!dialogOpen && !inventoryOpen) {
+        const questLogOpen = this.questLogUI && this.questLogUI.isOpen();
+        if (!dialogOpen && !inventoryOpen && !questLogOpen) {
             this.player.update(deltaTime, this.inputManager, this.collisionSystem);
         }
 
@@ -1192,11 +1205,13 @@ class Game {
     handleInteractions() {
         if (!this.inputManager.isInteractPressed()) return;
         
-        // Don't handle interactions when inventory is open
+        // Don't handle interactions when inventory or quest log is open
         if (this.inventoryUI && this.inventoryUI.isOpen()) return;
+        if (this.questLogUI && this.questLogUI.isOpen()) return;
 
         // Advance dialog if open
         if (this.dialogSystem && this.dialogSystem.isOpen()) {
+            this.sfx.play('dialog_advance');
             this.dialogSystem.advance();
             return;
         }
@@ -1207,10 +1222,12 @@ class Game {
             // Check for item quest first
             const itemQuestDialogue = this.handleItemQuestDialogue(npc);
             if (itemQuestDialogue) {
+                this.sfx.play('dialog_open');
                 this.dialogSystem.show(itemQuestDialogue);
             } else {
                 // Get dynamic dialogue based on player state
                 const dialogue = this.getNPCDialogue(npc);
+                this.sfx.play('dialog_open');
                 this.dialogSystem.show(dialogue);
             }
             
@@ -1238,6 +1255,7 @@ class Game {
         if (this.currentLocation === 'outdoor') {
             const sign = this.findNearbySign();
             if (sign) {
+                this.sfx.play('dialog_open');
                 this.dialogSystem.show(sign.getDialog());
                 return;
             }
@@ -1495,6 +1513,9 @@ class Game {
                 gameNotifications.success(`${itemDef.icon} Picked up ${itemDef.name}${rarityTag}`);
             }
             
+            // Play pickup sound effect
+            this.sfx.play('pickup');
+            
             // Continuity boost for finding items
             if (this.continuitySystem) {
                 this.continuitySystem.addContinuity(1, `pickup_${worldItem.itemId}`);
@@ -1717,6 +1738,7 @@ class Game {
         }
         
         // Show current page
+        this.sfx.play('bulletin_read');
         this.dialogSystem.show(board.getReadDialog(), () => {
             // Reset active board when dialog closes
             this.activeBulletinBoard = null;
@@ -2031,6 +2053,9 @@ class Game {
                 this.continuitySystem.addContinuity(5, `item_quest_${quest.id}`);
             }
             
+            // Play quest complete sound effect
+            this.sfx.play('quest_complete');
+            
             if (typeof gameNotifications !== 'undefined') {
                 gameNotifications.achievement(`Quest complete: ${quest.description}`);
             }
@@ -2072,6 +2097,9 @@ class Game {
             row: Math.min(this.outdoorMap.height - 1, returnRow)
         };
 
+        // Play door enter sound effect
+        this.sfx.play('door_enter');
+        
         // Start transition (this awaits until halfway through animation)
         if (typeof transitionOverlay !== 'undefined') {
             await transitionOverlay.enterBuilding(building.name, building.type);
@@ -2146,6 +2174,9 @@ class Game {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
 
+        // Play door exit sound effect
+        this.sfx.play('door_exit');
+        
         // Start exit transition
         if (typeof transitionOverlay !== 'undefined') {
             await transitionOverlay.exitBuilding();
