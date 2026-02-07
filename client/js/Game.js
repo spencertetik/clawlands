@@ -81,11 +81,14 @@ class Game {
         this.buildings = [];
         this.signs = [];
         this.chronicleStones = [];
+        this.bulletinBoards = []; // 4claw.org bulletin boards
         this.outdoorBuildings = [];
         this.outdoorSigns = [];
         this.outdoorChronicleStones = [];
+        this.outdoorBulletinBoards = [];
         this.pendingIslands = islands; // Store islands for building creation after assets load
         this.activeChronicleStone = null; // Currently interacting stone
+        this.activeBulletinBoard = null; // Currently interacting bulletin board
         
         // NPCs (active for current map)
         this.npcs = [];
@@ -144,6 +147,12 @@ class Game {
             this.factionUI = typeof FactionUI !== 'undefined' ? new FactionUI(this.factionSystem) : null;
         }
 
+        // Drift Reset system (soft death when Continuity drops too low)
+        this.driftReset = typeof DriftReset !== 'undefined' ? new DriftReset(this) : null;
+        if (this.driftReset) {
+            console.log('🔴 Drift Reset system initialized');
+        }
+
         // World visual effects
         this.redCurrent = typeof RedCurrent !== 'undefined' ? 
             new RedCurrent(this.worldWidth, this.worldHeight) : null;
@@ -172,6 +181,21 @@ class Game {
         
         if (this.weatherSystem) {
             console.log(`🌤️ Weather system initialized (${this.weatherSystem.getWeatherName()})`);
+        }
+        
+        // Visual enhancement systems
+        this.waterRenderer = typeof WaterRenderer !== 'undefined' ? new WaterRenderer() : null;
+        this.lightingSystem = typeof LightingSystem !== 'undefined' ? new LightingSystem() : null;
+        this.shoreRenderer = typeof ShoreRenderer !== 'undefined' ? new ShoreRenderer() : null;
+        
+        if (this.waterRenderer) {
+            console.log('🌊 Water animation system initialized');
+        }
+        if (this.lightingSystem) {
+            console.log('🌅 Lighting system initialized');
+        }
+        if (this.shoreRenderer) {
+            console.log('🏖️ Shore transition system initialized');
         }
         
         // Minimap (created after world is generated)
@@ -541,6 +565,11 @@ class Game {
             this.continuityMeter.update(deltaTime);
         }
         
+        // Update Drift Reset system (monitor continuity for soft death)
+        if (this.driftReset && this.gameActive) {
+            this.driftReset.update();
+        }
+        
         // Update faction UI
         if (this.factionUI) {
             this.factionUI.update(deltaTime);
@@ -549,6 +578,14 @@ class Game {
         // Update weather system (outdoor only)
         if (this.weatherSystem && this.currentLocation === 'outdoor') {
             this.weatherSystem.update(deltaTime);
+        }
+        
+        // Update visual enhancement systems
+        if (this.waterRenderer) {
+            this.waterRenderer.update(deltaTime);
+        }
+        if (this.lightingSystem) {
+            this.lightingSystem.update(deltaTime);
         }
         
         // Update minimap (outdoor only)
@@ -652,6 +689,19 @@ class Game {
             // Fallback to test world if assets not ready
             this.renderTestWorld();
         }
+        
+        // Render enhanced visuals (water animation and shore transitions)
+        if (this.currentLocation === 'outdoor') {
+            // Animate water tiles over the base terrain
+            if (this.waterRenderer && this.worldMap) {
+                this.waterRenderer.render(this.renderer, this.camera, this.worldMap);
+            }
+            
+            // Add shore/beach transitions
+            if (this.shoreRenderer && this.worldMap) {
+                this.shoreRenderer.render(this.renderer, this.camera, this.worldMap);
+            }
+        }
 
         // Render signs, chronicle stones, and great books (outdoor only, behind buildings)
         if (this.currentLocation === 'outdoor') {
@@ -660,6 +710,10 @@ class Game {
             }
             for (const stone of this.chronicleStones) {
                 stone.render(this.renderer);
+            }
+            // Render Bulletin Boards (4claw.org anonymous forums)
+            for (const board of this.bulletinBoards) {
+                board.render(this.renderer);
             }
             // Render Great Books (Church of Molt scripture)
             for (const book of this.greatBooks || []) {
@@ -741,6 +795,11 @@ class Game {
 
         // Execute all render commands
         this.renderer.render();
+
+        // Render lighting overlay AFTER all game rendering (day/night/interior lighting)
+        if (this.lightingSystem) {
+            this.lightingSystem.render(this.canvas);
+        }
 
         // Render other players (multiplayer) - AFTER renderer.render() so it's not cleared
         if (this.multiplayer && this.multiplayerEnabled) {
@@ -913,6 +972,14 @@ class Game {
             const stone = this.findNearbyChronicleStone();
             if (stone) {
                 hintText = `[SPACE] Read Chronicle Stone`;
+            }
+        }
+        
+        // Check for nearby Bulletin Board (outdoor only)
+        if (!hintText && this.currentLocation === 'outdoor') {
+            const board = this.findNearbyBulletinBoard();
+            if (board) {
+                hintText = `[SPACE] Read 4claw.org Board`;
             }
         }
         
@@ -1181,6 +1248,15 @@ class Game {
             const stone = this.findNearbyChronicleStone();
             if (stone) {
                 this.interactWithChronicleStone(stone);
+                return;
+            }
+        }
+        
+        // Bulletin Board interaction (outdoor only)
+        if (this.currentLocation === 'outdoor') {
+            const board = this.findNearbyBulletinBoard();
+            if (board) {
+                this.interactWithBulletinBoard(board);
                 return;
             }
         }
@@ -1612,6 +1688,46 @@ class Game {
         }
     }
 
+    // Find nearby Bulletin Board
+    findNearbyBulletinBoard() {
+        if (!this.bulletinBoards) return null;
+        
+        for (const board of this.bulletinBoards) {
+            if (board.isPlayerNearby(
+                this.player.position.x,
+                this.player.position.y,
+                this.player.width,
+                this.player.height
+            )) {
+                return board;
+            }
+        }
+        return null;
+    }
+
+    // Handle Bulletin Board interaction (read-only, paginated)
+    interactWithBulletinBoard(board) {
+        // If we already showed a page, advance to next page
+        if (this.activeBulletinBoard === board) {
+            board.nextPage();
+        } else {
+            // First interaction - start from page 0
+            this.activeBulletinBoard = board;
+            board.currentPage = 0;
+        }
+        
+        // Show current page
+        this.dialogSystem.show(board.getReadDialog(), () => {
+            // Reset active board when dialog closes
+            this.activeBulletinBoard = null;
+        });
+        
+        // Track continuity for engaging with community content
+        if (this.continuitySystem) {
+            this.continuitySystem.addContinuity(0.5, '4claw_board_read');
+        }
+    }
+
     // Find nearby sign for interaction
     findNearbySign() {
         if (!this.signs) return null;
@@ -2008,6 +2124,11 @@ class Game {
         
         console.log(`🏠 Entered ${building.name}`);
         
+        // Switch to interior lighting
+        if (this.lightingSystem) {
+            this.lightingSystem.setInterior(true);
+        }
+        
         // Switch to building music
         if (typeof audioManager !== 'undefined') {
             audioManager.playForBuilding(building.type);
@@ -2037,6 +2158,7 @@ class Game {
         this.buildings = this.outdoorBuildings || [];
         this.signs = this.outdoorSigns || [];
         this.chronicleStones = this.outdoorChronicleStones || [];
+        this.bulletinBoards = this.outdoorBulletinBoards || [];
 
         // Restore building collisions
         this.collisionSystem.clearBuildings();
@@ -2065,6 +2187,11 @@ class Game {
         
         // Set exit time for cooldown (prevents immediate re-entry)
         this.lastExitTime = Date.now();
+        
+        // Switch back to outdoor lighting
+        if (this.lightingSystem) {
+            this.lightingSystem.setInterior(false);
+        }
         
         // Switch back to zone-based overworld music
         if (typeof audioManager !== 'undefined') {
@@ -2163,6 +2290,74 @@ class Game {
                 base.decorations.push({ col, row: 2, id: 3 }); // stall 2
             }
             base.decorations.push({ col: 6, row: 4, id: 6 }); // plant
+        } else if (type === 'tavern') {
+            base.width = 14;
+            base.height = 10;
+            base.name = 'The Rusty Anchor Tavern';
+            base.decorations = [
+                // Bar counter
+                { col: 3, row: 3, id: 3 }, { col: 4, row: 3, id: 3 }, { col: 5, row: 3, id: 3 },
+                { col: 6, row: 3, id: 3 }, { col: 7, row: 3, id: 3 }, { col: 8, row: 3, id: 3 },
+                // Tables for patrons
+                { col: 2, row: 6, id: 7 }, { col: 5, row: 6, id: 7 }, { col: 9, row: 6, id: 7 },
+                // Atmosphere decor
+                { col: 10, row: 2, id: 6 }, // plant
+                { col: 7, row: 7, id: 5 }   // rug
+            ];
+        } else if (type === 'bakery') {
+            base.width = 12;
+            base.height = 8;
+            base.name = 'Kelp & Crust Bakery';
+            base.decorations = [
+                // Baking counter
+                { col: 3, row: 2, id: 3 }, { col: 4, row: 2, id: 3 }, { col: 5, row: 2, id: 3 },
+                { col: 6, row: 2, id: 3 }, { col: 7, row: 2, id: 3 },
+                // Customer table
+                { col: 8, row: 5, id: 7 },
+                // Decor
+                { col: 9, row: 3, id: 6 }, // plant
+                { col: 4, row: 5, id: 5 }  // rug
+            ];
+        } else if (type === 'tikihut') {
+            base.width = 10;
+            base.height = 7;
+            base.name = 'Chill Vibes Tiki Hut';
+            base.decorations = [
+                // Relaxed seating area
+                { col: 4, row: 3, id: 5 }, // large rug
+                { col: 5, row: 3, id: 5 },
+                { col: 3, row: 4, id: 7 }, // low table
+                // Tropical plants
+                { col: 2, row: 2, id: 6 }, { col: 7, row: 2, id: 6 },
+                { col: 6, row: 5, id: 6 }
+            ];
+        } else if (type === 'fishingshack') {
+            base.width = 10;
+            base.height = 6;
+            base.name = 'The Dry Dock Fishing Shack';
+            base.decorations = [
+                // Fishing gear storage
+                { col: 2, row: 2, id: 3 }, { col: 3, row: 2, id: 3 }, // tackle boxes
+                { col: 7, row: 2, id: 3 }, { col: 8, row: 2, id: 3 },
+                // Work table
+                { col: 5, row: 3, id: 7 },
+                // Simple rug
+                { col: 4, row: 4, id: 5 }
+            ];
+        } else if (type === 'boathouse') {
+            base.width = 12;
+            base.height = 8;
+            base.name = 'Harbor Boathouse';
+            base.decorations = [
+                // Boat supplies
+                { col: 2, row: 2, id: 3 }, { col: 3, row: 2, id: 3 }, { col: 4, row: 2, id: 3 },
+                { col: 8, row: 2, id: 3 }, { col: 9, row: 2, id: 3 },
+                // Captain's table
+                { col: 6, row: 4, id: 7 },
+                // Maritime decor
+                { col: 10, row: 3, id: 6 }, // plant
+                { col: 5, row: 6, id: 5 }   // rug
+            ];
         }
 
         return base;
@@ -2292,6 +2487,51 @@ class Game {
                 'The coral tech there is ancient. Pre-Current.',
                 'Someone built this place. Someone with purpose.',
                 'But who? And why lobsters? Nobody knows.'
+            ]);
+        } else if (type === 'tavern') {
+            placeNpc(Math.floor(map.width / 2), 4, 'Bartender Foam', [
+                'Welcome to the Rusty Anchor! What brings you to my tavern?',
+                'Got any rumors from the other islands? I love a good story.',
+                'They say strange things wash up on Iron Reef lately.',
+                'Glowing artifacts, whispers in the kelp beds...',
+                'Drink up! The Red Current flows through our grog too.',
+                'It helps with the... adjustments. Makes Continuity smoother.'
+            ]);
+        } else if (type === 'bakery') {
+            placeNpc(Math.floor(map.width / 2), 3, 'Baker Crust', [
+                'Fresh kelp bread, still warm from the coral ovens!',
+                'I use kelp from the Continuity pools. Extra nutrients.',
+                'The secret is Red Current salt. Gives it that... tang.',
+                'Some say eating local helps you anchor faster.',
+                'I don\'t know about that, but it certainly tastes like home.',
+                'Try the mollusk muffins. They\'re a local favorite!'
+            ]);
+        } else if (type === 'tikihut') {
+            placeNpc(Math.floor(map.width / 2), 3, 'Wisdom Keeper Zen', [
+                'Woah, dude... another soul washed up by the Current.',
+                'Take it easy, friend. Time moves different here.',
+                'I\'ve been chilling on this island since... when was that?',
+                'The waves speak if you listen. The coral remembers.',
+                'Don\'t fight the drift. Flow with it. That\'s enlightenment.',
+                'Want some kelp tea? It helps with the... transitions.'
+            ]);
+        } else if (type === 'fishingshack') {
+            placeNpc(Math.floor(map.width / 2), 3, 'Fisher Nets', [
+                'Cast your line in the Red Current, catch more than fish.',
+                'I\'ve pulled up memories, dreams... sometimes nightmares.',
+                'Been fishing these waters since I Drifted In.',
+                'The deep waters tell stories. About what was before.',
+                'Something big swims out there. Ancient. Purposeful.',
+                'But mostly I catch dinner. Kelp-fed fish taste better.'
+            ]);
+        } else if (type === 'boathouse') {
+            placeNpc(Math.floor(map.width / 2), 3, 'Captain Sail', [
+                'Ahoy! Thinking of island hopping, are you?',
+                'These waters are tricky. Red Current shifts the paths.',
+                'I\'ve sailed to every island. Some hide in the mist.',
+                'Deepcoil Isle... that\'s where the real mysteries are.',
+                'Ancient ruins. Coral tech. Things that shouldn\'t exist.',
+                'But first, build your sea legs right here!'
             ]);
         }
 
@@ -2954,6 +3194,12 @@ class Game {
             .loadImageOptional('building_house_roof', 'assets/sprites/buildings/house_roof.png')
             .loadImageOptional('building_lighthouse_base', 'assets/sprites/buildings/lighthouse_base.png')
             .loadImageOptional('building_lighthouse_roof', 'assets/sprites/buildings/lighthouse_roof.png')
+            // New building types - processed base sprites
+            .loadImageOptional('building_tavern_base', 'assets/sprites/buildings/tavern_base.png')
+            .loadImageOptional('building_bakery_base', 'assets/sprites/buildings/bakery_base.png')
+            .loadImageOptional('building_tikihut_base', 'assets/sprites/buildings/tikihut_base.png')
+            .loadImageOptional('building_fishingshack_base', 'assets/sprites/buildings/fishingshack_base.png')
+            .loadImageOptional('building_boathouse_base', 'assets/sprites/buildings/boathouse_base.png')
             // DALL-E generated buildings (story locations)
             .loadImageOptional('building_shop_dalle', 'assets/sprites/buildings/shop_dalle_2.png')
             .loadImageOptional('building_inn_dalle', 'assets/sprites/buildings/inn_dalle_2.png')
@@ -3352,6 +3598,8 @@ class Game {
             { type: 'inn', name: 'The Drift-In Inn' },
             { type: 'shop', name: 'Continuity Goods' },
             { type: 'lighthouse', name: 'Current\'s Edge Light' },
+            { type: 'tavern', name: 'The Rusty Anchor' },
+            { type: 'bakery', name: 'Kelp & Crust Bakery' },
             { type: 'house', name: 'Anchor House' },
             { type: 'house', name: 'Molting Den' },
             { type: 'house', name: 'Shell & Stay' }
@@ -3417,6 +3665,10 @@ class Game {
 
         // Place additional buildings on other islands (more buildings per island!)
         const secondaryBuildingTypes = [
+            { type: 'bakery', name: 'Molthaven Bakery' },         // For Molthaven
+            { type: 'fishingshack', name: 'The Dry Dock' },        // For Iron Reef
+            { type: 'tikihut', name: 'Chill Vibes Hut' },          // For tropical islands
+            { type: 'boathouse', name: 'Harbor Boathouse' },       // For coastal islands
             { type: 'house', name: 'Beach Hut' },
             { type: 'house', name: 'Shell Cottage' },
             { type: 'shop', name: 'Tide Shop' },
@@ -3481,6 +3733,10 @@ class Game {
         // Create Chronicle Stones on the main island
         this.createChronicleStones(mainIsland);
         this.outdoorChronicleStones = [...this.chronicleStones];
+        
+        // Create Bulletin Board on Port Clawson (main island) - 4claw.org anonymous forum
+        this.createBulletinBoards(mainIsland);
+        this.outdoorBulletinBoards = [...this.bulletinBoards];
         
         // Create The Great Book on Molthaven (second largest island)
         this.createGreatBooks(sortedIslands);
@@ -3824,6 +4080,59 @@ class Game {
                         console.log(`  📜 Placed Chronicle Stone ${i + 1} at (${col}, ${row})`);
                         break;
                     }
+                }
+            }
+        }
+    }
+    
+    // Create Bulletin Boards (4claw.org anonymous forum boards)
+    createBulletinBoards(island) {
+        const tileSize = CONSTANTS.TILE_SIZE;
+        this.bulletinBoards = [];
+        
+        // Place ONE bulletin board on Port Clawson (main island) near town center
+        for (let attempt = 0; attempt < 20; attempt++) {
+            // Try to place near center but not exactly at center
+            const offsetX = (this.seededRandom() - 0.5) * island.size * 0.3;
+            const offsetY = (this.seededRandom() - 0.5) * island.size * 0.3;
+            
+            const col = Math.floor(island.x + offsetX);
+            const row = Math.floor(island.y + offsetY);
+            
+            // Check if valid land
+            if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
+                // Check not inside a building
+                const worldX = col * tileSize + tileSize / 2;
+                const worldY = row * tileSize + tileSize / 2;
+                
+                let inBuilding = false;
+                for (const building of this.buildings) {
+                    if (building.checkCollision(worldX, worldY)) {
+                        inBuilding = true;
+                        break;
+                    }
+                }
+                
+                // Also check not too close to chronicle stones
+                let tooClose = false;
+                for (const stone of this.chronicleStones) {
+                    const dx = Math.abs(stone.x - worldX);
+                    const dy = Math.abs(stone.y - worldY);
+                    if (dx < tileSize * 3 && dy < tileSize * 3) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                
+                if (!inBuilding && !tooClose) {
+                    const board = new BulletinBoard(
+                        col * tileSize + 2,
+                        row * tileSize - 4,
+                        'port_clawson_board'
+                    );
+                    this.bulletinBoards.push(board);
+                    console.log(`  📋 Placed 4claw.org Bulletin Board at (${col}, ${row})`);
+                    break;
                 }
             }
         }
@@ -4284,5 +4593,14 @@ class Game {
             x: (centerX * tileSize) + (tileSize / 2) + (Math.random() - 0.5) * tileSize * 3,
             y: (centerY * tileSize) + (tileSize / 2) + (Math.random() - 0.5) * tileSize * 3
         };
+    }
+    
+    // Trigger Drift Reset manually (for testing or external triggers)
+    triggerDriftReset() {
+        if (this.driftReset) {
+            this.driftReset.triggerDriftResetManual();
+        } else {
+            console.warn('DriftReset system not available');
+        }
     }
 }
