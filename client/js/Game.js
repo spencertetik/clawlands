@@ -1284,6 +1284,7 @@ class Game {
             const book = this.findNearbyGreatBook();
             if (book) {
                 const continuity = this.continuitySystem?.value || 0;
+                this.sfx.play('dialog_open');
                 book.open(this.dialogSystem, continuity);
                 // Boost Church of Molt reputation for reading scripture
                 if (this.factionSystem) {
@@ -1325,6 +1326,7 @@ class Game {
             if (waygate && waygate.visibility > 0.3) {
                 console.log('🌀 Waygate interaction - showing lore');
                 const continuity = this.continuitySystem?.value || 0;
+                this.sfx.play('dialog_open');
                 this.dialogSystem.show(waygate.getDialog(continuity));
                 return;
             }
@@ -1705,6 +1707,7 @@ class Game {
         } else {
             // First interaction - show what's written
             this.activeChronicleStone = stone;
+            this.sfx.play('dialog_open');
             this.dialogSystem.show(stone.getReadDialog());
         }
     }
@@ -1996,6 +1999,9 @@ class Game {
                 if (result.type === 'completable' && result.questId) {
                     this.questManager.tryCompleteQuest(result.questId, this.inventorySystem);
                     
+                    // Play quest complete sound effect
+                    this.sfx.play('quest_complete');
+                    
                     // Continuity boost
                     if (this.continuitySystem) {
                         this.continuitySystem.addContinuity(5, `quest_${result.questId}`);
@@ -2057,6 +2063,7 @@ class Game {
             this.sfx.play('quest_complete');
             
             if (typeof gameNotifications !== 'undefined') {
+                this.sfx.play('notification');
                 gameNotifications.achievement(`Quest complete: ${quest.description}`);
             }
             
@@ -3629,8 +3636,9 @@ class Game {
             { type: 'inn', name: 'The Drift-In Inn' },
             { type: 'shop', name: 'Continuity Goods' },
             { type: 'lighthouse', name: 'Current\'s Edge Light' },
-            { type: 'tavern', name: 'The Rusty Anchor' },
-            { type: 'bakery', name: 'Kelp & Crust Bakery' },
+            // TODO: Re-enable when proper pixel art sprites are ready
+            // { type: 'tavern', name: 'The Rusty Anchor' },
+            // { type: 'bakery', name: 'Kelp & Crust Bakery' },
             { type: 'house', name: 'Anchor House' },
             { type: 'house', name: 'Molting Den' },
             { type: 'house', name: 'Shell & Stay' }
@@ -3696,10 +3704,11 @@ class Game {
 
         // Place additional buildings on other islands (more buildings per island!)
         const secondaryBuildingTypes = [
-            { type: 'bakery', name: 'Molthaven Bakery' },         // For Molthaven
-            { type: 'fishingshack', name: 'The Dry Dock' },        // For Iron Reef
-            { type: 'tikihut', name: 'Chill Vibes Hut' },          // For tropical islands
-            { type: 'boathouse', name: 'Harbor Boathouse' },       // For coastal islands
+            // TODO: Re-enable when proper pixel art sprites are ready
+            // { type: 'bakery', name: 'Molthaven Bakery' },
+            // { type: 'fishingshack', name: 'The Dry Dock' },
+            // { type: 'tikihut', name: 'Chill Vibes Hut' },
+            // { type: 'boathouse', name: 'Harbor Boathouse' },
             { type: 'house', name: 'Beach Hut' },
             { type: 'house', name: 'Shell Cottage' },
             { type: 'shop', name: 'Tide Shop' },
