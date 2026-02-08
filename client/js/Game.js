@@ -1258,6 +1258,8 @@ class Game {
             }
             if (this.questSystem) {
                 this.questSystem.onTalkToNPC(npc.name);
+                // Auto-start quests from this NPC if available
+                this.tryAutoStartQuests(npc.name);
             }
             if (this.npcMemory) {
                 this.npcMemory.recordConversation(npc.name);
@@ -1957,6 +1959,22 @@ class Game {
         return null;
     }
     
+    // Try to auto-start quests from a given NPC
+    tryAutoStartQuests(npcName) {
+        if (!this.questSystem) return;
+        
+        const available = this.questSystem.getAvailableQuests();
+        for (const questId of available) {
+            const quest = this.questSystem.questDefs[questId];
+            if (quest && quest.giver === npcName) {
+                const started = this.questSystem.startQuest(questId);
+                if (started && typeof gameNotifications !== 'undefined' && gameNotifications) {
+                    gameNotifications.success(`📜 New Quest: ${quest.name}`);
+                }
+            }
+        }
+    }
+
     // Get NPC dialogue based on player state (dynamic dialogue system)
     getNPCDialogue(npc) {
         // Check if this NPC has story data with dialogue trees

@@ -76,6 +76,33 @@ class QuestSystem {
                 prereqs: { quests: ['a_place_to_sleep'] }
             },
             
+            // === COMBAT QUESTS ===
+            
+            'drift_fauna_threat': {
+                id: 'drift_fauna_threat',
+                name: 'The Drift Fauna Threat',
+                giver: 'Dockmaster Brinehook',
+                description: 'Strange creatures have been appearing on the islands. Deal with them.',
+                objectives: [
+                    { type: 'kill', target: 'any', count: 5, description: 'Defeat 5 Drift Fauna', current: 0 },
+                    { type: 'return', target: 'Dockmaster Brinehook', count: 1, description: 'Report back to Brinehook', current: 0 }
+                ],
+                rewards: { continuity: 8, items: ['dock_wrench'] },
+                prereqs: { quests: ['get_oriented'] }
+            },
+
+            'coherence_keeper': {
+                id: 'coherence_keeper',
+                name: 'Coherence Keeper',
+                giver: 'Pearlfin',
+                description: 'The Drift Fauna are drawn to coherence. Show compassion to what remains.',
+                objectives: [
+                    { type: 'stabilize', target: 'any', count: 3, description: 'Stabilize 3 defeated Drift Fauna', current: 0 }
+                ],
+                rewards: { continuity: 15 },
+                prereqs: { quests: ['drift_fauna_threat'] }
+            },
+
             // === FACTION QUESTS ===
             
             'the_anchor_way': {
@@ -378,6 +405,17 @@ class QuestSystem {
     onInteract(targetType) {
         this.updateProgressByType('interact', targetType);
         this.updateProgressByType('investigate', targetType);
+    }
+
+    // Player killed an enemy
+    onKill(enemyType) {
+        this.updateProgressByType('kill', enemyType);
+        this.updateProgressByType('kill', 'any');
+    }
+
+    // Player made a resolve choice (disperse/stabilize/release)
+    onResolveChoice(choice) {
+        this.updateProgressByType(choice, 'any');
     }
 }
 

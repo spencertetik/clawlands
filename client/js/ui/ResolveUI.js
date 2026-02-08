@@ -119,6 +119,12 @@ class ResolveUI {
             this.game.combatSystem.recordKill(this.enemy.typeData.id || this.enemy.name);
         }
 
+        // Update quest progress
+        if (this.game.questSystem && this.enemy) {
+            this.game.questSystem.onKill(this.enemy.typeData.id || this.enemy.name);
+            this.game.questSystem.onResolveChoice(choice);
+        }
+
         // Apply effects
         switch (choice) {
             case 'disperse':
