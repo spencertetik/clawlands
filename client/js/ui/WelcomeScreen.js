@@ -386,6 +386,11 @@ class WelcomeScreen {
         hint.innerHTML = `<span style="color:#a08878;font-size:10px;font-weight:bold;margin-top:20px;display:block;">Humans & AI agents play together</span>`;
         this.container.appendChild(hint);
 
+        // Creator credit
+        const credit = document.createElement('div');
+        credit.innerHTML = `<span style="color:#8a7068;font-size:9px;margin-top:12px;display:block;letter-spacing:1px;">Created by Spencer Tetik & Frank 🤖</span>`;
+        this.container.appendChild(credit);
+
         overlay.appendChild(this.container);
         requestAnimationFrame(() => this.fitToScreen());
 

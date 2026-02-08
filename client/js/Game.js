@@ -710,7 +710,7 @@ class Game {
                 this.waterRenderer.render(this.renderer, this.camera, this.worldMap);
             }
             
-            // Add shore/beach transitions
+            // Soft gradient foam on water tiles adjacent to land
             if (this.shoreRenderer && this.worldMap) {
                 this.shoreRenderer.render(this.renderer, this.camera, this.worldMap);
             }

@@ -1,150 +1,106 @@
-// ShoreRenderer - Enhanced shore/beach transitions for water-adjacent tiles
+// ShoreRenderer - Soft gradient shore transitions (sand→water)
+// Draws smooth gradient overlays on water tiles adjacent to land
 class ShoreRenderer {
     constructor() {
-        // Beach/shore colors
-        this.shoreColors = {
-            sand: 'rgb(240, 220, 180)', // Light sandy color
-            wetSand: 'rgb(200, 180, 140)', // Darker wet sand
-            sandBorder: 'rgb(220, 200, 160)' // Border transition color
-        };
+        // Foam/shore gradient cached canvases (one per edge configuration)
+        this.gradientCache = new Map();
+        this.tileSize = CONSTANTS.TILE_SIZE;
         
-        // Border thickness in pixels (scaled by tile size)
-        this.borderThickness = 2;
+        // Shore colors — light sandy foam that blends into water
+        this.foamColor = { r: 230, g: 215, b: 175 }; // Warm sand
+        this.foamAlpha = 0.55; // How opaque the foam edge is at its strongest
         
-        console.log('🏖️ Shore renderer initialized');
+        console.log('🏖️ Shore renderer initialized (soft gradient mode)');
     }
     
-    // Render shore transitions for visible tiles
     render(renderer, camera, worldMap) {
         if (!worldMap || !worldMap.terrainMap) return;
         
-        const tileSize = CONSTANTS.TILE_SIZE;
+        const tileSize = this.tileSize;
         const bounds = camera.getVisibleTileBounds(tileSize);
         
-        // Only render shores in visible area
         for (let row = bounds.startRow; row < bounds.endRow; row++) {
             if (row < 0 || row >= worldMap.height) continue;
             
             for (let col = bounds.startCol; col < bounds.endCol; col++) {
                 if (col < 0 || col >= worldMap.width) continue;
                 
-                // Check if this tile is land (terrainMap: 0 = land, 1 = water)
-                const terrain = worldMap.terrainMap[row][col];
-                if (terrain === 0) { // Only process land tiles
-                    this.renderShoreBorders(renderer, worldMap, col, row, tileSize);
-                }
+                // Only process WATER tiles that are next to land
+                if (worldMap.terrainMap[row][col] !== 1) continue;
+                
+                // Check which sides have land neighbors
+                const landSides = this.getLandNeighbors(worldMap, col, row);
+                if (landSides.length === 0) continue;
+                
+                const x = col * tileSize;
+                const y = row * tileSize;
+                
+                // Draw soft gradient foam on this water tile from land-facing edges
+                this.drawFoamGradient(renderer, x, y, tileSize, landSides);
             }
         }
     }
     
-    // Render shore borders for a single land tile if adjacent to water
-    renderShoreBorders(renderer, worldMap, col, row, tileSize) {
-        const x = col * tileSize;
-        const y = row * tileSize;
-        
-        // Check all 8 directions (including diagonals for smoother transitions)
-        const directions = [
-            { dx: 0, dy: -1, side: 'top' },    // North
-            { dx: 1, dy: 0, side: 'right' },   // East  
-            { dx: 0, dy: 1, side: 'bottom' },  // South
-            { dx: -1, dy: 0, side: 'left' },   // West
-            { dx: 1, dy: -1, side: 'topRight' },    // Northeast
-            { dx: 1, dy: 1, side: 'bottomRight' },  // Southeast
-            { dx: -1, dy: 1, side: 'bottomLeft' },  // Southwest
-            { dx: -1, dy: -1, side: 'topLeft' }     // Northwest
+    getLandNeighbors(worldMap, col, row) {
+        const sides = [];
+        const checks = [
+            { dx: 0, dy: -1, side: 'top' },
+            { dx: 0, dy: 1, side: 'bottom' },
+            { dx: -1, dy: 0, side: 'left' },
+            { dx: 1, dy: 0, side: 'right' }
         ];
         
-        // Track which sides have water
-        const waterSides = [];
-        
-        for (const dir of directions) {
-            const checkCol = col + dir.dx;
-            const checkRow = row + dir.dy;
-            
-            // Check bounds
-            if (checkRow < 0 || checkRow >= worldMap.height || 
-                checkCol < 0 || checkCol >= worldMap.width) {
-                continue;
-            }
-            
-            // If adjacent tile is water, mark this side
-            if (worldMap.terrainMap[checkRow][checkCol] === 1) {
-                waterSides.push(dir.side);
+        for (const c of checks) {
+            const r = row + c.dy, cc = col + c.dx;
+            if (r < 0 || r >= worldMap.height || cc < 0 || cc >= worldMap.width) continue;
+            if (worldMap.terrainMap[r][cc] === 0) { // land
+                sides.push(c.side);
             }
         }
-        
-        // If no water neighbors, no shore needed
-        if (waterSides.length === 0) return;
-        
-        // Draw shore borders based on water sides
-        this.drawShoreBorders(renderer, x, y, tileSize, waterSides);
+        return sides;
     }
     
-    // Draw shore border graphics based on which sides have water
-    drawShoreBorders(renderer, x, y, tileSize, waterSides) {
-        const borderWidth = this.borderThickness;
+    drawFoamGradient(renderer, x, y, tileSize, landSides) {
+        const { r, g, b } = this.foamColor;
+        const maxAlpha = this.foamAlpha;
         
-        // Add border overlays to the ground decoration layer
         renderer.addToLayer(CONSTANTS.LAYER.GROUND_DECORATION, (ctx) => {
-            ctx.fillStyle = this.shoreColors.sandBorder;
-            
-            // Draw borders on water-facing edges
-            for (const side of waterSides) {
+            for (const side of landSides) {
+                let gradient;
+                
                 switch (side) {
                     case 'top':
-                        // Top edge
-                        ctx.fillRect(x, y, tileSize, borderWidth);
-                        break;
-                    case 'right':
-                        // Right edge  
-                        ctx.fillRect(x + tileSize - borderWidth, y, borderWidth, tileSize);
+                        // Land is above — gradient fades from top to bottom of this water tile
+                        gradient = ctx.createLinearGradient(x, y, x, y + tileSize);
+                        gradient.addColorStop(0, `rgba(${r},${g},${b},${maxAlpha})`);
+                        gradient.addColorStop(0.4, `rgba(${r},${g},${b},${maxAlpha * 0.3})`);
+                        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
                         break;
                     case 'bottom':
-                        // Bottom edge
-                        ctx.fillRect(x, y + tileSize - borderWidth, tileSize, borderWidth);
+                        gradient = ctx.createLinearGradient(x, y + tileSize, x, y);
+                        gradient.addColorStop(0, `rgba(${r},${g},${b},${maxAlpha})`);
+                        gradient.addColorStop(0.4, `rgba(${r},${g},${b},${maxAlpha * 0.3})`);
+                        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
                         break;
                     case 'left':
-                        // Left edge
-                        ctx.fillRect(x, y, borderWidth, tileSize);
+                        gradient = ctx.createLinearGradient(x, y, x + tileSize, y);
+                        gradient.addColorStop(0, `rgba(${r},${g},${b},${maxAlpha})`);
+                        gradient.addColorStop(0.4, `rgba(${r},${g},${b},${maxAlpha * 0.3})`);
+                        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
                         break;
-                    case 'topRight':
-                        // Corner accent - small triangle
-                        ctx.fillRect(x + tileSize - borderWidth*2, y, borderWidth*2, borderWidth);
-                        ctx.fillRect(x + tileSize - borderWidth, y, borderWidth, borderWidth*2);
-                        break;
-                    case 'bottomRight':
-                        ctx.fillRect(x + tileSize - borderWidth*2, y + tileSize - borderWidth, borderWidth*2, borderWidth);
-                        ctx.fillRect(x + tileSize - borderWidth, y + tileSize - borderWidth*2, borderWidth, borderWidth*2);
-                        break;
-                    case 'bottomLeft':
-                        ctx.fillRect(x, y + tileSize - borderWidth, borderWidth*2, borderWidth);
-                        ctx.fillRect(x, y + tileSize - borderWidth*2, borderWidth, borderWidth*2);
-                        break;
-                    case 'topLeft':
-                        ctx.fillRect(x, y, borderWidth*2, borderWidth);
-                        ctx.fillRect(x, y, borderWidth, borderWidth*2);
+                    case 'right':
+                        gradient = ctx.createLinearGradient(x + tileSize, y, x, y);
+                        gradient.addColorStop(0, `rgba(${r},${g},${b},${maxAlpha})`);
+                        gradient.addColorStop(0.4, `rgba(${r},${g},${b},${maxAlpha * 0.3})`);
+                        gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
                         break;
                 }
-            }
-            
-            // Add subtle wet sand effect for tiles completely surrounded by water on 3+ sides
-            if (waterSides.length >= 3) {
-                ctx.fillStyle = this.shoreColors.wetSand;
-                ctx.globalAlpha = 0.3;
-                ctx.fillRect(x + borderWidth, y + borderWidth, 
-                           tileSize - borderWidth*2, tileSize - borderWidth*2);
-                ctx.globalAlpha = 1.0;
+                
+                if (gradient) {
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(x, y, tileSize, tileSize);
+                }
             }
         });
-    }
-    
-    // Set custom shore colors (for different biomes)
-    setShoreColors(colors) {
-        this.shoreColors = { ...this.shoreColors, ...colors };
-    }
-    
-    // Set border thickness
-    setBorderThickness(thickness) {
-        this.borderThickness = Math.max(1, Math.min(4, thickness));
     }
 }

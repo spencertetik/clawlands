@@ -14,7 +14,7 @@ class DayNightCycle {
         // Tint colors for different times of day
         this.tints = {
             // Night (0:00 - 5:00)
-            night: { r: 20, g: 30, b: 60, a: 0.35 },
+            night: { r: 20, g: 30, b: 60, a: 0.25 },
             // Dawn (5:00 - 7:00)
             dawn: { r: 255, g: 180, b: 120, a: 0.15 },
             // Morning (7:00 - 10:00)
@@ -26,7 +26,7 @@ class DayNightCycle {
             // Dusk (19:00 - 21:00)
             dusk: { r: 180, g: 100, b: 150, a: 0.2 },
             // Night again (21:00 - 24:00)
-            lateNight: { r: 30, g: 30, b: 70, a: 0.3 }
+            lateNight: { r: 30, g: 30, b: 70, a: 0.22 }
         };
         
         // Current interpolated tint
@@ -51,7 +51,6 @@ class DayNightCycle {
             height: 100%;
             pointer-events: none;
             z-index: 100;
-            mix-blend-mode: multiply;
         `;
         this.overlayCtx = this.overlay.getContext('2d');
         
