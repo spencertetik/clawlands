@@ -10,9 +10,11 @@ class Player extends Entity {
         // Shell Integrity (combat health — separate from Continuity)
         this.shellIntegrity = 100;
         this.shellIntegrityMax = 100;
-        this.isInvulnerable = false;
+        this.isInvulnerable = true; // Start invulnerable (spawn protection)
         this.invulnerabilityTimer = 0;
         this.invulnerabilityDuration = 500; // ms of invulnerability after taking damage
+        this.spawnProtectionDuration = 3000; // 3 seconds of protection at game start
+        this.spawnProtectionActive = true;
         this.lastCombatTime = 0;
         this.regenTimer = 0;
         this.regenInterval = 10000; // +1 every 10 seconds out of combat
@@ -65,8 +67,17 @@ class Player extends Entity {
         // Update combat timers
         const dtMs = deltaTime * 1000;
 
-        // Invulnerability countdown
-        if (this.isInvulnerable) {
+        // Spawn protection countdown (long initial invulnerability)
+        if (this.spawnProtectionActive) {
+            this.invulnerabilityTimer += dtMs;
+            if (this.invulnerabilityTimer >= this.spawnProtectionDuration) {
+                this.spawnProtectionActive = false;
+                this.isInvulnerable = false;
+                this.invulnerabilityTimer = 0;
+            }
+        }
+        // Normal invulnerability countdown (brief after taking damage)
+        else if (this.isInvulnerable) {
             this.invulnerabilityTimer += dtMs;
             if (this.invulnerabilityTimer >= this.invulnerabilityDuration) {
                 this.isInvulnerable = false;
@@ -145,9 +156,15 @@ class Player extends Entity {
 
     // Render player
     render(renderer, spriteRenderer = null) {
-        // Skip render frames during invulnerability (flash effect)
-        if (this.isInvulnerable && Math.floor(this.invulnerabilityTimer / 60) % 2 === 1) {
-            return; // Skip this frame = flicker effect
+        // Flash effect during invulnerability
+        if (this.isInvulnerable) {
+            if (this.spawnProtectionActive) {
+                // Slow gentle pulse during spawn protection (safe feeling)
+                if (Math.floor(this.invulnerabilityTimer / 200) % 2 === 1) return;
+            } else {
+                // Fast flicker during damage invulnerability
+                if (Math.floor(this.invulnerabilityTimer / 60) % 2 === 1) return;
+            }
         }
 
         const renderScale = CONSTANTS.CHARACTER_RENDER_SCALE || 1;

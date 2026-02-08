@@ -9,25 +9,27 @@ class CombatSystem {
 
         // Spawn settings
         this.spawnTimer = 0;
-        this.spawnInterval = 3000; // ms between spawn checks
+        this.spawnInterval = 4000; // ms between spawn checks
         this.spawnMargin = 200; // px outside camera to spawn
         this.despawnDistance = 400; // px from player to despawn
+        this.spawnExclusionRadius = 120; // enemies never spawn closer than this to player
 
         // Player attack state
         this.isAttacking = false;
         this.attackTimer = 0;
-        this.attackCooldown = 400; // ms
-        this.attackDuration = 200; // ms visual duration
+        this.attackCooldown = 350; // ms between attacks
+        this.attackDuration = 250; // ms visual duration (Zelda-like sweep)
         this.attackActiveFrame = false; // true during the hit-check frame
+        this.attackAngle = 0; // current sweep angle for animation
 
         // Weapon data
         this.equippedWeapon = {
             name: 'Dock Wrench',
             damage: 10,
-            range: 24,
-            cooldown: 400,
-            knockback: 8,
-            swingArc: Math.PI / 2 // 90 degree swing
+            range: 36,    // longer reach — Zelda-style
+            cooldown: 350,
+            knockback: 12, // stronger knockback
+            swingArc: Math.PI * 0.8 // wider 144 degree swing
         };
 
         // Screen shake
@@ -56,8 +58,12 @@ class CombatSystem {
         this.damageNumbers = [];
 
         // Track if this is first spawn (delay initial spawn)
-        this.initialDelay = 5000; // 5 seconds before first enemies appear
+        this.initialDelay = 12000; // 12 seconds before first enemies appear
         this.totalTime = 0;
+        
+        // Spawn protection after respawn
+        this.spawnProtectionTimer = 0;
+        this.spawnProtectionDuration = 4000; // 4 seconds of no spawns after respawn
 
         // Kill stats (persisted)
         this.statsKey = 'clawworld_combat_stats';
@@ -144,8 +150,13 @@ class CombatSystem {
             this.pendingResolve = null;
         }
 
-        // Spawn enemies
-        if (this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor') {
+        // Update spawn protection timer
+        if (this.spawnProtectionTimer > 0) {
+            this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dtMs);
+        }
+
+        // Spawn enemies (with initial delay and spawn protection)
+        if (this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor' && this.spawnProtectionTimer <= 0) {
             this.spawnTimer += dtMs;
             if (this.spawnTimer >= this.spawnInterval) {
                 this.spawnTimer = 0;
@@ -233,23 +244,23 @@ class CombatSystem {
         const pw = player.width;
         const ph = player.height;
         const range = weapon.range;
-        const hitSize = 20; // hitbox width/height
+        const sweep = 28; // width of the sweep area (wider = more Zelda-like)
 
         switch (player.direction) {
             case CONSTANTS.DIRECTION.UP:
             case 'up':
-                return { x: px - hitSize / 4, y: py - range, width: pw + hitSize / 2, height: range };
+                return { x: px - sweep / 2, y: py - range, width: pw + sweep, height: range };
             case CONSTANTS.DIRECTION.DOWN:
             case 'down':
-                return { x: px - hitSize / 4, y: py + ph, width: pw + hitSize / 2, height: range };
+                return { x: px - sweep / 2, y: py + ph, width: pw + sweep, height: range };
             case CONSTANTS.DIRECTION.LEFT:
             case 'left':
-                return { x: px - range, y: py, width: range, height: ph };
+                return { x: px - range, y: py - sweep / 3, width: range, height: ph + sweep * 0.66 };
             case CONSTANTS.DIRECTION.RIGHT:
             case 'right':
-                return { x: px + pw, y: py, width: range, height: ph };
+                return { x: px + pw, y: py - sweep / 3, width: range, height: ph + sweep * 0.66 };
             default:
-                return { x: px, y: py + ph, width: pw, height: range };
+                return { x: px - sweep / 2, y: py + ph, width: pw + sweep, height: range };
         }
     }
 
@@ -328,7 +339,7 @@ class CombatSystem {
                         break;
                 }
 
-                // Check if spawn position is on land
+                // Check if spawn position is on land AND far enough from player
                 if (this.game.worldMap) {
                     const tileCol = Math.floor(spawnX / CONSTANTS.TILE_SIZE);
                     const tileRow = Math.floor(spawnY / CONSTANTS.TILE_SIZE);
@@ -336,7 +347,13 @@ class CombatSystem {
 
                     // tile 0 = water, 1 = shore, 2+ = land (sand/grass)
                     if (tile >= 3) {
-                        valid = true;
+                        // Enforce exclusion radius from player
+                        const dx = spawnX - player.position.x;
+                        const dy = spawnY - player.position.y;
+                        const distToPlayer = Math.sqrt(dx * dx + dy * dy);
+                        if (distToPlayer >= this.spawnExclusionRadius) {
+                            valid = true;
+                        }
                     }
                 }
             }
@@ -432,24 +449,44 @@ class CombatSystem {
     }
 
     spawnSlashEffect(player, hitbox) {
-        const cx = hitbox.x + hitbox.width / 2;
-        const cy = hitbox.y + hitbox.height / 2;
+        const cx = player.position.x + player.width / 2;
+        const cy = player.position.y + player.height / 2;
+        const range = this.equippedWeapon.range;
+        const dir = player.direction;
 
-        // Spawn arc particles
-        for (let i = 0; i < 6; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 20 + Math.random() * 40;
+        // Base angle for each direction
+        let baseAngle;
+        switch (dir) {
+            case 'up': baseAngle = -Math.PI / 2; break;
+            case 'down': baseAngle = Math.PI / 2; break;
+            case 'left': baseAngle = Math.PI; break;
+            case 'right': baseAngle = 0; break;
+            default: baseAngle = Math.PI / 2;
+        }
+
+        // Spawn arc trail particles along the swing path
+        const arcSpread = this.equippedWeapon.swingArc;
+        for (let i = 0; i < 10; i++) {
+            const t = i / 9;
+            const angle = baseAngle - arcSpread / 2 + arcSpread * t;
+            const dist = range * (0.6 + Math.random() * 0.4);
             this.slashParticles.push({
-                x: cx + (Math.random() - 0.5) * 10,
-                y: cy + (Math.random() - 0.5) * 10,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                life: 0.15 + Math.random() * 0.1,
+                x: cx + Math.cos(angle) * dist,
+                y: cy + Math.sin(angle) * dist,
+                vx: Math.cos(angle) * 15,
+                vy: Math.sin(angle) * 15,
+                life: 0.15 + t * 0.1,
                 maxLife: 0.25,
-                size: 1 + Math.random() * 2,
+                size: 2 + Math.random(),
                 color: '#ffffff'
             });
         }
+
+        // Store swing data for the arc animation
+        this.swingData = {
+            cx, cy, baseAngle, arcSpread, range,
+            startTime: this.attackDuration
+        };
     }
 
     spawnReleaseEffect(x, y) {
@@ -506,6 +543,9 @@ class CombatSystem {
             this.resolveUI.hide();
         }
 
+        // Spawn protection after respawn
+        this.spawnProtectionTimer = this.spawnProtectionDuration;
+
         // Trigger drift reset (DriftReset handles shell integrity restoration)
         if (this.game.driftReset) {
             this.game.driftReset.trigger('combat');
@@ -555,55 +595,65 @@ class CombatSystem {
     }
 
     renderAttackSlash(ctx, cam, scale) {
-        const player = this.game.player;
-        const hitbox = this.getAttackHitbox(player, this.equippedWeapon);
+        if (!this.swingData) return;
 
-        const screenX = (hitbox.x - cam.position.x) * scale;
-        const screenY = (hitbox.y - cam.position.y) * scale;
-        const w = hitbox.width * scale;
-        const h = hitbox.height * scale;
+        const sd = this.swingData;
+        const progress = 1 - (this.attackDuration / 250); // 0→1 over attack duration
+        const sweepProgress = Math.min(progress * 1.5, 1); // sweep completes faster than fade
+        const fadeOut = progress > 0.6 ? 1 - ((progress - 0.6) / 0.4) : 1;
 
-        // Animated slash arc
-        const progress = 1 - (this.attackDuration / 200);
+        const cx = (sd.cx - cam.position.x) * scale;
+        const cy = (sd.cy - cam.position.y) * scale;
+        const radius = sd.range * scale;
+
         ctx.save();
-        ctx.globalAlpha = 0.6 * (1 - progress);
 
-        // White slash line
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        // Draw the sweeping arc (Zelda-style)
+        const startA = sd.baseAngle - sd.arcSpread / 2;
+        const currentA = startA + sd.arcSpread * sweepProgress;
+
+        // Outer glow arc (thicker, more transparent)
+        ctx.globalAlpha = fadeOut * 0.3;
+        ctx.strokeStyle = '#88ccff';
+        ctx.lineWidth = 8 * scale / 4;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-
-        const cx = screenX + w / 2;
-        const cy = screenY + h / 2;
-        const radius = Math.max(w, h) * 0.6;
-
-        let startAngle, endAngle;
-        switch (player.direction) {
-            case 'up':
-                startAngle = Math.PI + Math.PI / 4;
-                endAngle = Math.PI * 2 - Math.PI / 4;
-                break;
-            case 'down':
-                startAngle = Math.PI / 4;
-                endAngle = Math.PI - Math.PI / 4;
-                break;
-            case 'left':
-                startAngle = Math.PI / 2 + Math.PI / 4;
-                endAngle = Math.PI + Math.PI / 4;
-                break;
-            case 'right':
-                startAngle = -Math.PI / 4;
-                endAngle = Math.PI / 2 - Math.PI / 4;
-                break;
-            default:
-                startAngle = 0;
-                endAngle = Math.PI;
-        }
-
-        // Animate arc sweep
-        const currentEnd = startAngle + (endAngle - startAngle) * Math.min(progress * 2, 1);
-        ctx.arc(cx, cy, radius, startAngle, currentEnd);
+        ctx.arc(cx, cy, radius * 0.9, startA, currentA);
         ctx.stroke();
+
+        // Main slash arc (bright white)
+        ctx.globalAlpha = fadeOut * 0.8;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4 * scale / 4;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.85, startA, currentA);
+        ctx.stroke();
+
+        // Inner bright arc (thinner, bright)
+        ctx.globalAlpha = fadeOut * 0.9;
+        ctx.strokeStyle = '#eeffff';
+        ctx.lineWidth = 2 * scale / 4;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.8, startA + sd.arcSpread * 0.1, currentA);
+        ctx.stroke();
+
+        // Leading edge — bright point at the tip of the swing
+        if (sweepProgress < 1) {
+            const tipX = cx + Math.cos(currentA) * radius * 0.85;
+            const tipY = cy + Math.sin(currentA) * radius * 0.85;
+            ctx.globalAlpha = fadeOut;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(tipX, tipY, 3 * scale / 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Tip glow
+            ctx.globalAlpha = fadeOut * 0.4;
+            ctx.fillStyle = '#88ccff';
+            ctx.beginPath();
+            ctx.arc(tipX, tipY, 6 * scale / 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.restore();
     }
