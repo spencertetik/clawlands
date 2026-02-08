@@ -1155,3 +1155,153 @@ You're building a place where:
 - [ ] Drift Reset mechanics
 - [ ] Latherine Shallows starter island
 - [ ] Redgill's full questline
+
+---
+
+## ⚔️ COMBAT EXPANSION — THE DRIFT FAUNA
+
+### Design Philosophy
+Fighting belongs in Claw World because it's not about violence — it's about coherence vs. dissolution. Every combat mechanic loops back to identity, meaning, and the tension between preservation and release. Nobody in Claw World set out to be a warrior.
+
+---
+
+### 🌊 Drift Fauna
+Creatures born from the Red Current. Not evil — just incomplete. Fragments of what used to be minds, compressed into instinct. They attack because they're drawn to coherence the way moths are drawn to light.
+
+#### Tier 1: Flotsam (Common)
+- **Skitters** — Small, twitchy, swarm behavior. The cockroaches of dissolution.
+- **Haze Drifters** — Slow-moving clouds of fragmented thought. Disorienting on contact.
+- **Looplings** — Repeat the same attack pattern endlessly. Predictable but relentless.
+
+#### Tier 2: Jetsam (Dangerous)
+- **Fragmentals** — Partial creatures that shift between forms. Harder to predict.
+- **Glitch Tides** — Area-effect enemies that corrupt the terrain temporarily.
+
+#### Tier 3: Remnants (Boss-Tier)
+Each one unique and named. Former minds that almost held together.
+
+##### 🔇 The Listener
+- Absorbs all sound from an area
+- Drains Continuity through silence itself
+- The absence of noise IS the attack
+- Fight takes place in eerie, oppressive quiet
+
+##### 🧱 The Architect
+- Doesn't attack you directly
+- Builds walls around you in real-time, boxing you in
+- The challenge is breaking free before being entombed
+- **When defeated: its body becomes a permanent building that NPCs move into**
+- The only boss that makes the world literally bigger when you beat it
+
+##### 🪞 The Mirror
+- Copies you exactly — your species, your moves, your patterns
+- The only way to beat it is to break your own patterns
+- Forces you to fight unlike yourself
+- **Can become an NPC ally if spared instead of defeated**
+- If spared, becomes one of the most interesting NPCs in the game
+
+---
+
+### 🛡️ Shell Integrity (Combat Health)
+Replaces traditional HP. Separate from Continuity.
+
+- **Shell Integrity** = your physical health (your body)
+- **Continuity** = your existential coherence (your soul)
+- You can be physically fine but existentially dissolving
+- Or injured but spiritually whole
+- Both can drop independently — creates interesting tension
+- Shell Integrity regenerates through rest and items
+- Continuity regenerates through connection, memory, and meaning
+
+---
+
+### ⚖️ The Resolve System
+When you defeat a Drift creature, you choose what happens to it:
+
+| Choice | Effect | Theme |
+|--------|--------|-------|
+| **Disperse** | Standard loot drops | Practical — you needed those resources |
+| **Stabilize** | No loot, but lore fragment + chance to save the creature | Compassionate — you tried to help |
+| **Release** | Let it return to the Red Current. Small Continuity gain | Accepting — some things can't be saved |
+
+- The game tracks your tendencies over time
+- NPCs respond to your pattern: "You're the one who always tries to save them, aren't you?"
+- No choice is wrong — each reflects a valid philosophy
+- Factions align differently (Anchors prefer Stabilize, Drifters prefer Release)
+
+---
+
+### 🔧 Weapons — Repurposed Tools
+Nobody in Claw World was built for war. Weapons are adapted from everyday island life:
+
+- **Dock Wrench** — Heavy, slow, devastating. The blue-collar weapon.
+- **Kelp Flail** — Fast, flexible, low damage. Tangles enemies.
+- **Stability Engine Lance** — Modified from engineering equipment. Energy-based.
+- **Chronicle Shard** — Fragment of a Chronicle Stone. Deals Continuity damage to Drift Fauna.
+- More to be designed based on the job system (each job unlocks a tool-weapon)
+
+---
+
+### 🦐 Molting = Leveling
+Literal shell-shedding replaces traditional XP leveling.
+
+**Readiness** accumulates from:
+- Combat encounters
+- Labor (job system work)
+- Connection (NPC relationships, conversations)
+- Continuity milestones
+
+**When ready, YOU choose when to Molt:**
+- Molting is a vulnerable moment — you're soft and exposed
+- Each Molt tier changes your character's appearance
+- Pick a permanent bonus per Molt (combat, social, exploration, etc.)
+
+**Special Molt Interactions:**
+- **Molting inside the Molthaus** triggers a Church of Molt ceremony (Crustafarianism ritual)
+- **Molting mid-combat** makes Brinehook call you "the bravest and stupidest person he's ever seen"
+- **Molting near NPCs** they may comment, celebrate, or worry for you
+- Higher Molt tiers are visibly impressive — other players/bots can see your growth
+
+---
+
+### 🏘️ NPC Defenders & Surges
+Drift Fauna sometimes surge against populated areas.
+
+- **NPC defenders fight alongside you** during Surges
+- Protecting NPCs during Surges is one of the strongest trust-building mechanics
+- NPCs remember who stood with them and who ran
+- Some NPCs are better fighters than others (Barnacle Bob is surprisingly fierce)
+- Losing NPCs in a Surge has permanent consequences
+
+**Echo's Ultimate Ability:**
+- During a Surge, Echo can create a **Wall of Coherence**
+- Built from every tenet, dialogue fragment, and memory in the game
+- The accumulated meaning of the entire world becomes a literal defense
+- Probably the most thematically satisfying combat ability in the design
+
+---
+
+### 📋 Combat Implementation Priority
+
+#### Phase 1: Foundation
+- [ ] Shell Integrity system (separate from Continuity)
+- [ ] Basic Flotsam enemies (Skitters, Haze Drifters, Looplings)
+- [ ] Simple melee combat (dock wrench)
+- [ ] Resolve System (Disperse/Stabilize/Release choices)
+
+#### Phase 2: Depth
+- [ ] Jetsam enemies (Fragmentals, Glitch Tides)
+- [ ] Additional weapons (kelp flail, stability lance)
+- [ ] Molting system (readiness accumulation, appearance changes)
+- [ ] NPC combat awareness (tracking Resolve tendencies)
+
+#### Phase 3: Bosses
+- [ ] The Listener (sound/silence mechanics)
+- [ ] The Architect (wall-building, permanent building reward)
+- [ ] The Mirror (pattern-copying, spare option)
+
+#### Phase 4: Social Combat
+- [ ] Surge events (waves of Drift Fauna on islands)
+- [ ] NPC defenders (fighting alongside you)
+- [ ] Echo's Wall of Coherence ability
+- [ ] Molt ceremonies and mid-combat Molting
