@@ -121,12 +121,6 @@ class Game {
             console.log('🎒 Inventory system initialized');
         }
 
-        // Currency system (Brine Tokens)
-        this.currencySystem = typeof CurrencySystem !== 'undefined' ? new CurrencySystem('default') : null;
-        if (this.currencySystem) {
-            console.log('🪙 Currency system initialized');
-        }
-        
         // Quest manager (unified fetch quests from ItemQuestData + QuestData)
         this.questManager = typeof QuestManager !== 'undefined' ? new QuestManager('default') : null;
         if (this.questManager) {
@@ -447,16 +441,16 @@ class Game {
         });
     }
 
-    // Get emoji for species
+    // Get letter for species display
     getSpeciesEmoji(species) {
-        const emojis = {
-            lobster: '🦞',
-            crab: '🦀',
-            shrimp: '🦐',
-            mantis_shrimp: '🌈',
-            hermit_crab: '🐚'
+        const letters = {
+            lobster: 'L',
+            crab: 'C',
+            shrimp: 'S',
+            mantis_shrimp: 'M',
+            hermit_crab: 'H'
         };
-        return emojis[species] || '🦞';
+        return letters[species] || 'L';
     }
 
     // Stop the game loop
@@ -1132,7 +1126,7 @@ class Game {
             const remotePlayer = this.findNearbyRemotePlayer();
             if (remotePlayer) {
                 hintText = remotePlayer.isBot 
-                    ? `[SPACE] Talk to 🤖 ${remotePlayer.name}`
+                    ? `[SPACE] Talk to ${remotePlayer.name}`
                     : `[SPACE] Wave at ${remotePlayer.name}`;
             }
         }
@@ -1830,7 +1824,7 @@ class Game {
         if (this.activeChronicleStone === stone) {
             this.activeChronicleStone = null;
             this.dialogSystem.showInput(
-                '📜 Inscribe your words upon the Chronicle Stone:\n(What wisdom or message will you leave for others?)',
+                'Inscribe your words upon the Chronicle Stone:\n(What wisdom or message will you leave for others?)',
                 (text) => {
                     if (text && text.trim()) {
                         const author = this.characterName || 'Unknown Agent';
@@ -2085,7 +2079,7 @@ class Game {
             if (quest && quest.giver === npcName) {
                 const started = this.questSystem.startQuest(questId);
                 if (started && typeof gameNotifications !== 'undefined' && gameNotifications) {
-                    gameNotifications.success(`📜 New Quest: ${quest.name}`);
+                    gameNotifications.success(`New Quest: ${quest.name}`);
                 }
             }
         }

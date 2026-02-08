@@ -121,15 +121,21 @@ class ResolveUI {
 
         // Drop Brine Tokens based on choice
         if (this.game.currencySystem && this.enemy) {
-            const baseDrop = typeof getTokenDrop === 'function'
-                ? getTokenDrop(this.enemy.name)
-                : Math.floor(Math.random() * 4) + 1;
+            // Base token drops by enemy type
+            const enemyId = (this.enemy.typeData && this.enemy.typeData.id) || this.enemy.name || '';
+            const tokenDrops = {
+                'skitter': () => 2 + Math.floor(Math.random() * 3),       // 2-4
+                'haze_drifter': () => 4 + Math.floor(Math.random() * 5),  // 4-8
+                'loopling': () => 8 + Math.floor(Math.random() * 8)       // 8-15
+            };
+            const dropFunc = tokenDrops[enemyId.toLowerCase()];
+            const baseDrop = dropFunc ? dropFunc() : Math.floor(Math.random() * 4) + 2;
             // Disperse: full tokens. Stabilize: half. Release: quarter.
             const multiplier = choice === 'disperse' ? 1.0 : choice === 'stabilize' ? 0.5 : 0.25;
             const tokens = Math.max(1, Math.round(baseDrop * multiplier));
-            const gained = this.game.currencySystem.add(tokens, `kill_${this.enemy.name}`);
-            if (gained > 0 && typeof gameNotifications !== 'undefined') {
-                gameNotifications.info(`+${gained} 🪙`);
+            this.game.currencySystem.addTokens(tokens);
+            if (typeof gameNotifications !== 'undefined') {
+                gameNotifications.info(`+${tokens} tokens`);
             }
         }
 

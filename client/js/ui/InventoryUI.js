@@ -420,7 +420,7 @@ class InventoryUI {
                 // Sell price info
                 let sellHTML = '';
                 if (itemDef.sellPrice) {
-                    sellHTML = `<span style="color: #f5c542; font-size: 10px; margin-left: 8px;">Sells: ${itemDef.sellPrice} 🪙</span>`;
+                    sellHTML = `<span style="color: #f5c542; font-size: 10px; margin-left: 8px;">Sells: ${itemDef.sellPrice} BT</span>`;
                 }
 
                 this.detailPanel.innerHTML = `

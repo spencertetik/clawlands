@@ -375,7 +375,7 @@ class WelcomeScreen {
         buttons.appendChild(humanBtn);
 
         // AI Agent button
-        const agentBtn = createTerminalBtn('🤖', 'AI AGENT', false);
+        const agentBtn = createTerminalBtn('>', 'AI AGENT', false);
         agentBtn.onclick = () => this.showAgentWaiting();
         buttons.appendChild(agentBtn);
 
@@ -388,7 +388,7 @@ class WelcomeScreen {
 
         // Creator credit
         const credit = document.createElement('div');
-        credit.innerHTML = `<span style="color:#8a7068;font-size:9px;margin-top:12px;display:block;letter-spacing:1px;">Created by Spencer Tetik & Frank 🤖</span>`;
+        credit.innerHTML = `<span style="color:#8a7068;font-size:9px;margin-top:12px;display:block;letter-spacing:1px;">Created by Spencer Tetik & Frank</span>`;
         this.container.appendChild(credit);
 
         overlay.appendChild(this.container);
@@ -499,7 +499,7 @@ class WelcomeScreen {
 
         // Icon
         const icon = document.createElement('div');
-        icon.textContent = '🤖';
+        icon.textContent = '[AI]';
         icon.style.cssText = `
             font-size: 36px;
             margin-bottom: 12px;

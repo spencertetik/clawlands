@@ -757,32 +757,12 @@ class CombatSystem {
         return this.enemies.filter(e => e.isAlive()).length;
     }
 
-    // Track a kill and award tokens
+    // Track a kill (tokens awarded via ResolveUI based on player's choice)
     recordKill(enemyType) {
         this.stats.totalKills = (this.stats.totalKills || 0) + 1;
         this.stats.killsByType = this.stats.killsByType || {};
         this.stats.killsByType[enemyType] = (this.stats.killsByType[enemyType] || 0) + 1;
         this.saveStats();
-        
-        // Award Brine Tokens based on enemy type
-        if (this.game.currencySystem) {
-            const tokenRewards = {
-                'skitter': () => 2 + Math.floor(Math.random() * 3), // 2-4
-                'haze_drifter': () => 4 + Math.floor(Math.random() * 5), // 4-8
-                'loopling': () => 8 + Math.floor(Math.random() * 8) // 8-15
-            };
-            
-            const rewardFunc = tokenRewards[enemyType.toLowerCase()];
-            if (rewardFunc) {
-                const tokens = rewardFunc();
-                this.game.currencySystem.addTokens(tokens);
-                
-                // Show notification
-                if (typeof gameNotifications !== 'undefined' && gameNotifications) {
-                    gameNotifications.success(`+${tokens} Brine Tokens`);
-                }
-            }
-        }
     }
 
     // Load combat stats from localStorage
