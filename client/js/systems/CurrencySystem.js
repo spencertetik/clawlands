@@ -15,6 +15,14 @@ class CurrencySystem {
         };
     }
 
+    // Set player name (updates storage key for per-player tokens)
+    setPlayerName(name) {
+        if (name) {
+            this.storageKey = `clawworld_brine_tokens_${name}`;
+            this.tokens = this.loadTokens();
+        }
+    }
+
     // Add tokens to player's wallet
     addTokens(amount) {
         if (amount <= 0) return false;
