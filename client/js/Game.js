@@ -3798,6 +3798,9 @@ class Game {
 
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
+        
+        // Push player away from any overlapping NPCs
+        this.pushPlayerAwayFromNPCs();
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
         console.log(`✨ Created ${this.waygates.length} waygates, stability engine: ${this.stabilityEngine ? 'yes' : 'no'}`);
@@ -4555,10 +4558,90 @@ class Game {
                 }
             }
 
+            // Check if there's an NPC here
+            if (this.npcs && this.npcs.length > 0) {
+                const playerWidth = this.player ? this.player.width : 16;
+                const playerHeight = this.player ? this.player.height : 16;
+                for (const npc of this.npcs) {
+                    if (npc.checkCollision(x - playerWidth / 2, y - playerHeight / 2, playerWidth, playerHeight)) {
+                        return false;
+                    }
+                }
+            }
+
             return true;
         } catch (e) {
             console.error('isPositionSafe error:', e);
             return false;
+        }
+    }
+
+    // Push player away from any overlapping NPCs after spawn
+    pushPlayerAwayFromNPCs() {
+        if (!this.npcs || !this.player) return;
+        
+        const px = this.player.position.x;
+        const py = this.player.position.y;
+        const pw = this.player.width;
+        const ph = this.player.height;
+        const tileSize = CONSTANTS.TILE_SIZE;
+        
+        for (const npc of this.npcs) {
+            const overlapping = !(
+                px + pw <= npc.position.x || px >= npc.position.x + npc.width ||
+                py + ph <= npc.position.y || py >= npc.position.y + npc.height
+            );
+            
+            if (overlapping) {
+                // Calculate direction away from NPC center
+                const npcCenterX = npc.position.x + npc.width / 2;
+                const npcCenterY = npc.position.y + npc.height / 2;
+                const playerCenterX = px + pw / 2;
+                const playerCenterY = py + ph / 2;
+                
+                let dx = playerCenterX - npcCenterX;
+                let dy = playerCenterY - npcCenterY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Normalize, default to pushing right if exactly overlapping
+                if (dist < 0.1) { dx = 1; dy = 0; }
+                else { dx /= dist; dy /= dist; }
+                
+                // Push player 2 tiles away from NPC
+                const pushDist = tileSize * 2;
+                let newX = px + dx * pushDist;
+                let newY = py + dy * pushDist;
+                
+                // Verify the pushed position is safe (temporarily remove NPC check to avoid recursion)
+                const npcsBackup = this.npcs;
+                this.npcs = [];
+                const safe = this.isPositionSafe(newX + pw / 2, newY + ph / 2);
+                this.npcs = npcsBackup;
+                
+                if (safe) {
+                    this.player.position.x = newX;
+                    this.player.position.y = newY;
+                    console.log(`🏃 Pushed player away from NPC "${npc.name}" by ${pushDist}px`);
+                    return;
+                } else {
+                    // Try 8 cardinal/diagonal directions
+                    for (let angle = 0; angle < 8; angle++) {
+                        const rad = (angle / 8) * Math.PI * 2;
+                        const testX = px + Math.cos(rad) * pushDist;
+                        const testY = py + Math.sin(rad) * pushDist;
+                        this.npcs = [];
+                        const testSafe = this.isPositionSafe(testX + pw / 2, testY + ph / 2);
+                        this.npcs = npcsBackup;
+                        if (testSafe) {
+                            this.player.position.x = testX;
+                            this.player.position.y = testY;
+                            console.log(`🏃 Pushed player away from NPC "${npc.name}" (direction ${angle})`);
+                            return;
+                        }
+                    }
+                    console.warn(`⚠️ Could not push player away from NPC "${npc.name}" — no safe direction found`);
+                }
+            }
         }
     }
 

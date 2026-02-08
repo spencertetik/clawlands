@@ -157,72 +157,58 @@ class DriftReset {
         }
     }
     
-    // Respawn player at a random shore position on a random island
+    // Respawn player at a safe LAND position on a random island
     respawnPlayerAtRandomShore() {
-        // Get world dimensions and islands
-        const worldMap = this.game.worldMap;
-        const islands = this.game.pendingIslands || [];
+        // Use the game's existing safe spawn finder — it checks terrain, buildings, and NPCs
+        const islands = this.game.worldMap ? this.game.worldMap.islands : (this.game.pendingIslands || []);
         
-        if (islands.length === 0) {
+        if (!islands || islands.length === 0) {
             console.warn('No islands found for respawn, using default position');
             this.game.player.position.x = 100;
             this.game.player.position.y = 100;
             return;
         }
         
-        // Pick a random island
+        // Pick a random island and find safe spawn on it
         const randomIsland = islands[Math.floor(Math.random() * islands.length)];
-        
-        // Find shore tiles around the island
-        const shorePositions = [];
         const tileSize = CONSTANTS.TILE_SIZE;
+        const safeSpots = [];
         
-        // Check tiles around the island perimeter for water/shore adjacency
-        for (let offsetY = -2; offsetY <= 2; offsetY++) {
-            for (let offsetX = -2; offsetX <= 2; offsetX++) {
-                // Only check perimeter
-                if (offsetY !== -2 && offsetY !== 2 && offsetX !== -2 && offsetX !== 2) {
-                    continue;
-                }
+        // Search for LAND tiles on this island (expanding circles)
+        for (let radius = 2; radius < Math.min(randomIsland.size - 1, 12); radius++) {
+            for (let angle = 0; angle < 16; angle++) {
+                const angleRad = (angle / 16) * 2 * Math.PI;
+                const testCol = randomIsland.x + Math.floor(Math.cos(angleRad) * radius);
+                const testRow = randomIsland.y + Math.floor(Math.sin(angleRad) * radius);
                 
-                const checkCol = randomIsland.centerX + offsetX;
-                const checkRow = randomIsland.centerY + offsetY;
+                const worldX = (testCol * tileSize) + (tileSize / 2);
+                const worldY = (testRow * tileSize) + (tileSize / 2);
                 
-                // Make sure it's in bounds
-                if (checkCol >= 0 && checkCol < worldMap.tilesWide && 
-                    checkRow >= 0 && checkRow < worldMap.tilesHigh) {
-                    
-                    const tile = worldMap.getTile(worldMap.terrainLayer, checkCol, checkRow);
-                    // Look for water/shore tiles (water=1, shore=2)
-                    if (tile === 1 || tile === 2) {
-                        shorePositions.push({
-                            x: checkCol * tileSize + tileSize / 2,
-                            y: checkRow * tileSize + tileSize / 2
-                        });
-                    }
+                if (this.game.isPositionSafe(worldX, worldY)) {
+                    safeSpots.push({ x: worldX, y: worldY });
                 }
             }
         }
         
-        // If no shore found, just use island center
         let spawnPos;
-        if (shorePositions.length > 0) {
-            spawnPos = shorePositions[Math.floor(Math.random() * shorePositions.length)];
+        if (safeSpots.length > 0) {
+            spawnPos = safeSpots[Math.floor(Math.random() * safeSpots.length)];
         } else {
-            spawnPos = {
-                x: randomIsland.centerX * tileSize,
-                y: randomIsland.centerY * tileSize
-            };
+            // Fallback: use the main spawn finder
+            spawnPos = this.game.findPlayerSpawnLocation(islands);
         }
         
         // Set player position
         this.game.player.position.x = spawnPos.x - this.game.player.width / 2;
         this.game.player.position.y = spawnPos.y - this.game.player.height / 2;
         
+        // Push away from any nearby NPCs
+        this.game.pushPlayerAwayFromNPCs();
+        
         // Update camera to follow player
         this.game.camera.setTarget(this.game.player);
         
-        console.log(`🏝️ Respawned player on random shore at (${Math.round(spawnPos.x)}, ${Math.round(spawnPos.y)})`);
+        console.log(`🏝️ Respawned player on safe land at (${Math.round(spawnPos.x)}, ${Math.round(spawnPos.y)})`);
     }
     
     // Show notification after drift
