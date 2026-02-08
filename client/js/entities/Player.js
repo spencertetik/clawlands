@@ -13,7 +13,7 @@ class Player extends Entity {
         this.isInvulnerable = true; // Start invulnerable (spawn protection)
         this.invulnerabilityTimer = 0;
         this.invulnerabilityDuration = 500; // ms of invulnerability after taking damage
-        this.spawnProtectionDuration = 3000; // 3 seconds of protection at game start
+        this.spawnProtectionDuration = 5000; // 5 seconds of protection at spawn/respawn
         this.spawnProtectionActive = true;
         this.lastCombatTime = 0;
         this.regenTimer = 0;

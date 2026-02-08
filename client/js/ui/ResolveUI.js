@@ -119,6 +119,20 @@ class ResolveUI {
             this.game.combatSystem.recordKill(this.enemy.typeData.id || this.enemy.name);
         }
 
+        // Drop Brine Tokens based on choice
+        if (this.game.currencySystem && this.enemy) {
+            const baseDrop = typeof getTokenDrop === 'function'
+                ? getTokenDrop(this.enemy.name)
+                : Math.floor(Math.random() * 4) + 1;
+            // Disperse: full tokens. Stabilize: half. Release: quarter.
+            const multiplier = choice === 'disperse' ? 1.0 : choice === 'stabilize' ? 0.5 : 0.25;
+            const tokens = Math.max(1, Math.round(baseDrop * multiplier));
+            const gained = this.game.currencySystem.add(tokens, `kill_${this.enemy.name}`);
+            if (gained > 0 && typeof gameNotifications !== 'undefined') {
+                gameNotifications.info(`+${gained} 🪙`);
+            }
+        }
+
         // Update quest progress
         if (this.game.questSystem && this.enemy) {
             this.game.questSystem.onKill(this.enemy.typeData.id || this.enemy.name);
@@ -166,7 +180,7 @@ class ResolveUI {
 
         // Notification
         if (typeof gameNotifications !== 'undefined' && gameNotifications) {
-            gameNotifications.success('⚔️ Dispersed — loot dropped');
+            gameNotifications.success('Dispersed — loot dropped');
         }
     }
 
@@ -195,7 +209,7 @@ class ResolveUI {
         }
 
         if (typeof gameNotifications !== 'undefined' && gameNotifications) {
-            gameNotifications.info('🌊 Released to the Current...');
+            gameNotifications.info('Released to the Current...');
         }
     }
 
@@ -261,9 +275,9 @@ class ResolveUI {
         this.buttons = [];
 
         const options = [
-            { label: 'Disperse', desc: 'Take the loot', color: '#aa8833', icon: '⚔️' },
-            { label: 'Stabilize', desc: '+3 Continuity', color: '#3388aa', icon: '🤲' },
-            { label: 'Release', desc: '+5 Continuity', color: '#aa4444', icon: '🌊' }
+            { label: 'Disperse', desc: 'Take the loot', color: '#aa8833', icon: 'D' },
+            { label: 'Stabilize', desc: '+3 Continuity', color: '#3388aa', icon: 'S' },
+            { label: 'Release', desc: '+5 Continuity', color: '#aa4444', icon: 'R' }
         ];
 
         for (let i = 0; i < 3; i++) {

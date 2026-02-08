@@ -49,12 +49,12 @@ class MapEditor {
         this.categories = {
             ground: {
                 name: 'Ground',
-                icon: '🟫',
+                icon: '■',
                 assets: ['dirt_path', 'cobblestone_path', 'brick_path']
             },
             plants: {
                 name: 'Plants',
-                icon: '🌴',
+                icon: 'T',
                 assets: []
             },
             decorations: {
@@ -90,7 +90,7 @@ class MapEditor {
         this.container.className = 'map-editor hidden';
         this.container.innerHTML = `
             <div class="editor-header">
-                <h3>🗺️ Map Editor</h3>
+                <h3>MAP EDITOR</h3>
                 <button class="editor-close" title="Close (E)">✕</button>
             </div>
             

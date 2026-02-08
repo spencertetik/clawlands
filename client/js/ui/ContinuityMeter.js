@@ -36,7 +36,7 @@ class ContinuityMeter {
         this.container.id = 'continuity-meter';
         this.container.style.cssText = `
             position: fixed;
-            top: 15px;
+            top: 50px;
             left: 15px;
             z-index: 1000;
             pointer-events: auto;
@@ -53,7 +53,7 @@ class ContinuityMeter {
         icon.style.cssText = `
             font-size: 16px;
         `;
-        icon.textContent = '🌊';
+        icon.textContent = '~';
         this.container.appendChild(icon);
         
         // Bar background

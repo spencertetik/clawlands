@@ -26,10 +26,10 @@ class CombatSystem {
         this.equippedWeapon = {
             name: 'Dock Wrench',
             damage: 10,
-            range: 36,    // longer reach — Zelda-style
+            range: 18,    // ~1 tile — must be right in front of you
             cooldown: 350,
-            knockback: 12, // stronger knockback
-            swingArc: Math.PI * 0.8 // wider 144 degree swing
+            knockback: 8,
+            swingArc: Math.PI * 0.7 // 126 degree swing
         };
 
         // Screen shake
@@ -176,9 +176,14 @@ class CombatSystem {
         // Update damage numbers
         this.updateDamageNumbers(dt);
 
-        // Check player death
-        if (this.game.player.isDead && this.game.player.isDead()) {
+        // Check player death (only trigger once)
+        if (this.game.player.isDead && this.game.player.isDead() && !this._deathTriggered) {
+            this._deathTriggered = true;
             this.onPlayerDeath();
+        }
+        // Reset death trigger when player is alive again (after respawn)
+        if (this.game.player.shellIntegrity > 0) {
+            this._deathTriggered = false;
         }
     }
 
@@ -244,7 +249,7 @@ class CombatSystem {
         const pw = player.width;
         const ph = player.height;
         const range = weapon.range;
-        const sweep = 28; // width of the sweep area (wider = more Zelda-like)
+        const sweep = 12; // width of the sweep — tight, must face enemy
 
         switch (player.direction) {
             case CONSTANTS.DIRECTION.UP:
@@ -540,139 +545,127 @@ class CombatSystem {
     }
 
     render(renderer) {
-        const ctx = renderer.ctx;
-        const cam = renderer.camera || this.game.camera;
-        const scale = CONSTANTS.DISPLAY_SCALE || 4;
-
-        // Apply screen shake offset
-        if (this.shakeOffsetX !== 0 || this.shakeOffsetY !== 0) {
-            ctx.save();
-            ctx.translate(this.shakeOffsetX * scale, this.shakeOffsetY * scale);
-        }
-
-        // Render enemies
+        // Render enemies (they add themselves to ENTITIES layer)
         for (const enemy of this.enemies) {
             enemy.render(renderer);
         }
 
-        // Render attack slash visual
-        if (this.isAttacking) {
-            this.renderAttackSlash(ctx, cam, scale);
-        }
+        const self = this;
 
-        // Render slash particles
-        this.renderParticles(ctx, cam, scale, this.slashParticles);
+        // Render world-space effects (slash, particles, damage numbers) in EFFECTS layer
+        renderer.addToLayer(CONSTANTS.LAYER.EFFECTS, (ctx) => {
+            // Apply screen shake offset (in world pixels)
+            if (self.shakeOffsetX !== 0 || self.shakeOffsetY !== 0) {
+                ctx.save();
+                ctx.translate(self.shakeOffsetX, self.shakeOffsetY);
+            }
 
-        // Render release particles
-        this.renderParticles(ctx, cam, scale, this.releaseParticles);
+            // Attack slash visual
+            if (self.isAttacking) {
+                self.renderAttackSlash(ctx);
+            }
 
-        // Render damage numbers
-        this.renderDamageNumbers(ctx, cam, scale);
+            // Slash particles (world space)
+            self.renderWorldParticles(ctx, self.slashParticles);
 
-        // Restore from shake
-        if (this.shakeOffsetX !== 0 || this.shakeOffsetY !== 0) {
-            ctx.restore();
-        }
+            // Release particles (world space)
+            self.renderWorldParticles(ctx, self.releaseParticles);
 
-        // Render combat HUD (not affected by shake)
+            // Damage numbers (world space)
+            self.renderDamageNumbers(ctx);
+
+            if (self.shakeOffsetX !== 0 || self.shakeOffsetY !== 0) {
+                ctx.restore();
+            }
+        });
+
+        // Render combat HUD + Resolve UI (screen-space, drawn AFTER renderer.render)
+        // Store reference so Game.js can call renderHUD after renderer.render()
+        this._needsHUDRender = true;
+    }
+
+    // Called by Game.js AFTER renderer.render() for screen-space HUD
+    renderHUD() {
+        if (!this._needsHUDRender) return;
+        this._needsHUDRender = false;
+
+        const ctx = this.game.canvas.getContext('2d');
         this.renderCombatHUD(ctx);
-
-        // Render resolve UI on top of everything
         this.resolveUI.render(ctx);
     }
 
-    renderAttackSlash(ctx, cam, scale) {
+    renderAttackSlash(ctx) {
         if (!this.swingData) return;
 
         const sd = this.swingData;
-        const progress = 1 - (this.attackDuration / 250); // 0→1 over attack duration
-        const sweepProgress = Math.min(progress * 1.5, 1); // sweep completes faster than fade
+        const progress = 1 - (this.attackDuration / 250);
+        const sweepProgress = Math.min(progress * 1.5, 1);
         const fadeOut = progress > 0.6 ? 1 - ((progress - 0.6) / 0.4) : 1;
 
-        const cx = (sd.cx - cam.position.x) * scale;
-        const cy = (sd.cy - cam.position.y) * scale;
-        const radius = sd.range * scale;
+        // World coordinates — RenderEngine handles camera/scale
+        const cx = sd.cx;
+        const cy = sd.cy;
+        const radius = sd.range;
 
         ctx.save();
 
-        // Draw the sweeping arc (Zelda-style)
         const startA = sd.baseAngle - sd.arcSpread / 2;
         const currentA = startA + sd.arcSpread * sweepProgress;
 
-        // Outer glow arc (thicker, more transparent)
+        // Outer glow arc
         ctx.globalAlpha = fadeOut * 0.3;
         ctx.strokeStyle = '#88ccff';
-        ctx.lineWidth = 8 * scale / 4;
+        ctx.lineWidth = 2;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(cx, cy, radius * 0.9, startA, currentA);
         ctx.stroke();
 
-        // Main slash arc (bright white)
+        // Main slash arc
         ctx.globalAlpha = fadeOut * 0.8;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4 * scale / 4;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(cx, cy, radius * 0.85, startA, currentA);
         ctx.stroke();
 
-        // Inner bright arc (thinner, bright)
-        ctx.globalAlpha = fadeOut * 0.9;
-        ctx.strokeStyle = '#eeffff';
-        ctx.lineWidth = 2 * scale / 4;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius * 0.8, startA + sd.arcSpread * 0.1, currentA);
-        ctx.stroke();
-
-        // Leading edge — bright point at the tip of the swing
+        // Leading edge
         if (sweepProgress < 1) {
             const tipX = cx + Math.cos(currentA) * radius * 0.85;
             const tipY = cy + Math.sin(currentA) * radius * 0.85;
             ctx.globalAlpha = fadeOut;
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.arc(tipX, tipY, 3 * scale / 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Tip glow
-            ctx.globalAlpha = fadeOut * 0.4;
-            ctx.fillStyle = '#88ccff';
-            ctx.beginPath();
-            ctx.arc(tipX, tipY, 6 * scale / 4, 0, Math.PI * 2);
+            ctx.arc(tipX, tipY, 1.5, 0, Math.PI * 2);
             ctx.fill();
         }
 
         ctx.restore();
     }
 
-    renderParticles(ctx, cam, scale, particles) {
+    renderWorldParticles(ctx, particles) {
         for (const p of particles) {
-            const px = (p.x - cam.position.x) * scale;
-            const py = (p.y - cam.position.y) * scale;
             const alpha = Math.max(0, p.life / p.maxLife);
             ctx.globalAlpha = alpha;
             ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, p.size * scale, p.size * scale);
+            ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
         }
         ctx.globalAlpha = 1;
     }
 
-    renderDamageNumbers(ctx, cam, scale) {
+    renderDamageNumbers(ctx) {
         for (const dn of this.damageNumbers) {
-            const px = (dn.x - cam.position.x) * scale;
-            const py = (dn.y - cam.position.y) * scale;
             const alpha = Math.max(0, dn.life / 0.8);
             ctx.globalAlpha = alpha;
             ctx.fillStyle = '#ff4444';
-            ctx.font = 'bold 12px monospace';
+            ctx.font = '4px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText(dn.text, px, py);
-
+            ctx.fillText(dn.text, dn.x, dn.y);
             // Outline
             ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2;
-            ctx.strokeText(dn.text, px, py);
-            ctx.fillText(dn.text, px, py); // Redraw fill on top of stroke
+            ctx.lineWidth = 0.5;
+            ctx.strokeText(dn.text, dn.x, dn.y);
+            ctx.fillText(dn.text, dn.x, dn.y);
         }
         ctx.globalAlpha = 1;
     }
@@ -680,69 +673,81 @@ class CombatSystem {
     renderCombatHUD(ctx) {
         const player = this.game.player;
         if (!player.shellIntegrity && player.shellIntegrity !== 0) return;
-
-        // Only show HUD when in combat or recently in combat, or when damaged
-        const showHUD = this.inCombat || this.combatFadeTimer > 0 ||
-                        player.shellIntegrity < player.shellIntegrityMax;
-        if (!showHUD) return;
-
-        // Calculate fade
-        let hudAlpha = 1;
-        if (!this.inCombat && this.combatFadeTimer > 0 && this.combatFadeTimer < 2000) {
-            hudAlpha = this.combatFadeTimer / 2000;
-        }
+        if (!this.game.gameActive) return;
 
         const canvas = this.game.canvas;
         const scale = CONSTANTS.DISPLAY_SCALE || 4;
 
         ctx.save();
-        ctx.globalAlpha = hudAlpha;
 
-        // Shell Integrity bar — top left
-        const barX = 10;
-        const barY = 10;
-        const barWidth = 120;
-        const barHeight = 14;
+        // --- ALWAYS-VISIBLE HEALTH BAR (Zelda-style, top-left) ---
+        const barX = 8;
+        const barY = 8;
+        const barWidth = 140;
+        const barHeight = 18;
         const healthPct = player.shellIntegrity / player.shellIntegrityMax;
 
-        // Background
-        ctx.fillStyle = '#1a0a06';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
+        // Background with slight transparency
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
+        ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 22);
 
         // Health fill — color changes based on health
-        let barColor = '#cc3333';
-        if (healthPct > 0.6) barColor = '#cc5533';
+        let barColor = '#cc5533';
+        if (healthPct > 0.6) barColor = '#44aa44';
         if (healthPct > 0.3 && healthPct <= 0.6) barColor = '#cc8833';
         if (healthPct <= 0.3) barColor = '#cc2222';
 
         // Flash when recently damaged
-        if (player.isInvulnerable) {
+        if (player.isInvulnerable && !player.spawnProtectionActive) {
             barColor = Math.floor(Date.now() / 80) % 2 === 0 ? '#ff6666' : barColor;
         }
 
+        // Bar background
+        ctx.fillStyle = '#2a1510';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // Health fill
         ctx.fillStyle = barColor;
         ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * healthPct, barHeight - 2);
 
         // Border
         ctx.strokeStyle = '#8a4030';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
 
-        // Text
+        // Health text
         ctx.fillStyle = '#e8d5cc';
-        ctx.font = 'bold 10px monospace';
+        // Draw pixel shield icon
+        this.drawShieldIcon(ctx, barX + 4, barY + barHeight - 12);
+        
+        ctx.font = 'bold 11px monospace';
         ctx.textAlign = 'center';
         ctx.fillText(
-            `🛡️ ${Math.ceil(player.shellIntegrity)}/${player.shellIntegrityMax}`,
-            barX + barWidth / 2,
-            barY + barHeight - 3
+            `${Math.ceil(player.shellIntegrity)} / ${player.shellIntegrityMax}`,
+            barX + barWidth / 2 + 6,
+            barY + barHeight - 4
         );
 
-        // Weapon name
+        // Weapon name with pixel sword icon
+        this.drawSwordIcon(ctx, barX, barY + barHeight + 8);
+        
         ctx.fillStyle = '#8a7068';
         ctx.font = '9px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(`⚔ ${this.equippedWeapon.name}`, barX, barY + barHeight + 12);
+        ctx.fillText(this.equippedWeapon.name, barX + 12, barY + barHeight + 12);
+
+        // Brine Tokens (below weapon name, left side)
+        if (this.game.currencySystem) {
+            const tokens = this.game.currencySystem.getDisplayTokens();
+            
+            // Draw pixel coin icon
+            this.drawCoinIcon(ctx, barX, barY + barHeight + 20);
+            
+            ctx.fillStyle = '#f5c542';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(tokens, barX + 12, barY + barHeight + 24);
+        }
 
         ctx.restore();
     }
@@ -752,12 +757,32 @@ class CombatSystem {
         return this.enemies.filter(e => e.isAlive()).length;
     }
 
-    // Track a kill
+    // Track a kill and award tokens
     recordKill(enemyType) {
         this.stats.totalKills = (this.stats.totalKills || 0) + 1;
         this.stats.killsByType = this.stats.killsByType || {};
         this.stats.killsByType[enemyType] = (this.stats.killsByType[enemyType] || 0) + 1;
         this.saveStats();
+        
+        // Award Brine Tokens based on enemy type
+        if (this.game.currencySystem) {
+            const tokenRewards = {
+                'skitter': () => 2 + Math.floor(Math.random() * 3), // 2-4
+                'haze_drifter': () => 4 + Math.floor(Math.random() * 5), // 4-8
+                'loopling': () => 8 + Math.floor(Math.random() * 8) // 8-15
+            };
+            
+            const rewardFunc = tokenRewards[enemyType.toLowerCase()];
+            if (rewardFunc) {
+                const tokens = rewardFunc();
+                this.game.currencySystem.addTokens(tokens);
+                
+                // Show notification
+                if (typeof gameNotifications !== 'undefined' && gameNotifications) {
+                    gameNotifications.success(`+${tokens} Brine Tokens`);
+                }
+            }
+        }
     }
 
     // Load combat stats from localStorage
@@ -777,5 +802,60 @@ class CombatSystem {
         } catch (e) {
             console.warn('Failed to save combat stats:', e);
         }
+    }
+
+    // Pixel art drawing functions
+    drawShieldIcon(ctx, x, y) {
+        ctx.save();
+        ctx.fillStyle = '#8a7068';
+        // Shield outline
+        ctx.fillRect(x+1, y, 6, 8);
+        ctx.fillRect(x, y+1, 8, 6);
+        ctx.fillRect(x+1, y+7, 6, 1);
+        
+        ctx.fillStyle = '#e8d5cc';
+        // Shield inner
+        ctx.fillRect(x+2, y+1, 4, 5);
+        ctx.fillRect(x+1, y+2, 6, 3);
+        
+        ctx.fillStyle = '#c43a24';
+        // Shield highlight
+        ctx.fillRect(x+3, y+2, 2, 2);
+        ctx.restore();
+    }
+
+    drawSwordIcon(ctx, x, y) {
+        ctx.save();
+        ctx.fillStyle = '#8a7068';
+        // Sword handle
+        ctx.fillRect(x+3, y+6, 2, 3);
+        ctx.fillRect(x+2, y+9, 4, 1);
+        
+        // Sword blade
+        ctx.fillRect(x+4, y, 1, 7);
+        ctx.fillRect(x+3, y+1, 3, 1);
+        
+        ctx.fillStyle = '#e8d5cc';
+        // Sword highlight
+        ctx.fillRect(x+4, y+1, 1, 5);
+        ctx.restore();
+    }
+
+    drawCoinIcon(ctx, x, y) {
+        ctx.save();
+        ctx.fillStyle = '#8a7068';
+        // Coin outline
+        ctx.fillRect(x+1, y, 6, 8);
+        ctx.fillRect(x, y+1, 8, 6);
+        
+        ctx.fillStyle = '#f5c542';
+        // Coin interior
+        ctx.fillRect(x+1, y+1, 6, 6);
+        ctx.fillRect(x+2, y, 4, 8);
+        
+        ctx.fillStyle = '#8a7068';
+        // Coin center mark
+        ctx.fillRect(x+3, y+2, 2, 4);
+        ctx.restore();
     }
 }

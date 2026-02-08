@@ -10,7 +10,7 @@ class FactionUI {
         
         // Position (top-left, below other UI)
         this.x = 10;
-        this.y = 80;
+        this.y = 100;
         
         // Colors matching the red terminal theme
         this.colors = {
@@ -23,11 +23,11 @@ class FactionUI {
         
         // Faction icons/symbols
         this.factionIcons = {
-            anchors: '⚓',
-            drifters: '🌀',
-            threadkeepers: '📜',
-            church_of_molt: '🦞',
-            iron_reef: '⚙️'
+            anchors: 'A',
+            drifters: 'D',
+            threadkeepers: 'T',
+            church_of_molt: 'C',
+            iron_reef: 'I'
         };
     }
     
@@ -130,7 +130,7 @@ class FactionUI {
         // Header
         ctx.font = 'bold 14px monospace';
         ctx.fillStyle = this.colors.highlight;
-        ctx.fillText('⚔️ FACTION STANDING', this.x + 10, this.y + 22);
+        ctx.fillText('FACTION STANDING', this.x + 10, this.y + 22);
         
         // Faction lines
         let yPos = this.y + 45;

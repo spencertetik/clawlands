@@ -281,11 +281,11 @@ class WeatherSystem {
     // Get weather for display
     getWeatherName() {
         const names = {
-            clear: '☀️ Clear',
-            light_rain: '🌧️ Light Rain',
-            rain: '🌧️ Rain',
-            storm: '⛈️ Storm',
-            fog: '🌫️ Fog'
+            clear: 'Clear',
+            light_rain: 'Light Rain',
+            rain: 'Rain',
+            storm: 'Storm',
+            fog: 'Fog'
         };
         return names[this.currentWeather] || 'Unknown';
     }

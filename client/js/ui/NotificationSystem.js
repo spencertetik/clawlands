@@ -9,13 +9,13 @@ class NotificationSystem {
         
         // Notification types and their styles
         this.types = {
-            info: { icon: 'ℹ️', bg: 'rgba(60, 60, 80, 0.9)', border: '#4a9eff' },
-            success: { icon: '✨', bg: 'rgba(30, 70, 50, 0.9)', border: '#4ade80' },
-            warning: { icon: '⚠️', bg: 'rgba(80, 60, 30, 0.9)', border: '#f59e0b' },
-            quest: { icon: '📜', bg: 'rgba(60, 40, 70, 0.9)', border: '#a855f7' },
-            continuity: { icon: '🌊', bg: 'rgba(50, 40, 60, 0.9)', border: '#c43a24' },
-            knowledge: { icon: '💡', bg: 'rgba(50, 50, 40, 0.9)', border: '#fbbf24' },
-            achievement: { icon: '🏆', bg: 'rgba(70, 50, 30, 0.9)', border: '#f59e0b' }
+            info: { icon: 'i', bg: 'rgba(60, 60, 80, 0.9)', border: '#4a9eff' },
+            success: { icon: '*', bg: 'rgba(30, 70, 50, 0.9)', border: '#4ade80' },
+            warning: { icon: '!', bg: 'rgba(80, 60, 30, 0.9)', border: '#f59e0b' },
+            quest: { icon: '?', bg: 'rgba(60, 40, 70, 0.9)', border: '#a855f7' },
+            continuity: { icon: '~', bg: 'rgba(50, 40, 60, 0.9)', border: '#c43a24' },
+            knowledge: { icon: '>', bg: 'rgba(50, 50, 40, 0.9)', border: '#fbbf24' },
+            achievement: { icon: '+', bg: 'rgba(70, 50, 30, 0.9)', border: '#f59e0b' }
         };
         
         this.init();
@@ -27,7 +27,7 @@ class NotificationSystem {
         this.container.id = 'notification-container';
         this.container.style.cssText = `
             position: fixed;
-            top: 70px;
+            top: 85px;
             left: 20px;
             z-index: 2000;
             display: flex;

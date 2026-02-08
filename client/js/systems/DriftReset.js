@@ -119,10 +119,11 @@ class DriftReset {
         // Apply drift consequences
         this.applyDriftConsequences();
         
-        // Restore shell integrity
+        // Restore shell integrity + grant spawn protection
         if (this.game.player && this.game.player.shellIntegrityMax) {
             this.game.player.shellIntegrity = this.game.player.shellIntegrityMax;
-            this.game.player.isInvulnerable = false;
+            this.game.player.isInvulnerable = true;
+            this.game.player.spawnProtectionActive = true;
             this.game.player.invulnerabilityTimer = 0;
         }
 

@@ -120,6 +120,12 @@ class Game {
             this.inventoryUI = typeof InventoryUI !== 'undefined' ? new InventoryUI(this.inventorySystem) : null;
             console.log('🎒 Inventory system initialized');
         }
+
+        // Currency system (Brine Tokens)
+        this.currencySystem = typeof CurrencySystem !== 'undefined' ? new CurrencySystem('default') : null;
+        if (this.currencySystem) {
+            console.log('🪙 Currency system initialized');
+        }
         
         // Quest manager (unified fetch quests from ItemQuestData + QuestData)
         this.questManager = typeof QuestManager !== 'undefined' ? new QuestManager('default') : null;
@@ -163,6 +169,18 @@ class Game {
         this.combatSystem = typeof CombatSystem !== 'undefined' ? new CombatSystem(this) : null;
         if (this.combatSystem) {
             console.log('⚔️ Combat system initialized');
+        }
+
+        // Currency system
+        this.currencySystem = typeof CurrencySystem !== 'undefined' ? new CurrencySystem() : null;
+        if (this.currencySystem) {
+            console.log('🪙 Currency system initialized');
+        }
+
+        // Shop system
+        this.shopSystem = typeof ShopSystem !== 'undefined' ? new ShopSystem(this) : null;
+        if (this.shopSystem) {
+            console.log('🏪 Shop system initialized');
         }
 
         // Drift Reset system (soft death when Continuity drops too low)
@@ -246,6 +264,10 @@ class Game {
         const urlParams = new URLSearchParams(window.location.search);
         this.debugMode = urlParams.get('debug') === 'true';
         this.useNumberedTileset = false;
+
+        // Controls help overlay
+        this.controlsVisible = false;
+        this._setupControlsHelp();
 
         // Character customization
         this.characterBuilder = new CharacterBuilder();
@@ -367,9 +389,12 @@ class Game {
             this.characterName = result.name;
             this.player.name = this.characterName;
 
-            // Update inventory storage key for this player
+            // Update inventory/currency storage key for this player
             if (this.inventorySystem) {
                 this.inventorySystem.setPlayerName(this.characterName);
+            }
+            if (this.currencySystem) {
+                this.currencySystem.setPlayerName(this.characterName);
             }
             if (this.questManager) {
                 this.questManager.setPlayerName(this.characterName);
@@ -479,28 +504,70 @@ class Game {
         }
 
         // Continuously push player away from NPCs (gentle nudge each frame)
+        // Uses a small collision core so player can get close but not overlap
+        // IMPORTANT: check collision before pushing to avoid pushing into walls/water
         if (this.player && this.npcs && this.currentLocation === 'outdoor') {
             const px = this.player.position.x;
             const py = this.player.position.y;
             const pw = this.player.width;
             const ph = this.player.height;
             for (const npc of this.npcs) {
+                // Tighter NPC collision box (inset 3px sides, 4px top)
+                const npcX = npc.position.x + 3;
+                const npcY = npc.position.y + 4;
+                const npcW = npc.width - 6;
+                const npcH = npc.height - 6;
                 const overlapping = !(
-                    px + pw <= npc.position.x || px >= npc.position.x + npc.width ||
-                    py + ph <= npc.position.y || py >= npc.position.y + npc.height
+                    px + pw <= npcX || px >= npcX + npcW ||
+                    py + ph <= npcY || py >= npcY + npcH
                 );
                 if (overlapping) {
-                    const npcCX = npc.position.x + npc.width / 2;
-                    const npcCY = npc.position.y + npc.height / 2;
+                    const npcCX = npcX + npcW / 2;
+                    const npcCY = npcY + npcH / 2;
                     const plCX = px + pw / 2;
                     const plCY = py + ph / 2;
                     let dx = plCX - npcCX;
                     let dy = plCY - npcCY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < 0.1) { dx = 1; dy = 0; } else { dx /= dist; dy /= dist; }
-                    // Nudge 2px per frame away from NPC
-                    this.player.position.x += dx * 2;
-                    this.player.position.y += dy * 2;
+                    // Check if push destination is valid before moving
+                    const pushX = px + dx * 1.5;
+                    const pushY = py + dy * 1.5;
+                    const canPushX = !this.collisionSystem || !this.collisionSystem.isTileSolid(
+                        Math.floor(pushX / CONSTANTS.TILE_SIZE),
+                        Math.floor(py / CONSTANTS.TILE_SIZE)
+                    );
+                    const canPushY = !this.collisionSystem || !this.collisionSystem.isTileSolid(
+                        Math.floor(px / CONSTANTS.TILE_SIZE),
+                        Math.floor(pushY / CONSTANTS.TILE_SIZE)
+                    );
+                    if (canPushX) this.player.position.x = pushX;
+                    if (canPushY) this.player.position.y = pushY;
+                }
+            }
+        }
+
+        // Stuck detection: if player is on a solid tile, nudge to nearest passable tile
+        if (this.player && this.collisionSystem && this.currentLocation === 'outdoor') {
+            const px = this.player.position.x;
+            const py = this.player.position.y;
+            const tileX = Math.floor(px / CONSTANTS.TILE_SIZE);
+            const tileY = Math.floor(py / CONSTANTS.TILE_SIZE);
+            if (this.collisionSystem.isTileSolid(tileX, tileY)) {
+                // Player is ON a solid tile — search outward for a passable tile
+                for (let r = 1; r <= 5; r++) {
+                    let escaped = false;
+                    for (let dy = -r; dy <= r && !escaped; dy++) {
+                        for (let dx = -r; dx <= r && !escaped; dx++) {
+                            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // Only check ring
+                            if (!this.collisionSystem.isTileSolid(tileX + dx, tileY + dy)) {
+                                this.player.position.x = (tileX + dx) * CONSTANTS.TILE_SIZE + 4;
+                                this.player.position.y = (tileY + dy) * CONSTANTS.TILE_SIZE + 4;
+                                escaped = true;
+                            }
+                        }
+                    }
+                    if (escaped) break;
                 }
             }
         }
@@ -619,6 +686,11 @@ class Game {
         // Update combat system (enemies, attacks, spawning)
         if (this.combatSystem && this.gameActive) {
             this.combatSystem.update(deltaTime);
+        }
+
+        // Update currency display animation
+        if (this.currencySystem) {
+            this.currencySystem.update(deltaTime);
         }
         
         // Update faction UI
@@ -852,6 +924,11 @@ class Game {
         // Execute all render commands
         this.renderer.render();
 
+        // Render combat HUD (screen-space, must be AFTER renderer.render)
+        if (this.combatSystem) {
+            this.combatSystem.renderHUD();
+        }
+
         // Render lighting overlay AFTER all game rendering (day/night/interior lighting)
         if (this.lightingSystem) {
             this.lightingSystem.render(this.canvas);
@@ -865,6 +942,9 @@ class Game {
 
         // Render player name above head (AFTER renderer.render() so it's not cleared)
         this.renderPlayerName();
+
+        // Render controls help overlay (on top of everything)
+        this.renderControlsHelp();
     }
 
     // Render player's name above their head
@@ -1091,6 +1171,15 @@ class Game {
         // Show attack hint when enemies are nearby and no other hint
         if (!hintText && this.combatSystem && this.combatSystem.inCombat) {
             hintText = '[X] Attack';
+        }
+
+        // First-time controls hint (fades after 8 seconds)
+        if (!hintText && this.gameActive) {
+            if (!this._controlsHintStart) this._controlsHintStart = Date.now();
+            const elapsed = Date.now() - this._controlsHintStart;
+            if (elapsed < 8000) {
+                hintText = 'Press [H] for controls';
+            }
         }
 
         // Render the hint if any
@@ -1657,7 +1746,7 @@ class Game {
         }
         
         const total = humans + bots;
-        this.playerCountEl.innerHTML = `👤 ${humans} &nbsp;🤖 ${bots} &nbsp;<span style="color:#8a7068">•</span>&nbsp; <span style="color:#8a7068">${total} online</span>`;
+        this.playerCountEl.innerHTML = `Players: ${humans} &nbsp;Bots: ${bots} &nbsp;<span style="color:#8a7068">•</span>&nbsp; <span style="color:#8a7068">${total} online</span>`;
     }
 
     // Find nearby remote player for interaction
@@ -2151,6 +2240,14 @@ class Game {
         // Prevent re-entry during transition
         if (this.isTransitioning) return;
         this.isTransitioning = true;
+
+        // Special case: Shop buildings open the shop system instead of entering
+        if (building.type === 'shop' && this.shopSystem) {
+            console.log(`🏪 Opening shop: ${building.name}`);
+            this.shopSystem.open();
+            this.isTransitioning = false;
+            return;
+        }
 
         // Save current outdoor decorations (including any editor changes)
         if (this.currentLocation === 'outdoor') {
@@ -3151,6 +3248,81 @@ class Game {
         };
 
         return JSON.stringify(payload);
+    }
+
+    // Setup controls help overlay (H key to toggle)
+    _setupControlsHelp() {
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const key = e.key.toLowerCase();
+            if (key === 'h') {
+                e.preventDefault();
+                this.controlsVisible = !this.controlsVisible;
+            }
+            // Also backtick for debug (existing behavior)
+            if (e.key === '`') {
+                e.preventDefault();
+                this.toggleDebug();
+            }
+        });
+    }
+
+    // Render controls help overlay (screen-space)
+    renderControlsHelp() {
+        if (!this.controlsVisible) return;
+        const ctx = this.canvas.getContext('2d');
+        const cw = this.canvas.width;
+        const ch = this.canvas.height;
+        const scale = CONSTANTS.DISPLAY_SCALE;
+
+        ctx.save();
+
+        // Darken background
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Title
+        ctx.fillStyle = '#c43a24';
+        ctx.font = `bold ${16 * scale}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('CONTROLS', cw / 2, 30 * scale);
+
+        // Controls list
+        const controls = [
+            ['Arrow Keys / WASD', 'Move'],
+            ['SPACE', 'Talk / Interact'],
+            ['X', 'Attack'],
+            ['I', 'Inventory'],
+            ['Q', 'Quest Log'],
+            ['M', 'Toggle Music'],
+            ['H', 'This Help'],
+        ];
+
+        ctx.font = `${10 * scale}px monospace`;
+        const startY = 55 * scale;
+        const lineH = 14 * scale;
+        const keyX = cw / 2 - 60 * scale;
+        const valX = cw / 2 + 20 * scale;
+
+        for (let i = 0; i < controls.length; i++) {
+            const y = startY + i * lineH;
+            // Key
+            ctx.fillStyle = '#fbbf24';
+            ctx.textAlign = 'right';
+            ctx.fillText(controls[i][0], keyX, y);
+            // Action
+            ctx.fillStyle = '#e8d5cc';
+            ctx.textAlign = 'left';
+            ctx.fillText(controls[i][1], valX, y);
+        }
+
+        // Footer
+        ctx.fillStyle = '#8a7068';
+        ctx.font = `${8 * scale}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('Press H to close', cw / 2, ch - 10 * scale);
+
+        ctx.restore();
     }
 
     // Toggle debug mode

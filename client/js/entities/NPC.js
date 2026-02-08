@@ -169,13 +169,17 @@ class NPC extends Entity {
         }
     }
     
-    // Check if player would collide with this NPC
+    // Check if player would collide with this NPC (smaller hitbox for better feel)
     checkCollision(playerX, playerY, playerWidth, playerHeight) {
-        // Simple AABB collision
-        return playerX < this.position.x + this.width &&
-               playerX + playerWidth > this.position.x &&
-               playerY < this.position.y + this.height &&
-               playerY + playerHeight > this.position.y;
+        // Use a tighter collision box (inset 3px on each side, 4px from top)
+        const npcX = this.position.x + 3;
+        const npcY = this.position.y + 4;
+        const npcW = this.width - 6;
+        const npcH = this.height - 6;
+        return playerX < npcX + npcW &&
+               playerX + playerWidth > npcX &&
+               playerY < npcY + npcH &&
+               playerY + playerHeight > npcY;
     }
 
     // Render NPC with sprite or fallback to rectangle

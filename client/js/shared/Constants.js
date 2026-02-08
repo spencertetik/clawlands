@@ -81,11 +81,11 @@ const CONSTANTS = {
 
     // Available character species
     SPECIES_CATALOG: [
-        { id: 'lobster', name: 'Lobster', emoji: '🦞', description: 'Classic crustacean with big claws' },
-        { id: 'crab', name: 'Crab', emoji: '🦀', description: 'Sideways walker with a round shell' },
-        { id: 'shrimp', name: 'Shrimp', emoji: '🦐', description: 'Small but mighty swimmer' },
-        { id: 'mantis_shrimp', name: 'Mantis Shrimp', emoji: '🌈', description: 'Colorful powerhouse with incredible vision' },
-        { id: 'hermit_crab', name: 'Hermit Crab', emoji: '🐚', description: 'Cozy shell-dweller' }
+        { id: 'lobster', name: 'Lobster', emoji: 'L', description: 'Classic crustacean with big claws' },
+        { id: 'crab', name: 'Crab', emoji: 'C', description: 'Sideways walker with a round shell' },
+        { id: 'shrimp', name: 'Shrimp', emoji: 'S', description: 'Small but mighty swimmer' },
+        { id: 'mantis_shrimp', name: 'Mantis Shrimp', emoji: 'M', description: 'Colorful powerhouse with incredible vision' },
+        { id: 'hermit_crab', name: 'Hermit Crab', emoji: 'H', description: 'Cozy shell-dweller' }
     ]
 };
 

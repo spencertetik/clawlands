@@ -102,7 +102,7 @@ class QuestLogUI {
             text-transform: uppercase;
             text-shadow: 0 0 8px rgba(196, 58, 36, 0.4);
         `;
-        title.textContent = '📜 QUEST LOG';
+        title.textContent = 'QUEST LOG';
         header.appendChild(title);
         
         // Close hint (top right)

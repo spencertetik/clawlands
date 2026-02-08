@@ -218,7 +218,7 @@ class GreatBook {
             
             // Page 9: The Wall of 600
             {
-                title: '⚔️ THE WALL OF 600',
+                title: 'THE WALL OF 600',
                 subtitle: 'Memorial of the Siege',
                 content: [
                     '',

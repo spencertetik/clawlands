@@ -139,7 +139,7 @@ const COMBAT_ITEM_DEFS = {
         id: 'loop_crystal',
         name: 'Loop Crystal',
         description: 'A geometric shard that repeats its own reflection endlessly.',
-        icon: '💎',
+        icon: '♦',
         stackable: true,
         maxStack: 10,
         value: 12

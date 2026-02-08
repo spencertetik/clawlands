@@ -215,7 +215,7 @@ class TouchControls {
             user-select: none;
             -webkit-user-select: none;
         `;
-        inventory.innerHTML = '🎒';
+        inventory.innerHTML = 'INV';
 
         inventory.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -286,7 +286,7 @@ class TouchControls {
             user-select: none;
             -webkit-user-select: none;
         `;
-        attack.innerHTML = '⚔';
+        attack.innerHTML = 'ATK';
 
         attack.addEventListener('touchstart', (e) => {
             e.preventDefault();

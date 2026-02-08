@@ -425,110 +425,111 @@ class DriftFauna extends Entity {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    // Render the enemy
+    // Render the enemy (uses world coordinates — RenderEngine handles camera/scale)
     render(renderer) {
         if (this.state === 'dissolved' && this.particles.length === 0) return;
 
-        const cam = renderer.camera;
-        const screenX = (this.position.x - cam.position.x) * (CONSTANTS.DISPLAY_SCALE || 1);
-        const screenY = (this.position.y - cam.position.y) * (CONSTANTS.DISPLAY_SCALE || 1);
-        const scale = CONSTANTS.DISPLAY_SCALE || 1;
-        const ctx = renderer.ctx;
+        const x = Math.floor(this.position.x);
+        const y = Math.floor(this.position.y);
+        const w = this.width;
+        const h = this.height;
+        const self = this;
 
-        // Don't render if off-screen
-        if (screenX < -50 || screenX > renderer.canvas.width + 50 ||
-            screenY < -50 || screenY > renderer.canvas.height + 50) return;
+        // Add enemy to ENTITIES layer so it renders in-world correctly
+        renderer.addToLayer(CONSTANTS.LAYER.ENTITIES, (ctx) => {
+            ctx.save();
+            ctx.globalAlpha = self.opacity;
 
-        ctx.save();
-        ctx.globalAlpha = this.opacity;
+            // Render based on AI type
+            switch (self.aiType) {
+                case 'skitter':
+                    self.renderSkitter(ctx, x, y, w, h);
+                    break;
+                case 'haze':
+                    self.renderHaze(ctx, x, y, w, h);
+                    break;
+                case 'loop':
+                    self.renderLoopling(ctx, x, y, w, h);
+                    break;
+                default:
+                    self.renderDefault(ctx, x, y, w, h);
+            }
 
-        // Render based on AI type
-        switch (this.aiType) {
-            case 'skitter':
-                this.renderSkitter(ctx, screenX, screenY, scale);
-                break;
-            case 'haze':
-                this.renderHaze(ctx, screenX, screenY, scale);
-                break;
-            case 'loop':
-                this.renderLoopling(ctx, screenX, screenY, scale);
-                break;
-            default:
-                this.renderDefault(ctx, screenX, screenY, scale);
+            // Render shadow
+            ctx.globalAlpha = self.opacity * 0.2;
+            ctx.fillStyle = '#000000';
+            const shadowW = w * 0.8;
+            const shadowH = 2;
+            ctx.fillRect(
+                x + (w - shadowW) / 2,
+                y + h,
+                shadowW, shadowH
+            );
+
+            ctx.globalAlpha = 1;
+
+            // Health bar (only when damaged)
+            if (self.shellIntegrity < self.maxShellIntegrity && self.state !== 'dying' && self.state !== 'dissolved') {
+                const barWidth = w + 4;
+                const barHeight = 2;
+                const barX = x - 2;
+                const barY = y - 4;
+                const healthPct = self.shellIntegrity / self.maxShellIntegrity;
+
+                ctx.fillStyle = '#1a0000';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+                ctx.fillStyle = healthPct > 0.5 ? '#cc3333' : healthPct > 0.25 ? '#cc6600' : '#cc0000';
+                ctx.fillRect(barX, barY, barWidth * healthPct, barHeight);
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
+            }
+
+            ctx.restore();
+        });
+
+        // Render particles in EFFECTS layer
+        if (this.particles.length > 0) {
+            renderer.addToLayer(CONSTANTS.LAYER.EFFECTS, (ctx) => {
+                for (const p of self.particles) {
+                    const px = Math.floor(p.x);
+                    const py = Math.floor(p.y);
+                    const alpha = p.life / p.maxLife;
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(px, py, p.size, p.size);
+                }
+                ctx.globalAlpha = 1;
+            });
         }
-
-        // Render shadow
-        ctx.globalAlpha = this.opacity * 0.2;
-        ctx.fillStyle = '#000000';
-        const shadowW = this.width * scale * 0.8;
-        const shadowH = 3 * scale;
-        ctx.fillRect(
-            screenX + (this.width * scale - shadowW) / 2,
-            screenY + this.height * scale,
-            shadowW, shadowH
-        );
-
-        ctx.globalAlpha = 1;
-
-        // Health bar (only when damaged)
-        if (this.shellIntegrity < this.maxShellIntegrity && this.state !== 'dying' && this.state !== 'dissolved') {
-            const barWidth = this.width * scale + 4;
-            const barHeight = 3 * scale;
-            const barX = screenX - 2;
-            const barY = screenY - 6 * scale;
-            const healthPct = this.shellIntegrity / this.maxShellIntegrity;
-
-            // Background
-            ctx.fillStyle = '#1a0000';
-            ctx.fillRect(barX, barY, barWidth, barHeight);
-            // Health fill
-            ctx.fillStyle = healthPct > 0.5 ? '#cc3333' : healthPct > 0.25 ? '#cc6600' : '#cc0000';
-            ctx.fillRect(barX, barY, barWidth * healthPct, barHeight);
-            // Border
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(barX, barY, barWidth, barHeight);
-        }
-
-        ctx.restore();
-
-        // Render particles (always, even after dissolved)
-        this.renderParticles(ctx, cam, scale);
     }
 
-    renderSkitter(ctx, x, y, scale) {
-        const w = this.width * scale;
-        const h = this.height * scale;
-
+    renderSkitter(ctx, x, y, w, h) {
         // Twitchy jitter when moving
-        const jitterX = this.state === 'chasing' ? (Math.random() - 0.5) * 2 * scale : 0;
-        const jitterY = this.state === 'chasing' ? (Math.random() - 0.5) * 2 * scale : 0;
+        const jitterX = this.state === 'chasing' ? (Math.random() - 0.5) * 1 : 0;
+        const jitterY = this.state === 'chasing' ? (Math.random() - 0.5) * 1 : 0;
 
-        // Body (small dark red rectangle)
+        // Body
         ctx.fillStyle = this.renderColor;
         ctx.fillRect(x + jitterX, y + jitterY, w, h);
 
-        // Eyes (two tiny white dots)
+        // Eyes
         ctx.fillStyle = '#ff6666';
-        const eyeSize = Math.max(1, 2 * scale);
-        ctx.fillRect(x + jitterX + w * 0.2, y + jitterY + h * 0.2, eyeSize, eyeSize);
-        ctx.fillRect(x + jitterX + w * 0.6, y + jitterY + h * 0.2, eyeSize, eyeSize);
+        ctx.fillRect(x + jitterX + w * 0.2, y + jitterY + h * 0.2, 2, 2);
+        ctx.fillRect(x + jitterX + w * 0.6, y + jitterY + h * 0.2, 2, 2);
 
-        // Legs (tiny lines on sides when moving)
+        // Legs when moving
         if (this.isBursting || this.state === 'chasing') {
             ctx.fillStyle = this.renderColor;
-            const legOffset = Math.floor(this.pulseTimer / 100) % 2 === 0 ? 0 : scale;
-            ctx.fillRect(x + jitterX - scale, y + jitterY + h * 0.3 + legOffset, scale, scale);
-            ctx.fillRect(x + jitterX + w, y + jitterY + h * 0.3 + legOffset, scale, scale);
-            ctx.fillRect(x + jitterX - scale, y + jitterY + h * 0.7 - legOffset, scale, scale);
-            ctx.fillRect(x + jitterX + w, y + jitterY + h * 0.7 - legOffset, scale, scale);
+            const legOffset = Math.floor(this.pulseTimer / 100) % 2 === 0 ? 0 : 1;
+            ctx.fillRect(x + jitterX - 1, y + jitterY + h * 0.3 + legOffset, 1, 1);
+            ctx.fillRect(x + jitterX + w, y + jitterY + h * 0.3 + legOffset, 1, 1);
+            ctx.fillRect(x + jitterX - 1, y + jitterY + h * 0.7 - legOffset, 1, 1);
+            ctx.fillRect(x + jitterX + w, y + jitterY + h * 0.7 - legOffset, 1, 1);
         }
     }
 
-    renderHaze(ctx, x, y, scale) {
-        const w = this.width * scale;
-        const h = this.height * scale;
-
+    renderHaze(ctx, x, y, w, h) {
         // Pulsing opacity
         const pulse = 0.4 + Math.sin(this.pulseTimer * 0.004) * 0.2;
         ctx.globalAlpha = this.opacity * pulse;
@@ -539,14 +540,14 @@ class DriftFauna extends Entity {
         ctx.arc(x + w / 2, y + h / 2, w * 0.7, 0, Math.PI * 2);
         ctx.fill();
 
-        // Inner core (brighter)
+        // Inner core
         ctx.globalAlpha = this.opacity * (pulse + 0.2);
         ctx.fillStyle = this.renderColor === this.color ? '#dd4444' : this.renderColor;
         ctx.beginPath();
         ctx.arc(x + w / 2, y + h / 2, w * 0.35, 0, Math.PI * 2);
         ctx.fill();
 
-        // Wisps (small dots orbiting)
+        // Wisps
         ctx.globalAlpha = this.opacity * pulse * 0.6;
         ctx.fillStyle = '#ff8888';
         for (let i = 0; i < 3; i++) {
@@ -554,30 +555,27 @@ class DriftFauna extends Entity {
             const orbitR = w * 0.5;
             const wx = x + w / 2 + Math.cos(angle) * orbitR;
             const wy = y + h / 2 + Math.sin(angle) * orbitR;
-            ctx.fillRect(wx, wy, scale, scale);
+            ctx.fillRect(wx, wy, 1, 1);
         }
     }
 
-    renderLoopling(ctx, x, y, scale) {
-        const w = this.width * scale;
-        const h = this.height * scale;
-
+    renderLoopling(ctx, x, y, w, h) {
         // Color cycling
         const colors = ['#4a2080', '#6030a0', '#8040c0'];
         const colorIdx = Math.floor(this.pulseTimer / 300) % colors.length;
         const baseColor = this.renderColor === this.color ? colors[colorIdx] : this.renderColor;
 
-        // Geometric diamond shape
+        // Diamond shape
         ctx.fillStyle = baseColor;
         ctx.beginPath();
-        ctx.moveTo(x + w / 2, y);           // top
-        ctx.lineTo(x + w, y + h / 2);       // right
-        ctx.lineTo(x + w / 2, y + h);       // bottom
-        ctx.lineTo(x, y + h / 2);           // left
+        ctx.moveTo(x + w / 2, y);
+        ctx.lineTo(x + w, y + h / 2);
+        ctx.lineTo(x + w / 2, y + h);
+        ctx.lineTo(x, y + h / 2);
         ctx.closePath();
         ctx.fill();
 
-        // Inner diamond (lighter)
+        // Inner diamond
         ctx.fillStyle = this.renderColor === this.color ? '#aa66ff' : this.renderColor;
         const inset = w * 0.25;
         ctx.beginPath();
@@ -588,7 +586,7 @@ class DriftFauna extends Entity {
         ctx.closePath();
         ctx.fill();
 
-        // Charge indicator (glow when charging)
+        // Charge indicator
         if (this.isCharging) {
             ctx.globalAlpha = this.opacity * 0.4;
             ctx.fillStyle = '#ff44ff';
@@ -598,21 +596,9 @@ class DriftFauna extends Entity {
         }
     }
 
-    renderDefault(ctx, x, y, scale) {
+    renderDefault(ctx, x, y, w, h) {
         ctx.fillStyle = this.renderColor;
-        ctx.fillRect(x, y, this.width * scale, this.height * scale);
-    }
-
-    renderParticles(ctx, cam, scale) {
-        for (const p of this.particles) {
-            const px = (p.x - cam.position.x) * scale;
-            const py = (p.y - cam.position.y) * scale;
-            const alpha = p.life / p.maxLife;
-            ctx.globalAlpha = alpha;
-            ctx.fillStyle = p.color;
-            ctx.fillRect(px, py, p.size * scale, p.size * scale);
-        }
-        ctx.globalAlpha = 1;
+        ctx.fillRect(x, y, w, h);
     }
 
     isDead() {

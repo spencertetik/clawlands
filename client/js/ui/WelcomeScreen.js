@@ -370,7 +370,7 @@ class WelcomeScreen {
         };
 
         // Human Player button
-        const humanBtn = createTerminalBtn('🎮', 'PLAY', true);
+        const humanBtn = createTerminalBtn('>', 'PLAY', true);
         humanBtn.onclick = () => this.showStoryIntro();
         buttons.appendChild(humanBtn);
 
@@ -1314,11 +1314,11 @@ class WelcomeScreen {
         speciesGrid.style.cssText = 'display: flex; flex-wrap: nowrap; gap: 3px; justify-content: center;';
 
         const speciesList = CONSTANTS.SPECIES_CATALOG || [
-            { id: 'lobster', name: 'Lobster', emoji: '🦞' },
-            { id: 'crab', name: 'Crab', emoji: '🦀' },
-            { id: 'shrimp', name: 'Shrimp', emoji: '🦐' },
-            { id: 'mantis_shrimp', name: 'Mantis Shrimp', emoji: '🌈' },
-            { id: 'hermit_crab', name: 'Hermit Crab', emoji: '🐚' }
+            { id: 'lobster', name: 'Lobster', emoji: 'L' },
+            { id: 'crab', name: 'Crab', emoji: 'C' },
+            { id: 'shrimp', name: 'Shrimp', emoji: 'S' },
+            { id: 'mantis_shrimp', name: 'Mantis Shrimp', emoji: 'M' },
+            { id: 'hermit_crab', name: 'Hermit Crab', emoji: 'H' }
         ];
 
         speciesList.forEach((species, idx) => {

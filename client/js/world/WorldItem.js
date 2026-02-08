@@ -24,27 +24,46 @@ class WorldItem {
         // Cache item data
         this.itemDef = typeof ItemData !== 'undefined' ? ItemData[itemId] : null;
         
-        // Pre-render emoji to canvas for performance
-        this.emojiCanvas = null;
-        this.prerenderEmoji();
+        // Pre-render pixel icon to canvas for performance
+        this.pixelCanvas = null;
+        this.prerenderPixelIcon();
     }
     
-    prerenderEmoji() {
+    prerenderPixelIcon() {
         if (!this.itemDef) return;
         
         try {
             const canvas = document.createElement('canvas');
-            canvas.width = 20;
-            canvas.height = 20;
+            canvas.width = 16;
+            canvas.height = 16;
             const ctx = canvas.getContext('2d');
-            ctx.font = '16px serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(this.itemDef.icon, 10, 11);
-            this.emojiCanvas = canvas;
+            
+            // Color based on rarity
+            const rarityColors = {
+                'common': '#8a7068',
+                'uncommon': '#4a9eff',
+                'rare': '#a855f7',
+                'epic': '#f59e0b',
+                'legendary': '#c43a24'
+            };
+            
+            const color = rarityColors[this.itemDef.rarity] || '#8a7068';
+            
+            // Draw a simple pixel square
+            ctx.fillStyle = '#0d0806'; // dark outline
+            ctx.fillRect(2, 2, 12, 12);
+            
+            ctx.fillStyle = color;
+            ctx.fillRect(3, 3, 10, 10);
+            
+            // Add a highlight pixel
+            ctx.fillStyle = '#e8d5cc';
+            ctx.fillRect(4, 4, 4, 4);
+            
+            this.pixelCanvas = canvas;
         } catch (e) {
-            // Fallback: just draw colored dot
-            this.emojiCanvas = null;
+            // Fallback: null canvas will draw basic rect
+            this.pixelCanvas = null;
         }
     }
     
@@ -89,14 +108,14 @@ class WorldItem {
             CONSTANTS.LAYER.GROUND_DECORATION
         );
         
-        // Draw the emoji sprite if we have one
-        if (this.emojiCanvas) {
+        // Draw the pixel icon sprite if we have one
+        if (this.pixelCanvas) {
             renderer.drawSprite(
-                this.emojiCanvas,
+                this.pixelCanvas,
                 0, 0,
-                this.emojiCanvas.width,
-                this.emojiCanvas.height,
-                this.x - 3,
+                this.pixelCanvas.width,
+                this.pixelCanvas.height,
+                this.x - 1,
                 this.y - 3,
                 20,
                 20,

@@ -4,7 +4,7 @@
 class SoundEffects {
     constructor() {
         this.audioCtx = null;
-        this.volume = 0.3;
+        this.volume = 0.5; // SFX volume (boosted above music)
         this.initialized = false;
     }
 

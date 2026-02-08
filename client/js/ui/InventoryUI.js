@@ -318,10 +318,21 @@ class InventoryUI {
                         `;
                         slot.appendChild(imgEl);
                     } else {
-                        // Emoji fallback
+                        // Colored dot based on rarity
                         const icon = document.createElement('span');
                         icon.textContent = itemDef.icon;
-                        icon.style.cssText = 'font-size: 26px; line-height: 1; pointer-events: none;';
+                        
+                        // Color mapping based on rarity
+                        const rarityColors = {
+                            'common': '#8a7068',
+                            'uncommon': '#4a9eff',
+                            'rare': '#a855f7',
+                            'epic': '#f59e0b',
+                            'legendary': '#c43a24'
+                        };
+                        
+                        const color = rarityColors[itemDef.rarity] || '#8a7068';
+                        icon.style.cssText = `font-size: 26px; line-height: 1; pointer-events: none; color: ${color};`;
                         slot.appendChild(icon);
                     }
                     
@@ -394,6 +405,24 @@ class InventoryUI {
                 const color = rarityColors[itemDef.rarity] || '#8a7068';
                 const categoryLabel = itemDef.category.charAt(0).toUpperCase() + itemDef.category.slice(1);
                 
+                // Usable/heal info
+                let actionHTML = '';
+                if (itemDef.usable && itemDef.healAmount) {
+                    actionHTML = `<div style="margin-top: 6px;">
+                        <span style="color: #44aa44; font-size: 11px;">Heals ${itemDef.healAmount} Shell</span>
+                        <button id="inv-use-btn" style="
+                            background: #44aa44; color: #fff; border: none; padding: 3px 12px;
+                            font-family: monospace; font-size: 11px; cursor: pointer;
+                            margin-left: 8px; border-radius: 2px;
+                        ">USE</button>
+                    </div>`;
+                }
+                // Sell price info
+                let sellHTML = '';
+                if (itemDef.sellPrice) {
+                    sellHTML = `<span style="color: #f5c542; font-size: 10px; margin-left: 8px;">Sells: ${itemDef.sellPrice} 🪙</span>`;
+                }
+
                 this.detailPanel.innerHTML = `
                     <div style="color: ${color}; font-weight: bold; font-size: 13px; margin-bottom: 4px;">
                         ${itemDef.icon} ${itemDef.name}
@@ -401,9 +430,19 @@ class InventoryUI {
                     </div>
                     <div style="color: #e8d5cc; opacity: 0.85;">${itemDef.description}</div>
                     <div style="color: #8a7068; margin-top: 4px; font-size: 11px;">
-                        ${categoryLabel}${data.quantity > 1 ? ` · Qty: ${data.quantity}` : ''}
+                        ${categoryLabel}${data.quantity > 1 ? ` · Qty: ${data.quantity}` : ''}${sellHTML}
                     </div>
+                    ${actionHTML}
                 `;
+
+                // Wire up USE button
+                const useBtn = this.detailPanel.querySelector('#inv-use-btn');
+                if (useBtn) {
+                    useBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.useItem(index, data.itemId);
+                    });
+                }
                 return;
             }
         }
@@ -411,6 +450,40 @@ class InventoryUI {
         this.detailPanel.innerHTML = '<span style="color: #8a7068;">Hover over an item to see details</span>';
     }
     
+    // Use a consumable item (healing etc)
+    useItem(slotIndex, itemId) {
+        const itemDef = typeof ItemData !== 'undefined' ? ItemData[itemId] : null;
+        if (!itemDef || !itemDef.usable) return;
+
+        // Find the game reference
+        const game = window.game;
+        if (!game || !game.player) return;
+
+        // Heal
+        if (itemDef.healAmount) {
+            const player = game.player;
+            if (player.shellIntegrity >= player.shellIntegrityMax) {
+                if (typeof gameNotifications !== 'undefined') {
+                    gameNotifications.warn('Shell already full!');
+                }
+                return;
+            }
+            player.heal(itemDef.healAmount);
+            if (typeof gameNotifications !== 'undefined') {
+                gameNotifications.success(`${itemDef.icon} +${itemDef.healAmount} Shell`);
+            }
+        }
+
+        // Remove 1 from inventory
+        if (this.inventory) {
+            this.inventory.removeItem(itemId, 1);
+        }
+
+        // Refresh UI
+        this.refresh();
+        this.showSlotDetails(slotIndex);
+    }
+
     // Helper: convert hex color to r,g,b string
     hexToRgb(hex) {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
