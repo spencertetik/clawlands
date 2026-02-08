@@ -154,8 +154,8 @@ class ResolveUI {
         }
 
         // Notification
-        if (this.game.notificationSystem) {
-            this.game.notificationSystem.show('Dispersed — loot dropped', '#ccaa44');
+        if (typeof gameNotifications !== 'undefined' && gameNotifications) {
+            gameNotifications.success('⚔️ Dispersed — loot dropped');
         }
     }
 
@@ -167,8 +167,8 @@ class ResolveUI {
 
         // Show lore fragment
         const fragment = this.loreFragments[Math.floor(Math.random() * this.loreFragments.length)];
-        if (this.game.notificationSystem) {
-            this.game.notificationSystem.show(fragment, '#66aacc');
+        if (typeof gameNotifications !== 'undefined' && gameNotifications) {
+            gameNotifications.info(fragment);
         }
     }
 
@@ -183,8 +183,8 @@ class ResolveUI {
             this.game.combatSystem.spawnReleaseEffect(this.enemy.position.x, this.enemy.position.y);
         }
 
-        if (this.game.notificationSystem) {
-            this.game.notificationSystem.show('Released to the Current...', '#cc6666');
+        if (typeof gameNotifications !== 'undefined' && gameNotifications) {
+            gameNotifications.info('🌊 Released to the Current...');
         }
     }
 

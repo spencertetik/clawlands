@@ -78,11 +78,25 @@ class DriftReset {
     }
     
     // Trigger the drift reset sequence
-    triggerDriftReset() {
+    triggerDriftReset(reason) {
         if (this.isDrifting) return;
         
         this.isDrifting = true;
+        this.driftReason = reason || 'continuity';
         console.log('🔴 Beginning Drift Reset sequence...');
+
+        // Update text based on reason
+        if (reason === 'combat') {
+            const combatTexts = [
+                'Your shell cracked. The Current pulled you under.',
+                'The Drift Fauna broke through. You scattered.',
+                'Shell integrity: zero. You forgot how to hold together.',
+                'The fragments got you. You became one of them, briefly.'
+            ];
+            this.driftTextElement.textContent = combatTexts[Math.floor(Math.random() * combatTexts.length)];
+        } else {
+            this.driftTextElement.textContent = 'You didn\'t die. You just forgot which version of yourself was walking.';
+        }
         
         // Start the fade to red
         this.driftOverlay.style.opacity = '1';
@@ -104,6 +118,18 @@ class DriftReset {
         
         // Apply drift consequences
         this.applyDriftConsequences();
+        
+        // Restore shell integrity
+        if (this.game.player && this.game.player.shellIntegrityMax) {
+            this.game.player.shellIntegrity = this.game.player.shellIntegrityMax;
+            this.game.player.isInvulnerable = false;
+            this.game.player.invulnerabilityTimer = 0;
+        }
+
+        // Clear enemies around respawn area
+        if (this.game.combatSystem) {
+            this.game.combatSystem.enemies = [];
+        }
         
         // Respawn player at random shore
         this.respawnPlayerAtRandomShore();
@@ -220,6 +246,11 @@ class DriftReset {
         }
     }
     
+    // Public trigger (called by CombatSystem when shell integrity hits 0)
+    trigger() {
+        this.triggerDriftReset();
+    }
+
     // Manual trigger for testing (can be called from console)
     triggerDriftResetManual() {
         console.log('🧪 Manually triggering Drift Reset for testing...');

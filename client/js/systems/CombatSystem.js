@@ -502,17 +502,10 @@ class CombatSystem {
             this.resolveUI.hide();
         }
 
-        // Trigger drift reset
+        // Trigger drift reset (DriftReset handles shell integrity restoration)
         if (this.game.driftReset) {
-            this.game.driftReset.trigger();
+            this.game.driftReset.trigger('combat');
         }
-
-        // Reset player shell integrity after reset
-        setTimeout(() => {
-            if (this.game.player) {
-                this.game.player.shellIntegrity = this.game.player.shellIntegrityMax;
-            }
-        }, 2000);
     }
 
     render(renderer) {
