@@ -114,6 +114,11 @@ class ResolveUI {
         this.choices[choice] = (this.choices[choice] || 0) + 1;
         this.saveChoices();
 
+        // Record kill stat
+        if (this.game.combatSystem && this.enemy) {
+            this.game.combatSystem.recordKill(this.enemy.typeData.id || this.enemy.name);
+        }
+
         // Apply effects
         switch (choice) {
             case 'disperse':

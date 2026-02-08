@@ -58,6 +58,10 @@ class CombatSystem {
         // Track if this is first spawn (delay initial spawn)
         this.initialDelay = 5000; // 5 seconds before first enemies appear
         this.totalTime = 0;
+
+        // Kill stats (persisted)
+        this.statsKey = 'clawworld_combat_stats';
+        this.stats = this.loadStats();
     }
 
     update(deltaTime) {
@@ -709,5 +713,32 @@ class CombatSystem {
     // Get enemy count for debug/stats
     getEnemyCount() {
         return this.enemies.filter(e => e.isAlive()).length;
+    }
+
+    // Track a kill
+    recordKill(enemyType) {
+        this.stats.totalKills = (this.stats.totalKills || 0) + 1;
+        this.stats.killsByType = this.stats.killsByType || {};
+        this.stats.killsByType[enemyType] = (this.stats.killsByType[enemyType] || 0) + 1;
+        this.saveStats();
+    }
+
+    // Load combat stats from localStorage
+    loadStats() {
+        try {
+            const saved = localStorage.getItem(this.statsKey);
+            return saved ? JSON.parse(saved) : { totalKills: 0, killsByType: {} };
+        } catch (e) {
+            return { totalKills: 0, killsByType: {} };
+        }
+    }
+
+    // Save combat stats to localStorage
+    saveStats() {
+        try {
+            localStorage.setItem(this.statsKey, JSON.stringify(this.stats));
+        } catch (e) {
+            console.warn('Failed to save combat stats:', e);
+        }
     }
 }

@@ -1061,6 +1061,11 @@ class Game {
             }
         }
 
+        // Show attack hint when enemies are nearby and no other hint
+        if (!hintText && this.combatSystem && this.combatSystem.inCombat) {
+            hintText = '[X] Attack';
+        }
+
         // Render the hint if any
         if (hintText) {
             const ctx = this.canvas.getContext('2d');
