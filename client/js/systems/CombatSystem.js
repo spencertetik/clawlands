@@ -11,7 +11,7 @@ class CombatSystem {
         this.spawnTimer = 0;
         this.spawnInterval = 4000; // ms between spawn checks
         this.spawnMargin = 200; // px outside camera to spawn
-        this.despawnDistance = 400; // px from player to despawn
+        this.despawnDistance = 600; // px from player to despawn
         this.spawnExclusionRadius = 120; // enemies never spawn closer than this to player
 
         // Player attack state
@@ -58,7 +58,7 @@ class CombatSystem {
         this.damageNumbers = [];
 
         // Track if this is first spawn (delay initial spawn)
-        this.initialDelay = 12000; // 12 seconds before first enemies appear
+        this.initialDelay = 5000; // 5 seconds before first enemies appear
         this.totalTime = 0;
         
         // Spawn protection after respawn
@@ -307,51 +307,38 @@ class CombatSystem {
             this.maxEnemies - this.enemies.length
         );
 
-        // Find spawn position: outside camera but within margin
+        // Find spawn position: on land, outside camera but nearby on the island
         for (let g = 0; g < groupSize; g++) {
             let spawnX, spawnY;
             let attempts = 0;
             let valid = false;
 
-            while (attempts < 20 && !valid) {
+            while (attempts < 40 && !valid) {
                 attempts++;
 
-                // Pick a side to spawn from
-                const side = Math.floor(Math.random() * 4);
-                const margin = this.spawnMargin;
+                // Strategy: pick random land tile within spawn range of player
+                // Use a wider search radius (300-600px from player) to find land
+                const angle = Math.random() * Math.PI * 2;
+                const dist = this.spawnExclusionRadius + Math.random() * 400; // 120-520px from player
+                spawnX = player.position.x + Math.cos(angle) * dist;
+                spawnY = player.position.y + Math.sin(angle) * dist;
 
-                switch (side) {
-                    case 0: // Top
-                        spawnX = camLeft + Math.random() * (camRight - camLeft);
-                        spawnY = camTop - margin * Math.random();
-                        break;
-                    case 1: // Bottom
-                        spawnX = camLeft + Math.random() * (camRight - camLeft);
-                        spawnY = camBottom + margin * Math.random();
-                        break;
-                    case 2: // Left
-                        spawnX = camLeft - margin * Math.random();
-                        spawnY = camTop + Math.random() * (camBottom - camTop);
-                        break;
-                    case 3: // Right
-                        spawnX = camRight + margin * Math.random();
-                        spawnY = camTop + Math.random() * (camBottom - camTop);
-                        break;
-                }
-
-                // Check if spawn position is on land AND far enough from player
+                // Check if spawn position is on land
                 if (this.game.worldMap) {
                     const tileCol = Math.floor(spawnX / CONSTANTS.TILE_SIZE);
                     const tileRow = Math.floor(spawnY / CONSTANTS.TILE_SIZE);
-                    const tile = this.game.worldMap.getTile(tileCol, tileRow);
+                    const tile = this.game.worldMap.getTile(this.game.worldMap.groundLayer, tileCol, tileRow);
 
-                    // tile 0 = water, 1 = shore, 2+ = land (sand/grass)
-                    if (tile >= 3) {
-                        // Enforce exclusion radius from player
-                        const dx = spawnX - player.position.x;
-                        const dy = spawnY - player.position.y;
-                        const distToPlayer = Math.sqrt(dx * dx + dy * dy);
-                        if (distToPlayer >= this.spawnExclusionRadius) {
+                    // tile 0 = water, 1 = shore, 2 = coast, 3+ = land (sand/grass)
+                    if (tile !== null && tile >= 3) {
+                        // Make sure it's not inside the camera view (spawn off-screen)
+                        const inCamera = spawnX >= camLeft && spawnX <= camRight &&
+                                         spawnY >= camTop && spawnY <= camBottom;
+                        if (!inCamera) {
+                            valid = true;
+                        } else if (attempts > 20) {
+                            // After 20 failed attempts, allow on-screen spawns too
+                            // (better to have enemies than none at all)
                             valid = true;
                         }
                     }

@@ -478,6 +478,33 @@ class Game {
             npc.update(deltaTime, this.collisionSystem);
         }
 
+        // Continuously push player away from NPCs (gentle nudge each frame)
+        if (this.player && this.npcs && this.currentLocation === 'outdoor') {
+            const px = this.player.position.x;
+            const py = this.player.position.y;
+            const pw = this.player.width;
+            const ph = this.player.height;
+            for (const npc of this.npcs) {
+                const overlapping = !(
+                    px + pw <= npc.position.x || px >= npc.position.x + npc.width ||
+                    py + ph <= npc.position.y || py >= npc.position.y + npc.height
+                );
+                if (overlapping) {
+                    const npcCX = npc.position.x + npc.width / 2;
+                    const npcCY = npc.position.y + npc.height / 2;
+                    const plCX = px + pw / 2;
+                    const plCY = py + ph / 2;
+                    let dx = plCX - npcCX;
+                    let dy = plCY - npcCY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 0.1) { dx = 1; dy = 0; } else { dx /= dist; dy /= dist; }
+                    // Nudge 2px per frame away from NPC
+                    this.player.position.x += dx * 2;
+                    this.player.position.y += dy * 2;
+                }
+            }
+        }
+
         // Update world items and check for pickups (every 0.15s for performance)
         // Don't pick up items until welcome screen is dismissed
         this.worldItemCheckTimer = (this.worldItemCheckTimer || 0) + deltaTime;
