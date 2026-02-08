@@ -1,4 +1,4 @@
-// Touch controls overlay for mobile devices
+// Touch controls overlay for mobile — SNES controller layout
 class TouchControls {
     constructor(game) {
         this.game = game;
@@ -7,68 +7,25 @@ class TouchControls {
         this.enabled = false;
     }
 
-    /**
-     * Check if device supports touch
-     */
     static isTouchDevice() {
         return ('ontouchstart' in window) || 
                (navigator.maxTouchPoints > 0) || 
                (navigator.msMaxTouchPoints > 0);
     }
 
-    /**
-     * Initialize touch controls if on touch device
-     */
     init() {
-        if (!TouchControls.isTouchDevice()) {
-            return;
-        }
-        
+        if (!TouchControls.isTouchDevice()) return;
         this.createControls();
         this.enabled = true;
     }
 
-    /**
-     * Show the controls
-     */
-    show() {
-        if (this.container) {
-            this.container.style.display = 'flex';
-        }
-    }
+    show() { if (this.container) this.container.style.display = 'flex'; }
+    hide() { if (this.container) this.container.style.display = 'none'; }
+    hideDpad() { if (this.dpad) this.dpad.style.display = 'none'; }
+    showDpad() { if (this.dpad) this.dpad.style.display = 'block'; }
 
-    /**
-     * Hide the controls
-     */
-    hide() {
-        if (this.container) {
-            this.container.style.display = 'none';
-        }
-    }
-
-    /**
-     * Hide just the d-pad (keep ACT button for dialog)
-     */
-    hideDpad() {
-        if (this.dpad) {
-            this.dpad.style.display = 'none';
-        }
-    }
-
-    /**
-     * Show the d-pad again
-     */
-    showDpad() {
-        if (this.dpad) {
-            this.dpad.style.display = 'block';
-        }
-    }
-
-    /**
-     * Create the control overlay
-     */
     createControls() {
-        // Main container
+        // Full-width bar at the bottom — SNES controller layout
         this.container = document.createElement('div');
         this.container.id = 'touch-controls';
         this.container.style.cssText = `
@@ -79,350 +36,336 @@ class TouchControls {
             height: 180px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
-            padding: 20px;
+            align-items: center;
+            padding: 10px 20px 20px;
             pointer-events: none;
             z-index: 1000;
             user-select: none;
             -webkit-user-select: none;
+            background: linear-gradient(to bottom, rgba(13,8,6,0) 0%, rgba(13,8,6,0.6) 30%, rgba(13,8,6,0.85) 100%);
         `;
 
-        // D-pad container (left side)
+        // D-pad (left)
         this.dpad = this.createDpad();
         this.container.appendChild(this.dpad);
 
-        // Action buttons (right side)
-        const actions = this.createActionButtons();
+        // Center buttons (SELECT / START)
+        const center = this.createCenterButtons();
+        this.container.appendChild(center);
+
+        // Action buttons — diamond (right)
+        const actions = this.createActionDiamond();
         this.container.appendChild(actions);
 
         document.body.appendChild(this.container);
     }
 
-    /**
-     * Create the D-pad
-     */
+    // ── D-PAD ──────────────────────────────────
     createDpad() {
         const dpad = document.createElement('div');
         dpad.style.cssText = `
             position: relative;
-            width: 140px;
-            height: 140px;
+            width: 130px;
+            height: 130px;
             pointer-events: auto;
         `;
 
-        const buttonStyle = `
+        // Cross-shaped background
+        const crossH = document.createElement('div');
+        crossH.style.cssText = `
             position: absolute;
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.25);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: rgba(255, 255, 255, 0.8);
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
+            top: 50%; left: 0;
+            transform: translateY(-50%);
+            width: 100%; height: 44px;
+            background: rgba(40, 30, 25, 0.85);
+            border-radius: 6px;
+            border: 2px solid rgba(100, 80, 70, 0.5);
         `;
+        dpad.appendChild(crossH);
 
-        const activeStyle = `
-            background: rgba(255, 255, 255, 0.5);
-            border-color: rgba(255, 255, 255, 0.8);
+        const crossV = document.createElement('div');
+        crossV.style.cssText = `
+            position: absolute;
+            left: 50%; top: 0;
+            transform: translateX(-50%);
+            width: 44px; height: 100%;
+            background: rgba(40, 30, 25, 0.85);
+            border-radius: 6px;
+            border: 2px solid rgba(100, 80, 70, 0.5);
         `;
+        dpad.appendChild(crossV);
 
-        // Up button
-        const up = document.createElement('div');
-        up.style.cssText = buttonStyle + 'top: 0; left: 50%; transform: translateX(-50%);';
-        up.innerHTML = '▲';
-        up.dataset.dir = 'up';
-        dpad.appendChild(up);
+        // Center cap
+        const cap = document.createElement('div');
+        cap.style.cssText = `
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; height: 20px;
+            background: rgba(60, 45, 38, 0.9);
+            border-radius: 50%;
+            z-index: 2;
+        `;
+        dpad.appendChild(cap);
 
-        // Down button
-        const down = document.createElement('div');
-        down.style.cssText = buttonStyle + 'bottom: 0; left: 50%; transform: translateX(-50%);';
-        down.innerHTML = '▼';
-        down.dataset.dir = 'down';
-        dpad.appendChild(down);
+        // Invisible touch zones (larger than visual for easy tapping)
+        const zones = [
+            { dir: 'up',    css: 'top: 0; left: 50%; transform: translateX(-50%); width: 50px; height: 50px;' },
+            { dir: 'down',  css: 'bottom: 0; left: 50%; transform: translateX(-50%); width: 50px; height: 50px;' },
+            { dir: 'left',  css: 'left: 0; top: 50%; transform: translateY(-50%); width: 50px; height: 50px;' },
+            { dir: 'right', css: 'right: 0; top: 50%; transform: translateY(-50%); width: 50px; height: 50px;' },
+        ];
 
-        // Left button
-        const left = document.createElement('div');
-        left.style.cssText = buttonStyle + 'left: 0; top: 50%; transform: translateY(-50%);';
-        left.innerHTML = '◀';
-        left.dataset.dir = 'left';
-        dpad.appendChild(left);
+        const arrows = { up: '▲', down: '▼', left: '◀', right: '▶' };
 
-        // Right button
-        const right = document.createElement('div');
-        right.style.cssText = buttonStyle + 'right: 0; top: 50%; transform: translateY(-50%);';
-        right.innerHTML = '▶';
-        right.dataset.dir = 'right';
-        dpad.appendChild(right);
+        for (const z of zones) {
+            const btn = document.createElement('div');
+            btn.dataset.dir = z.dir;
+            btn.style.cssText = `
+                position: absolute; ${z.css}
+                display: flex; align-items: center; justify-content: center;
+                font-size: 14px; color: rgba(200, 180, 165, 0.6);
+                z-index: 3;
+                touch-action: none;
+            `;
+            btn.textContent = arrows[z.dir];
 
-        // Add touch handlers to all d-pad buttons
-        [up, down, left, right].forEach(btn => {
             btn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                btn.style.background = 'rgba(255, 255, 255, 0.5)';
-                btn.style.borderColor = 'rgba(255, 255, 255, 0.8)';
-                this.startDirection(btn.dataset.dir);
+                btn.style.color = 'rgba(232, 213, 204, 0.95)';
+                this.startDirection(z.dir);
             }, { passive: false });
-
             btn.addEventListener('touchend', (e) => {
                 e.preventDefault();
-                btn.style.background = 'rgba(255, 255, 255, 0.25)';
-                btn.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-                this.stopDirection(btn.dataset.dir);
+                btn.style.color = 'rgba(200, 180, 165, 0.6)';
+                this.stopDirection(z.dir);
             }, { passive: false });
+            btn.addEventListener('touchcancel', () => {
+                btn.style.color = 'rgba(200, 180, 165, 0.6)';
+                this.stopDirection(z.dir);
+            });
 
-            btn.addEventListener('touchcancel', (e) => {
-                btn.style.background = 'rgba(255, 255, 255, 0.25)';
-                btn.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-                this.stopDirection(btn.dataset.dir);
-            }, { passive: false });
-        });
+            dpad.appendChild(btn);
+        }
 
         return dpad;
     }
 
-    /**
-     * Create action buttons
-     */
-    createActionButtons() {
-        const actions = document.createElement('div');
-        actions.style.cssText = `
+    // ── CENTER (SELECT / START) ────────────────
+    createCenterButtons() {
+        const center = document.createElement('div');
+        center.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
+            pointer-events: auto;
+            margin-bottom: 10px;
+        `;
+
+        // INV (like SELECT)
+        const inv = this._makePillButton('INV', () => {
+            this.pressKey('i');
+            setTimeout(() => this.releaseKey('i'), 100);
+        });
+        center.appendChild(inv);
+
+        // MENU (like START) — could be quest log or help
+        const menu = this._makePillButton('MAP', () => {
+            this.pressKey('n');
+            setTimeout(() => this.releaseKey('n'), 100);
+        });
+        center.appendChild(menu);
+
+        return center;
+    }
+
+    _makePillButton(label, onTap) {
+        const btn = document.createElement('div');
+        btn.style.cssText = `
+            width: 52px;
+            height: 22px;
+            background: rgba(60, 45, 38, 0.85);
+            border: 1px solid rgba(100, 80, 70, 0.5);
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-family: monospace;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: rgba(200, 180, 165, 0.7);
+            touch-action: none;
+            user-select: none;
+        `;
+        btn.textContent = label;
+
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            btn.style.background = 'rgba(80, 60, 50, 0.95)';
+            btn.style.color = 'rgba(232, 213, 204, 0.95)';
+            onTap();
+        }, { passive: false });
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            btn.style.background = 'rgba(60, 45, 38, 0.85)';
+            btn.style.color = 'rgba(200, 180, 165, 0.7)';
+        }, { passive: false });
+
+        return btn;
+    }
+
+    // ── ACTION DIAMOND (Y/B/X/A like SNES) ────
+    createActionDiamond() {
+        const diamond = document.createElement('div');
+        diamond.style.cssText = `
+            position: relative;
+            width: 130px;
+            height: 130px;
             pointer-events: auto;
         `;
 
-        // Inventory button (I key equivalent)
-        const inventory = document.createElement('div');
-        inventory.style.cssText = `
-            width: 44px;
-            height: 44px;
-            background: rgba(196, 58, 36, 0.3);
-            border: 2px solid rgba(196, 58, 36, 0.7);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        `;
-        inventory.innerHTML = 'INV';
+        // Button configs: SNES diamond layout
+        // X = top, A = right, B = bottom, Y = left
+        const buttons = [
+            { label: 'ATK', pos: 'top: 0; left: 50%; transform: translateX(-50%);',    color: '#6b5b8a', action: 'attack' },   // X (top) — purple
+            { label: 'ACT', pos: 'right: 0; top: 50%; transform: translateY(-50%);',   color: '#8a3a3a', action: 'interact' },  // A (right) — red
+            { label: 'B',   pos: 'bottom: 0; left: 50%; transform: translateX(-50%);', color: '#3a6a3a', action: 'cancel' },    // B (bottom) — green (no action yet)
+            { label: 'Y',   pos: 'left: 0; top: 50%; transform: translateY(-50%);',    color: '#3a5a8a', action: 'secondary' }, // Y (left) — blue (no action yet)
+        ];
 
-        inventory.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            inventory.style.background = 'rgba(196, 58, 36, 0.6)';
-            // Simulate pressing I key
-            this.pressKey('i');
-            setTimeout(() => this.releaseKey('i'), 100);
-        }, { passive: false });
+        for (const b of buttons) {
+            const btn = document.createElement('div');
+            btn.style.cssText = `
+                position: absolute; ${b.pos}
+                width: 46px;
+                height: 46px;
+                background: ${b.color}55;
+                border: 2px solid ${b.color}99;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-family: monospace;
+                font-weight: bold;
+                color: rgba(232, 213, 204, 0.85);
+                touch-action: none;
+                user-select: none;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            `;
+            btn.textContent = b.label;
 
-        inventory.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            inventory.style.background = 'rgba(196, 58, 36, 0.3)';
-        }, { passive: false });
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                btn.style.background = b.color + 'aa';
+                btn.style.borderColor = b.color;
+                this._handleAction(b.action, true);
+            }, { passive: false });
 
-        actions.appendChild(inventory);
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                btn.style.background = b.color + '55';
+                btn.style.borderColor = b.color + '99';
+                this._handleAction(b.action, false);
+            }, { passive: false });
 
-        // Interact button (Space key equivalent)
-        const interact = document.createElement('div');
-        interact.style.cssText = `
-            width: 70px;
-            height: 70px;
-            background: rgba(94, 234, 212, 0.3);
-            border: 3px solid rgba(94, 234, 212, 0.7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-family: monospace;
-            font-weight: bold;
-            color: rgba(255, 255, 255, 0.9);
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        `;
-        interact.innerHTML = 'ACT';
+            btn.addEventListener('touchcancel', () => {
+                btn.style.background = b.color + '55';
+                btn.style.borderColor = b.color + '99';
+                this._handleAction(b.action, false);
+            });
 
-        interact.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            interact.style.background = 'rgba(94, 234, 212, 0.6)';
-            this.pressInteract();
-        }, { passive: false });
+            diamond.appendChild(btn);
+        }
 
-        interact.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            interact.style.background = 'rgba(94, 234, 212, 0.3)';
-            this.releaseInteract();
-        }, { passive: false });
-
-        actions.appendChild(interact);
-
-        // Attack button (X key equivalent) — red, below interact
-        const attack = document.createElement('div');
-        attack.style.cssText = `
-            width: 56px;
-            height: 56px;
-            background: rgba(196, 58, 36, 0.3);
-            border: 3px solid rgba(196, 58, 36, 0.7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            font-family: monospace;
-            font-weight: bold;
-            color: rgba(255, 255, 255, 0.9);
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        `;
-        attack.innerHTML = 'ATK';
-
-        attack.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            attack.style.background = 'rgba(196, 58, 36, 0.6)';
-            this.pressAttack();
-        }, { passive: false });
-
-        attack.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            attack.style.background = 'rgba(196, 58, 36, 0.3)';
-            this.releaseAttack();
-        }, { passive: false });
-
-        actions.appendChild(attack);
-
-        return actions;
+        return diamond;
     }
 
-    /**
-     * Start moving in a direction
-     */
+    _handleAction(action, pressed) {
+        switch (action) {
+            case 'attack':
+                if (pressed) this.pressAttack(); else this.releaseAttack();
+                break;
+            case 'interact':
+                if (pressed) this.pressInteract(); else this.releaseInteract();
+                break;
+            case 'cancel':
+                // B — close dialog/menu (ESC)
+                if (pressed) {
+                    this.pressKey('Escape');
+                    setTimeout(() => this.releaseKey('Escape'), 100);
+                }
+                break;
+            case 'secondary':
+                // Y — quest log
+                if (pressed) {
+                    this.pressKey('q');
+                    setTimeout(() => this.releaseKey('q'), 100);
+                }
+                break;
+        }
+    }
+
+    // ── MOVEMENT ────────────────────────────────
     startDirection(dir) {
         this.activeDirections.add(dir);
         this.updateMovement();
     }
 
-    /**
-     * Stop moving in a direction
-     */
     stopDirection(dir) {
         this.activeDirections.delete(dir);
         this.updateMovement();
     }
 
-    /**
-     * Update player movement based on active directions
-     */
     updateMovement() {
         if (!this.game || !this.game.inputManager) return;
-
         const input = this.game.inputManager;
-        
-        // Clear all directions first
-        input.keys['w'] = false;
-        input.keys['a'] = false;
-        input.keys['s'] = false;
-        input.keys['d'] = false;
-        input.keys['ArrowUp'] = false;
-        input.keys['ArrowDown'] = false;
-        input.keys['ArrowLeft'] = false;
-        input.keys['ArrowRight'] = false;
 
-        // Set active directions
-        if (this.activeDirections.has('up')) {
-            input.keys['w'] = true;
-            input.keys['ArrowUp'] = true;
-        }
-        if (this.activeDirections.has('down')) {
-            input.keys['s'] = true;
-            input.keys['ArrowDown'] = true;
-        }
-        if (this.activeDirections.has('left')) {
-            input.keys['a'] = true;
-            input.keys['ArrowLeft'] = true;
-        }
-        if (this.activeDirections.has('right')) {
-            input.keys['d'] = true;
-            input.keys['ArrowRight'] = true;
-        }
+        input.keys['w'] = false; input.keys['a'] = false;
+        input.keys['s'] = false; input.keys['d'] = false;
+        input.keys['ArrowUp'] = false; input.keys['ArrowDown'] = false;
+        input.keys['ArrowLeft'] = false; input.keys['ArrowRight'] = false;
+
+        if (this.activeDirections.has('up'))    { input.keys['w'] = true; input.keys['ArrowUp'] = true; }
+        if (this.activeDirections.has('down'))  { input.keys['s'] = true; input.keys['ArrowDown'] = true; }
+        if (this.activeDirections.has('left'))  { input.keys['a'] = true; input.keys['ArrowLeft'] = true; }
+        if (this.activeDirections.has('right')) { input.keys['d'] = true; input.keys['ArrowRight'] = true; }
     }
 
-    /**
-     * Simulate key press
-     */
+    // ── INPUT HELPERS ───────────────────────────
     pressKey(key) {
-        if (!this.game || !this.game.inputManager) return;
+        if (!this.game?.inputManager) return;
         this.game.inputManager.keys[key] = true;
-        
-        // Also dispatch a keydown event for systems that listen to events
-        const event = new KeyboardEvent('keydown', { key: key, bubbles: true });
-        document.dispatchEvent(event);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
     }
 
-    /**
-     * Simulate key release
-     */
     releaseKey(key) {
-        if (!this.game || !this.game.inputManager) return;
+        if (!this.game?.inputManager) return;
         this.game.inputManager.keys[key] = false;
-        
-        // Also dispatch a keyup event
-        const event = new KeyboardEvent('keyup', { key: key, bubbles: true });
-        document.dispatchEvent(event);
+        document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
     }
 
-    /**
-     * Press interact (space bar) - needs special handling for "just pressed" detection
-     */
     pressInteract() {
-        if (!this.game || !this.game.inputManager) return;
-        const input = this.game.inputManager;
-        
-        // Set the key state
-        input.keys[' '] = true;
-        
-        // Directly set justPressed since we're between frames
-        input.justPressed[' '] = true;
+        if (!this.game?.inputManager) return;
+        this.game.inputManager.keys[' '] = true;
+        this.game.inputManager.justPressed[' '] = true;
     }
 
-    /**
-     * Release interact (space bar)
-     */
     releaseInteract() {
-        if (!this.game || !this.game.inputManager) return;
-        const input = this.game.inputManager;
-        
-        // Clear the key state
-        input.keys[' '] = false;
+        if (!this.game?.inputManager) return;
+        this.game.inputManager.keys[' '] = false;
     }
 
-    /**
-     * Press attack (X key) - same justPressed pattern as interact
-     */
     pressAttack() {
-        if (!this.game || !this.game.inputManager) return;
-        const input = this.game.inputManager;
-        input.keys['x'] = true;
-        input.justPressed['x'] = true;
+        if (!this.game?.inputManager) return;
+        this.game.inputManager.keys['x'] = true;
+        this.game.inputManager.justPressed['x'] = true;
     }
 
-    /**
-     * Release attack (X key)
-     */
     releaseAttack() {
-        if (!this.game || !this.game.inputManager) return;
-        const input = this.game.inputManager;
-        input.keys['x'] = false;
+        if (!this.game?.inputManager) return;
+        this.game.inputManager.keys['x'] = false;
     }
 }

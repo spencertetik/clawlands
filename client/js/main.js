@@ -158,6 +158,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Create game instance
     const game = new Game(canvas);
+    window.game = game; // expose for debugging
 
     // Start game
     game.start();

@@ -359,3 +359,55 @@ body.fullscreen-mode .music-hint {
     top: 12px;
     right: 12px;
 }
+
+/* ─── Mobile overrides (portrait phones) ─── */
+@media (max-width: 768px) and (orientation: portrait) {
+    /* Fill width, use the natural height — game centered in viewport */
+    body.fullscreen-mode {
+        background: #0d0806;
+    }
+
+    body.fullscreen-mode #frame-scene {
+        /* Center the game vertically in the viewport */
+        align-items: flex-start;
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    body.fullscreen-mode #frame-screen {
+        width: 100vw !important;
+        /* Keep 5:4 aspect — game fills width, natural height */
+        height: calc(100vw * 0.8) !important;
+        aspect-ratio: 5 / 4;
+    }
+
+    /* Shrink music hint for mobile */
+    .music-hint {
+        font-size: 11px;
+        padding: 5px 10px;
+        top: 6px;
+        right: 6px;
+    }
+
+    .music-hint kbd {
+        padding: 1px 4px;
+        margin-right: 2px;
+    }
+
+    /* Character builder — fit on small screens */
+    .character-builder {
+        min-width: unset !important;
+        width: 90vw;
+        padding: 16px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+}
+
+/* Landscape phones — game fills the viewport */
+@media (max-width: 920px) and (orientation: landscape) {
+    body.fullscreen-mode #frame-screen {
+        width: 100vw !important;
+        height: 100vh !important;
+        aspect-ratio: unset;
+    }
+}

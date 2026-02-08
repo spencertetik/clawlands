@@ -462,20 +462,24 @@ class Game {
     gameLoop(currentTime) {
         if (!this.running) return;
 
-        // Calculate delta time in seconds
-        const deltaTime = (currentTime - this.lastTime) / 1000;
-        this.lastTime = currentTime;
+        try {
+            // Calculate delta time in seconds
+            const deltaTime = (currentTime - this.lastTime) / 1000;
+            this.lastTime = currentTime;
 
-        // Update
-        this.update(deltaTime);
+            // Update
+            this.update(deltaTime);
 
-        // Render
-        this.render();
+            // Render
+            this.render();
 
-        // Update FPS counter
-        this.updateFPS(deltaTime);
+            // Update FPS counter
+            this.updateFPS(deltaTime);
+        } catch (e) {
+            console.error('Game loop error:', e);
+        }
 
-        // Continue loop
+        // Continue loop (always, even on error — prevents black screen)
         requestAnimationFrame((time) => this.gameLoop(time));
     }
 
@@ -682,8 +686,8 @@ class Game {
             this.combatSystem.update(deltaTime);
         }
 
-        // Update currency display animation
-        if (this.currencySystem) {
+        // Update currency display animation (if method exists)
+        if (this.currencySystem && this.currencySystem.update) {
             this.currencySystem.update(deltaTime);
         }
         
