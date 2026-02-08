@@ -25,3 +25,6 @@ build/
 
 # Local Netlify folder
 .netlify
+*.mp4
+*.mp3
+docs/teaser_frames/

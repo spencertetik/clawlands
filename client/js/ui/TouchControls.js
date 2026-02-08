@@ -267,6 +267,41 @@ class TouchControls {
 
         actions.appendChild(interact);
 
+        // Attack button (X key equivalent) — red, below interact
+        const attack = document.createElement('div');
+        attack.style.cssText = `
+            width: 56px;
+            height: 56px;
+            background: rgba(196, 58, 36, 0.3);
+            border: 3px solid rgba(196, 58, 36, 0.7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-family: monospace;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.9);
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        `;
+        attack.innerHTML = '⚔';
+
+        attack.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            attack.style.background = 'rgba(196, 58, 36, 0.6)';
+            this.pressAttack();
+        }, { passive: false });
+
+        attack.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            attack.style.background = 'rgba(196, 58, 36, 0.3)';
+            this.releaseAttack();
+        }, { passive: false });
+
+        actions.appendChild(attack);
+
         return actions;
     }
 
@@ -370,5 +405,24 @@ class TouchControls {
         
         // Clear the key state
         input.keys[' '] = false;
+    }
+
+    /**
+     * Press attack (X key) - same justPressed pattern as interact
+     */
+    pressAttack() {
+        if (!this.game || !this.game.inputManager) return;
+        const input = this.game.inputManager;
+        input.keys['x'] = true;
+        input.justPressed['x'] = true;
+    }
+
+    /**
+     * Release attack (X key)
+     */
+    releaseAttack() {
+        if (!this.game || !this.game.inputManager) return;
+        const input = this.game.inputManager;
+        input.keys['x'] = false;
     }
 }

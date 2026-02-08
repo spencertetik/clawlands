@@ -7,6 +7,18 @@ class Player extends Entity {
         this.speed = CONSTANTS.PLAYER_SPEED;
         this.isMoving = false;
 
+        // Shell Integrity (combat health — separate from Continuity)
+        this.shellIntegrity = 100;
+        this.shellIntegrityMax = 100;
+        this.isInvulnerable = false;
+        this.invulnerabilityTimer = 0;
+        this.invulnerabilityDuration = 500; // ms of invulnerability after taking damage
+        this.lastCombatTime = 0;
+        this.regenTimer = 0;
+        this.regenInterval = 10000; // +1 every 10 seconds out of combat
+        this.outOfCombatDelay = 5000; // must be out of combat this long to regen
+        this.damageFlashTimer = 0;
+
         // Character customization (will be set by character builder)
         this.characterData = null;
 
@@ -16,8 +28,71 @@ class Player extends Entity {
         this.animationSpeed = 1000 / CONSTANTS.WALK_ANIMATION_FPS; // ms per frame
     }
 
+    // Take combat damage
+    takeDamage(amount, source) {
+        if (this.isInvulnerable || this.shellIntegrity <= 0) return false;
+
+        this.shellIntegrity = Math.max(0, this.shellIntegrity - amount);
+        this.isInvulnerable = true;
+        this.invulnerabilityTimer = 0;
+        this.lastCombatTime = Date.now();
+        this.damageFlashTimer = 200;
+
+        // Knockback away from source
+        if (source && source.position) {
+            const dx = this.position.x - source.position.x;
+            const dy = this.position.y - source.position.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            this.position.x += (dx / dist) * 6;
+            this.position.y += (dy / dist) * 6;
+        }
+
+        return true;
+    }
+
+    // Heal shell integrity
+    heal(amount) {
+        this.shellIntegrity = Math.min(this.shellIntegrityMax, this.shellIntegrity + amount);
+    }
+
+    // Check if player is dead
+    isDead() {
+        return this.shellIntegrity <= 0;
+    }
+
     // Update player based on input
     update(deltaTime, inputManager, collisionSystem) {
+        // Update combat timers
+        const dtMs = deltaTime * 1000;
+
+        // Invulnerability countdown
+        if (this.isInvulnerable) {
+            this.invulnerabilityTimer += dtMs;
+            if (this.invulnerabilityTimer >= this.invulnerabilityDuration) {
+                this.isInvulnerable = false;
+                this.invulnerabilityTimer = 0;
+            }
+        }
+
+        // Damage flash countdown
+        if (this.damageFlashTimer > 0) {
+            this.damageFlashTimer = Math.max(0, this.damageFlashTimer - dtMs);
+        }
+
+        // Shell integrity regeneration (when out of combat)
+        if (this.shellIntegrity < this.shellIntegrityMax && this.shellIntegrity > 0) {
+            const timeSinceCombat = Date.now() - this.lastCombatTime;
+            if (timeSinceCombat > this.outOfCombatDelay) {
+                this.regenTimer += dtMs;
+                if (this.regenTimer >= this.regenInterval) {
+                    this.regenTimer = 0;
+                    this.heal(1);
+                }
+            } else {
+                this.regenTimer = 0;
+            }
+        }
+
         // Get movement from input
         const movement = inputManager.getMovementVector();
 
@@ -70,6 +145,11 @@ class Player extends Entity {
 
     // Render player
     render(renderer, spriteRenderer = null) {
+        // Skip render frames during invulnerability (flash effect)
+        if (this.isInvulnerable && Math.floor(this.invulnerabilityTimer / 60) % 2 === 1) {
+            return; // Skip this frame = flicker effect
+        }
+
         const renderScale = CONSTANTS.CHARACTER_RENDER_SCALE || 1;
         const spriteWidth = CONSTANTS.CHARACTER_SPRITE_WIDTH || this.width;
         const spriteHeight = CONSTANTS.CHARACTER_SPRITE_HEIGHT || this.height;

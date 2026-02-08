@@ -6,7 +6,8 @@ class InputManager {
             a: false,
             s: false,
             d: false,
-            ' ': false, // space
+            ' ': false, // space (interact)
+            x: false,   // attack
             ArrowUp: false,
             ArrowLeft: false,
             ArrowDown: false,
@@ -14,7 +15,8 @@ class InputManager {
         };
 
         this.justPressed = {
-            ' ': false
+            ' ': false,
+            x: false
         };
 
         this.prevKeys = { ...this.keys };
@@ -75,6 +77,8 @@ class InputManager {
     update() {
         // Check for space bar "just pressed" (for interactions)
         this.justPressed[' '] = this.keys[' '] && !this.prevKeys[' '];
+        // Check for X key "just pressed" (for attacks)
+        this.justPressed['x'] = this.keys['x'] && !this.prevKeys['x'];
 
         // Copy current state to previous
         this.prevKeys = { ...this.keys };
@@ -105,9 +109,14 @@ class InputManager {
                this.keys.ArrowLeft || this.keys.ArrowRight;
     }
 
-    // Check if space was just pressed
+    // Check if space was just pressed (interact)
     isInteractPressed() {
         return this.justPressed[' '];
+    }
+
+    // Check if X was just pressed (attack)
+    isAttackPressed() {
+        return this.justPressed['x'];
     }
 
     // Get movement direction name for animations

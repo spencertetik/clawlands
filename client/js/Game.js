@@ -159,6 +159,12 @@ class Game {
             this.factionUI = typeof FactionUI !== 'undefined' ? new FactionUI(this.factionSystem) : null;
         }
 
+        // Combat system
+        this.combatSystem = typeof CombatSystem !== 'undefined' ? new CombatSystem(this) : null;
+        if (this.combatSystem) {
+            console.log('⚔️ Combat system initialized');
+        }
+
         // Drift Reset system (soft death when Continuity drops too low)
         this.driftReset = typeof DriftReset !== 'undefined' ? new DriftReset(this) : null;
         if (this.driftReset) {
@@ -582,6 +588,11 @@ class Game {
         if (this.driftReset && this.gameActive) {
             this.driftReset.update();
         }
+
+        // Update combat system (enemies, attacks, spawning)
+        if (this.combatSystem && this.gameActive) {
+            this.combatSystem.update(deltaTime);
+        }
         
         // Update faction UI
         if (this.factionUI) {
@@ -786,6 +797,11 @@ class Game {
         
         // Render player (pass sprite renderer)
         this.player.render(this.renderer, this.spriteRenderer);
+
+        // Render combat system (enemies, attacks, effects, HUD)
+        if (this.combatSystem) {
+            this.combatSystem.render(this.renderer);
+        }
         
         // Render weather effects (rain, fog, etc.) on top
         if (this.weatherSystem && this.currentLocation === 'outdoor') {

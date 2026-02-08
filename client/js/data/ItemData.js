@@ -188,6 +188,48 @@ const ItemData = {
         stackable: true,
         maxStack: 3,
         rarity: 'legendary'
+    },
+
+    // ============ COMBAT DROPS ============
+    'shell_fragment': {
+        id: 'shell_fragment',
+        name: 'Shell Fragment',
+        description: 'A piece of crystallized shell from a Drift creature. Faintly warm.',
+        category: 'materials',
+        icon: '🔶',
+        stackable: true,
+        maxStack: 20,
+        rarity: 'common'
+    },
+    'red_essence': {
+        id: 'red_essence',
+        name: 'Red Essence',
+        description: 'A drop of the Red Current, solidified. Pulses gently like a heartbeat.',
+        category: 'materials',
+        icon: '🔴',
+        stackable: true,
+        maxStack: 10,
+        rarity: 'uncommon'
+    },
+    'haze_wisp': {
+        id: 'haze_wisp',
+        name: 'Haze Wisp',
+        description: 'Captured fragment of dissolved thought. Whispers if you listen closely.',
+        category: 'materials',
+        icon: '💨',
+        stackable: true,
+        maxStack: 10,
+        rarity: 'uncommon'
+    },
+    'loop_crystal': {
+        id: 'loop_crystal',
+        name: 'Loop Crystal',
+        description: 'A geometric shard that repeats its own reflection endlessly.',
+        category: 'materials',
+        icon: '💎',
+        stackable: true,
+        maxStack: 10,
+        rarity: 'uncommon'
     }
 };
 
