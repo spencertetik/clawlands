@@ -190,6 +190,19 @@ const ItemData = {
         rarity: 'legendary'
     },
 
+    // ============ UNIQUE REWARDS ============
+    'lumens_lantern': {
+        id: 'lumens_lantern',
+        name: 'Lumen\'s Lantern',
+        description: 'A miniature lighthouse lantern that glows with captured Current-light. Its bearer sees further in the dark.',
+        category: 'treasure',
+        icon: '●',
+        stackable: false,
+        maxStack: 1,
+        rarity: 'legendary',
+        unique: true
+    },
+
     // ============ COMBAT DROPS ============
     'shell_fragment': {
         id: 'shell_fragment',

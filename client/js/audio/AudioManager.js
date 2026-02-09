@@ -61,8 +61,9 @@ class AudioManager {
         // If there was a pending play request, execute it now
         if (this.pendingPlay) {
             console.log(`🎵 Playing pending track: ${this.pendingPlay}`);
-            this.play(this.pendingPlay);
+            this.play(this.pendingPlay, true, this.pendingStartOffset || 0);
             this.pendingPlay = null;
+            this.pendingStartOffset = 0;
         }
     }
 
@@ -95,24 +96,29 @@ class AudioManager {
 
     /**
      * Play a track by key (title, overworld, inn, etc.)
+     * @param {string} key - Track key
+     * @param {boolean} crossfade - Whether to crossfade from current track
+     * @param {number} startOffset - Seconds to skip at the beginning (default 0)
      */
-    play(key, crossfade = true) {
+    play(key, crossfade = true, startOffset = 0) {
         const trackName = this.trackList[key] || this.trackList.default;
         
         // If not preloaded yet, queue this request
         if (!this.preloaded) {
             console.log(`🎵 Queuing ${key} - waiting for preload`);
             this.pendingPlay = key;
+            this.pendingStartOffset = startOffset;
             return;
         }
         
-        this.playTrack(trackName, crossfade);
+        this.playTrack(trackName, crossfade, startOffset);
     }
 
     /**
      * Play a track by name with optional crossfade
+     * @param {number} startOffset - Seconds to skip at the beginning (default 0)
      */
-    playTrack(name, crossfade = true) {
+    playTrack(name, crossfade = true, startOffset = 0) {
         if (this.muted) return;
         if (this.currentTrack === name) return; // Already playing
         
@@ -120,6 +126,11 @@ class AudioManager {
         if (!newAudio) {
             console.warn(`🎵 Track not loaded: ${name}`);
             return;
+        }
+
+        // Skip ahead if startOffset specified (e.g. trim slow fade-in)
+        if (startOffset > 0) {
+            newAudio.currentTime = startOffset;
         }
 
         if (crossfade && this.currentAudio) {
@@ -285,10 +296,10 @@ class AudioManager {
     }
 
     /**
-     * Play title screen music
+     * Play title screen music (skips first 3s — original track fades in too slowly)
      */
     playTitle() {
-        this.play('title');
+        this.play('title', true, 3);
     }
 }
 

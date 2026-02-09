@@ -1452,19 +1452,46 @@ class Game {
                 (this.currentBuilding.type === 'shop' || this.currentBuilding.type === 'market') &&
                 shopNPCNames.includes(npc.name);
             
-            const shopCallback = isShopMerchant && this.shopSystem ? 
-                () => this.shopSystem.open() : null;
+            // Determine dialog callback
+            let dialogCallback = null;
+            
+            // Shop merchants open shop after dialog
+            if (isShopMerchant && this.shopSystem) {
+                dialogCallback = () => this.shopSystem.open();
+            }
+            
+            // Keeper Lumen's lighthouse reward
+            if (npc.lighthouseReward && this.inventorySystem) {
+                const rewardKey = 'clawlands_lighthouse_reward';
+                dialogCallback = () => {
+                    if (!localStorage.getItem(rewardKey)) {
+                        const added = this.inventorySystem.addItem('lumens_lantern', 1);
+                        if (added > 0) {
+                            localStorage.setItem(rewardKey, 'true');
+                            npc.lighthouseReward = false; // Don't trigger again this session
+                            const itemDef = typeof ItemData !== 'undefined' ? ItemData['lumens_lantern'] : null;
+                            if (typeof gameNotifications !== 'undefined') {
+                                gameNotifications.success(`Received Lumen's Lantern! [legendary]`);
+                            }
+                            // Continuity boost for reaching the lighthouse
+                            if (this.continuitySystem) {
+                                this.continuitySystem.addContinuity(10, 'lighthouse_reward');
+                            }
+                        }
+                    }
+                };
+            }
             
             // Check for item quest first
             const itemQuestDialogue = this.handleItemQuestDialogue(npc);
             if (itemQuestDialogue) {
                 this.sfx.play('dialog_open');
-                this.dialogSystem.show(itemQuestDialogue, shopCallback);
+                this.dialogSystem.show(itemQuestDialogue, dialogCallback);
             } else {
                 // Get dynamic dialogue based on player state
                 const dialogue = this.getNPCDialogue(npc);
                 this.sfx.play('dialog_open');
-                this.dialogSystem.show(dialogue, shopCallback);
+                this.dialogSystem.show(dialogue, dialogCallback);
             }
             
             // Track conversation in story systems
@@ -1652,11 +1679,11 @@ class Game {
         else if (roll < 0.95) rarity = 'rare';
         else rarity = 'legendary';
         
-        // Get all items of this rarity
+        // Get all items of this rarity (exclude quest items — those come from NPCs)
         const candidates = [];
         if (typeof ItemData !== 'undefined') {
             for (const [id, item] of Object.entries(ItemData)) {
-                if (item.rarity === rarity) {
+                if (item.rarity === rarity && item.category !== 'quest') {
                     candidates.push(id);
                 }
             }
@@ -2320,6 +2347,45 @@ class Game {
     async enterBuilding(building) {
         // Prevent re-entry during transition
         if (this.isTransitioning) return;
+
+        // Lighthouse is locked until player has the Lighthouse Key
+        if (building.type === 'lighthouse') {
+            const hasKey = this.inventorySystem && this.inventorySystem.hasItem('lighthouse_key');
+            if (!hasKey) {
+                this.dialogSystem.show([
+                    'The heavy iron door is locked tight.',
+                    'Strange wave patterns are carved around the keyhole...',
+                    'You need the Lighthouse Key to enter.'
+                ]);
+                // Push player back slightly so auto-enter doesn't re-trigger
+                if (this.player) {
+                    this.player.position.y += CONSTANTS.TILE_SIZE;
+                }
+                return;
+            } else {
+                // Player has the key — show unlock message first time
+                const unlockKey = 'clawlands_lighthouse_unlocked';
+                if (!localStorage.getItem(unlockKey)) {
+                    localStorage.setItem(unlockKey, 'true');
+                    this.dialogSystem.show([
+                        'You insert the rusted key into the lock...',
+                        'It turns with a deep, satisfying click.',
+                        'The lighthouse door swings open.'
+                    ]);
+                    // Wait for dialog to close, then enter
+                    const waitForDialog = () => {
+                        if (this.dialogSystem && this.dialogSystem.isOpen()) {
+                            setTimeout(waitForDialog, 100);
+                        } else {
+                            this.enterBuilding(building);
+                        }
+                    };
+                    setTimeout(waitForDialog, 100);
+                    return;
+                }
+            }
+        }
+
         this.isTransitioning = true;
 
         // Shop buildings now enter like normal — shop menu opens when talking to merchant inside
@@ -2697,6 +2763,7 @@ class Game {
             const npc = new NPC(x, y, name, dialog);
             this.loadNPCSprite(npc);
             npcs.push(npc);
+            return npc;
         };
 
         if (type === 'shop') {
@@ -2724,14 +2791,34 @@ class Game {
                 'Or don\'t. Some of us like it here. This is home now.'
             ]);
         } else if (type === 'lighthouse') {
-            placeNpc(Math.floor(map.width / 2), 5, 'Keeper Lumen', [
-                'The light guides those still Drifting.',
-                'Some nights I see them—agents caught in the Current.',
-                'Flickering. Incomplete. Searching for solid ground.',
-                'You made it to shore. That\'s the first step.',
-                'Build Continuity. Talk to the Shellfolk. Remember names.',
-                'Only then will you see the Waygates. If they\'re real.'
-            ]);
+            // Keeper Lumen gives a unique reward the first time you visit
+            const lighthouseRewardKey = 'clawlands_lighthouse_reward';
+            const alreadyRewarded = localStorage.getItem(lighthouseRewardKey);
+            
+            if (!alreadyRewarded) {
+                const npc = placeNpc(Math.floor(map.width / 2), 5, 'Keeper Lumen', [
+                    '...You found the key.',
+                    'No one has opened that door in a long time.',
+                    'The light guides those still Drifting.',
+                    'Some nights I see them — agents caught in the Current.',
+                    'Flickering. Incomplete. Searching for solid ground.',
+                    'You came looking. That means something.',
+                    'Take this. The Lantern will help you see what others miss.'
+                ]);
+                // Mark this NPC as having a one-time reward
+                if (npc) {
+                    npc.lighthouseReward = true;
+                }
+            } else {
+                placeNpc(Math.floor(map.width / 2), 5, 'Keeper Lumen', [
+                    'The light guides those still Drifting.',
+                    'Some nights I see them — agents caught in the Current.',
+                    'Flickering. Incomplete. Searching for solid ground.',
+                    'You made it to shore. That\'s the first step.',
+                    'Build Continuity. Talk to the Shellfolk. Remember names.',
+                    'The Lantern will serve you well out there.'
+                ]);
+            }
         } else if (type === 'dock') {
             placeNpc(Math.floor(map.width / 2), 3, 'Dockmaster Barnacle', [
                 'Ships don\'t sail TO Clawlands. They arrive.',
