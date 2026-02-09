@@ -11,22 +11,22 @@ class DayNightCycle {
         // Use real time for persistence across sessions
         this.useRealTime = true;
         
-        // Tint colors for different times of day
+        // Tint colors for different times of day (subtle — shouldn't muddy the art)
         this.tints = {
             // Night (0:00 - 5:00)
-            night: { r: 20, g: 30, b: 60, a: 0.25 },
+            night: { r: 15, g: 20, b: 45, a: 0.12 },
             // Dawn (5:00 - 7:00)
-            dawn: { r: 255, g: 180, b: 120, a: 0.15 },
+            dawn: { r: 255, g: 190, b: 130, a: 0.06 },
             // Morning (7:00 - 10:00)
-            morning: { r: 255, g: 250, b: 220, a: 0.05 },
+            morning: { r: 255, g: 250, b: 230, a: 0.02 },
             // Day (10:00 - 17:00)
             day: { r: 0, g: 0, b: 0, a: 0 },
             // Evening (17:00 - 19:00)
-            evening: { r: 255, g: 150, b: 80, a: 0.12 },
+            evening: { r: 255, g: 160, b: 90, a: 0.05 },
             // Dusk (19:00 - 21:00)
-            dusk: { r: 180, g: 100, b: 150, a: 0.2 },
+            dusk: { r: 160, g: 100, b: 130, a: 0.08 },
             // Night again (21:00 - 24:00)
-            lateNight: { r: 30, g: 30, b: 70, a: 0.22 }
+            lateNight: { r: 20, g: 25, b: 55, a: 0.10 }
         };
         
         // Current interpolated tint
