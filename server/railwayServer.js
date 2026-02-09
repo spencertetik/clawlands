@@ -796,10 +796,11 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             const dir = data?.direction?.toLowerCase();
             
             if (dir) {
-                if (dir === 'north' || dir === 'up' || dir === 'n') playerData.y -= step;
-                else if (dir === 'south' || dir === 'down' || dir === 's') playerData.y += step;
-                else if (dir === 'east' || dir === 'right' || dir === 'e') playerData.x += step;
-                else if (dir === 'west' || dir === 'left' || dir === 'w') playerData.x -= step;
+                if (dir === 'north' || dir === 'up' || dir === 'n') { playerData.y -= step; playerData.direction = 'north'; }
+                else if (dir === 'south' || dir === 'down' || dir === 's') { playerData.y += step; playerData.direction = 'south'; }
+                else if (dir === 'east' || dir === 'right' || dir === 'e') { playerData.x += step; playerData.direction = 'east'; }
+                else if (dir === 'west' || dir === 'left' || dir === 'w') { playerData.x -= step; playerData.direction = 'west'; }
+                playerData.isMoving = true;
             }
 
             // Mark dirty for batched tick; don't broadcast immediately
