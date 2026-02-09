@@ -19,7 +19,7 @@ class DialogSystem {
         const container = document.createElement('div');
         container.id = 'dialog-box';
         container.style.cssText = `
-            position: fixed;
+            position: absolute;
             left: 50%;
             bottom: 20px;
             transform: translateX(-50%);
@@ -91,7 +91,9 @@ class DialogSystem {
         });
         container.style.cursor = 'pointer';
 
-        document.body.appendChild(container);
+        // Mount inside game container so it's part of the game screen
+        const gameContainer = document.getElementById('game-container') || document.body;
+        gameContainer.appendChild(container);
 
         this.container = container;
         this.textElement = text;

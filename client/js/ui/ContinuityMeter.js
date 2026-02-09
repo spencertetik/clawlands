@@ -35,7 +35,7 @@ class ContinuityMeter {
         this.container = document.createElement('div');
         this.container.id = 'continuity-meter';
         this.container.style.cssText = `
-            position: fixed;
+            position: absolute;
             top: 50px;
             left: 15px;
             z-index: 1000;
@@ -105,7 +105,9 @@ class ContinuityMeter {
             this.labelElement.style.opacity = '0';
         });
         
-        document.body.appendChild(this.container);
+        // Mount inside game container
+        const gameContainer = document.getElementById('game-container') || document.body;
+        gameContainer.appendChild(this.container);
     }
     
     // Set continuity value (0-100)

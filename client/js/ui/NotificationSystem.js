@@ -25,7 +25,7 @@ class NotificationSystem {
         this.container = document.createElement('div');
         this.container.id = 'notification-container';
         this.container.style.cssText = `
-            position: fixed;
+            position: absolute;
             top: 70px;
             left: 50%;
             transform: translateX(-50%);
@@ -35,10 +35,12 @@ class NotificationSystem {
             align-items: center;
             gap: 4px;
             pointer-events: none;
-            max-width: 90vw;
+            max-width: 90%;
         `;
         
-        document.body.appendChild(this.container);
+        // Mount inside game container
+        const gameContainer = document.getElementById('game-container') || document.body;
+        gameContainer.appendChild(this.container);
     }
     
     // Show a notification

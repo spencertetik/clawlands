@@ -49,11 +49,11 @@ class QuestLogUI {
             document.head.appendChild(style);
         }
         
-        // Full-screen overlay (click to close)
+        // Full-screen overlay — mounted inside game container for integration
         this.overlay = document.createElement('div');
         this.overlay.id = 'quest-log-overlay';
         this.overlay.style.cssText = `
-            position: fixed;
+            position: absolute;
             inset: 0;
             background: rgba(0, 0, 0, 0.55);
             z-index: 4000;
@@ -65,22 +65,24 @@ class QuestLogUI {
             if (e.target === this.overlay) this.hide();
         });
         
-        // Main panel - wider than inventory to accommodate quest descriptions
+        // Main panel — scaled to fit inside game screen
         this.panel = document.createElement('div');
         this.panel.id = 'quest-log-panel';
         this.panel.style.cssText = `
-            width: 480px;
-            max-height: 70vh;
+            width: 90%;
+            max-width: 520px;
+            max-height: 85%;
             background: rgba(13, 8, 6, 0.95);
             border: 2px solid #c43a24;
             border-radius: 8px;
-            padding: 16px;
+            padding: 12px;
             font-family: 'Courier New', monospace;
             color: #e8d5cc;
             box-shadow: 0 0 30px rgba(196, 58, 36, 0.3), inset 0 0 60px rgba(13, 8, 6, 0.5);
             user-select: none;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         `;
         
         // Header row: title + close hint
@@ -168,7 +170,9 @@ class QuestLogUI {
         this.panel.appendChild(this.questList);
         
         this.overlay.appendChild(this.panel);
-        document.body.appendChild(this.overlay);
+        // Mount inside game container so it's part of the game screen
+        const gameContainer = document.getElementById('game-container') || document.body;
+        gameContainer.appendChild(this.overlay);
     }
     
     createTab(tabId, label) {

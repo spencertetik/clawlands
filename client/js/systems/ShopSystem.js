@@ -29,15 +29,12 @@ class ShopSystem {
     }
     
     createUI() {
-        // Main container (hidden by default)
+        // Main container (hidden by default) — inside game container
         this.container = document.createElement('div');
         this.container.id = 'shop-container';
         this.container.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            position: absolute;
+            inset: 0;
             background: rgba(13, 8, 6, 0.95);
             color: #e8d5cc;
             z-index: 3000;
@@ -130,7 +127,9 @@ class ShopSystem {
         this.container.appendChild(tabBar);
         this.container.appendChild(content);
         
-        document.body.appendChild(this.container);
+        // Mount inside game container so it's part of the game screen
+        const gameContainer = document.getElementById('game-container') || document.body;
+        gameContainer.appendChild(this.container);
         
         // Store references
         this.buyTabBtn = buyTab;

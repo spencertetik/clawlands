@@ -52,11 +52,11 @@ class InventoryUI {
             document.head.appendChild(style);
         }
         
-        // Full-screen overlay (click to close)
+        // Full-screen overlay — mounted inside game container for integration
         this.overlay = document.createElement('div');
         this.overlay.id = 'inventory-overlay';
         this.overlay.style.cssText = `
-            position: fixed;
+            position: absolute;
             inset: 0;
             background: rgba(0, 0, 0, 0.55);
             z-index: 4000;
@@ -68,15 +68,16 @@ class InventoryUI {
             if (e.target === this.overlay) this.hide();
         });
         
-        // Main panel
+        // Main panel — wider horizontal layout
         this.panel = document.createElement('div');
         this.panel.id = 'inventory-panel';
         this.panel.style.cssText = `
-            width: 310px;
+            width: 90%;
+            max-width: 520px;
             background: rgba(13, 8, 6, 0.95);
             border: 2px solid #c43a24;
             border-radius: 8px;
-            padding: 16px;
+            padding: 12px;
             font-family: 'Courier New', monospace;
             color: #e8d5cc;
             box-shadow: 0 0 30px rgba(196, 58, 36, 0.3), inset 0 0 60px rgba(13, 8, 6, 0.5);
@@ -129,13 +130,13 @@ class InventoryUI {
         this.slotCountLabel.textContent = '0/20 slots';
         this.panel.appendChild(this.slotCountLabel);
         
-        // Slots grid (4x5)
+        // Slots grid (5x4 — wider horizontal layout)
         this.slotsContainer = document.createElement('div');
         this.slotsContainer.style.cssText = `
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin-bottom: 12px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            margin-bottom: 10px;
         `;
         
         // Create 20 slot elements
@@ -143,8 +144,7 @@ class InventoryUI {
             const slot = document.createElement('div');
             slot.dataset.index = i;
             slot.style.cssText = `
-                width: 62px;
-                height: 62px;
+                aspect-ratio: 1;
                 background: rgba(138, 112, 104, 0.15);
                 border: 2px solid rgba(138, 112, 104, 0.3);
                 border-radius: 4px;
@@ -154,7 +154,7 @@ class InventoryUI {
                 position: relative;
                 cursor: pointer;
                 transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-                font-size: 26px;
+                font-size: 22px;
             `;
             
             slot.addEventListener('mouseenter', () => this.onSlotHover(i));
@@ -182,7 +182,9 @@ class InventoryUI {
         this.panel.appendChild(this.detailPanel);
         
         this.overlay.appendChild(this.panel);
-        document.body.appendChild(this.overlay);
+        // Mount inside game container so it's part of the game screen
+        const gameContainer = document.getElementById('game-container') || document.body;
+        gameContainer.appendChild(this.overlay);
     }
     
     setupKeyBindings() {
