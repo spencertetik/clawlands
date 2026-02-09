@@ -111,9 +111,9 @@ class ContinuitySystem {
             if (amount >= 2 && typeof gameNotifications !== 'undefined' && gameNotifications) {
                 const messages = [
                     'Your presence strengthens...',
-                    'You feel more anchored.',
+                    'You feel more at home.',
                     'The world recognizes you.',
-                    'Continuity building...',
+                    'Reputation growing...',
                     'You\'re becoming more real.'
                 ];
                 const msg = messages[Math.floor(Math.random() * messages.length)];
@@ -161,11 +161,11 @@ class ContinuitySystem {
     
     // Get the current tier name based on value
     getTier() {
-        if (this.value >= 95) return 'anchored';
-        if (this.value >= 70) return 'established';
-        if (this.value >= 40) return 'settling';
-        if (this.value >= 15) return 'drifting';
-        return 'unmoored';
+        if (this.value >= 95) return 'rooted';
+        if (this.value >= 70) return 'known';
+        if (this.value >= 40) return 'familiar';
+        if (this.value >= 15) return 'exploring';
+        return 'new';
     }
     
     // ============ Event Tracking Methods ============

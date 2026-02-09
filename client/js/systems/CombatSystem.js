@@ -767,12 +767,12 @@ class CombatSystem {
         // Row 1: Health bar (simple horizontal bar, not shell icons)
         const healthBarY = y;
         y += 16; // health bar + label
-        y += 4;  // gap
+        y += 8;  // gap between health and tokens
         
-        // Row 2: Brine Tokens
+        // Row 2: Tokens
         const tokenY = y;
         y += 14;
-        y += 4; // gap
+        y += 6; // gap
         
         // Row 3: Continuity tier + bar
         const contY = y;
@@ -864,18 +864,18 @@ class CombatSystem {
 
         // --- CONTINUITY ---
         let contValue = 0;
-        let contTier = 'unmoored';
+        let contTier = 'new';
         if (this.game.continuitySystem) {
             contValue = this.game.continuitySystem.value || 0;
-            contTier = this.game.continuitySystem.getTier ? this.game.continuitySystem.getTier() : 'unmoored';
+            contTier = this.game.continuitySystem.getTier ? this.game.continuitySystem.getTier() : 'new';
         }
 
         const tierColors = {
-            unmoored: '#888888',
-            drifting: '#4a9eff',
-            settling: '#4ade80',
-            established: '#f59e0b',
-            anchored: '#c43a24'
+            'new': '#888888',
+            exploring: '#4a9eff',
+            familiar: '#4ade80',
+            known: '#f59e0b',
+            rooted: '#c43a24'
         };
         const contColor = tierColors[contTier] || '#888888';
 

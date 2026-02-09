@@ -18,14 +18,14 @@ class ContinuityMeter {
         
         // Colors based on tier
         this.tierColors = {
-            unmoored: '#888888',   // Gray - disconnected
-            drifting: '#4a9eff',   // Blue - finding footing
-            settling: '#4ade80',   // Green - establishing
-            established: '#f59e0b', // Gold - solid
-            anchored: '#c43a24'    // Lobster red - fully present
+            'new': '#888888',        // Gray - just arrived
+            exploring: '#4a9eff',   // Blue - finding footing
+            familiar: '#4ade80',    // Green - getting known
+            known: '#f59e0b',       // Gold - solid reputation
+            rooted: '#c43a24'       // Lobster red - fully present
         };
         
-        this.currentColor = this.tierColors.drifting;
+        this.currentColor = this.tierColors.exploring;
         
         this.init();
     }
@@ -111,7 +111,7 @@ class ContinuityMeter {
     }
     
     // Set continuity value (0-100)
-    setValue(value, tier = 'drifting') {
+    setValue(value, tier = 'exploring') {
         const oldTarget = this.targetValue;
         this.targetValue = Math.max(0, Math.min(100, value));
         
@@ -121,7 +121,7 @@ class ContinuityMeter {
         }
         
         // Update color based on tier
-        this.currentColor = this.tierColors[tier] || this.tierColors.drifting;
+        this.currentColor = this.tierColors[tier] || this.tierColors.exploring;
         this.fillElement.style.background = this.currentColor;
         
         // Update label text

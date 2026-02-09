@@ -235,11 +235,11 @@ class NPCMemory {
     }
     
     getContinuityTier(value) {
-        if (value >= 95) return 'anchored';
-        if (value >= 70) return 'established';
-        if (value >= 40) return 'settling';
-        if (value >= 15) return 'drifting';
-        return 'unmoored';
+        if (value >= 95) return 'rooted';
+        if (value >= 70) return 'known';
+        if (value >= 40) return 'familiar';
+        if (value >= 15) return 'exploring';
+        return 'new';
     }
     
     // Helper to select dialogue based on context
@@ -258,8 +258,8 @@ class NPCMemory {
             return dialogueTree.first_meeting;
         }
         
-        if (context.continuityTier === 'anchored' && dialogueTree.continuity_anchored) {
-            return dialogueTree.continuity_anchored;
+        if (context.continuityTier === 'rooted' && (dialogueTree.continuity_rooted || dialogueTree.continuity_anchored)) {
+            return dialogueTree.continuity_rooted || dialogueTree.continuity_anchored;
         }
         
         if (context.affinity >= 75 && dialogueTree.high_affinity) {

@@ -3739,6 +3739,7 @@ class Game {
             .loadImage('tileset_sand_water', 'assets/sprites/tiles/pixellab_sand_water.png')
             .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
             .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_cobblestone.png')
+            .loadImageOptional('tileset_dark_cobble', 'assets/sprites/tiles/dark_cobblestone_tileset.png')
             .loadImageOptional('building_inn_base', 'assets/sprites/buildings/inn_base.png')
             .loadImageOptional('building_inn_roof', 'assets/sprites/buildings/inn_roof.png')
             .loadImageOptional('building_shop_base', 'assets/sprites/buildings/shop_base.png')
@@ -3818,11 +3819,18 @@ class Game {
                     }
                 }
 
-                // Load sand→path transition tileset
+                // Load sand→path transition tileset (light cobblestone)
                 const sandPathTileset = this.assetLoader.getImage('tileset_sand_path');
                 if (sandPathTileset) {
                     this.tileRenderer.addTileset('path', sandPathTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
-                    console.log('✅ Loaded PixelLab sand/path tileset');
+                    console.log('Loaded PixelLab sand/path tileset');
+                }
+                
+                // Load dark cobblestone tileset
+                const darkCobbleTileset = this.assetLoader.getImage('tileset_dark_cobble');
+                if (darkCobbleTileset) {
+                    this.tileRenderer.addTileset('dark_path', darkCobbleTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
+                    console.log('Loaded dark cobblestone tileset');
                 }
 
                 // Always create a simple beach decoration tileset (can be replaced later)
@@ -4526,43 +4534,66 @@ class Game {
         }
     }
     
-    // Build auto-tiled path layer from dirt_path decoration positions
+    // Build auto-tiled path layer from dirt_path and cobblestone_path decoration positions
     buildPathTileLayer() {
         const tileSize = CONSTANTS.TILE_SIZE;
         const tilesWide = this.worldMap.width;
         const tilesHigh = this.worldMap.height;
 
-        // Collect all path positions from decorations
-        const pathPositions = new Set();
+        // Collect path positions by type
+        const lightPathPositions = new Set();
+        const darkPathPositions = new Set();
         for (const decor of this.decorations) {
             if (decor.type === 'dirt_path') {
                 const col = Math.floor(decor.x / tileSize);
                 const row = Math.floor(decor.y / tileSize);
-                pathPositions.add(`${col},${row}`);
+                lightPathPositions.add(`${col},${row}`);
+            } else if (decor.type === 'cobblestone_path') {
+                const col = Math.floor(decor.x / tileSize);
+                const row = Math.floor(decor.y / tileSize);
+                darkPathPositions.add(`${col},${row}`);
             }
         }
 
-        if (pathPositions.size === 0) {
+        const totalPaths = lightPathPositions.size + darkPathPositions.size;
+        if (totalPaths === 0) {
             console.log('No path tiles found, skipping path layer');
             return;
         }
 
-        // Check if the path tileset was loaded
-        if (!this.tileRenderer.tilesets.has('path')) {
-            console.log('Path tileset not loaded, keeping sprite paths');
-            return;
+        const pathAutoTiler = new PathAutoTiler();
+        
+        // Build light cobblestone path layer (from dirt_path)
+        if (lightPathPositions.size > 0 && this.tileRenderer.tilesets.has('path')) {
+            this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(lightPathPositions, tilesWide, tilesHigh);
+            console.log(`Built light path layer: ${lightPathPositions.size} positions`);
+        }
+        
+        // Build dark cobblestone path layer (from cobblestone_path)
+        if (darkPathPositions.size > 0 && this.tileRenderer.tilesets.has('dark_path')) {
+            const darkLayer = pathAutoTiler.buildPathLayer(darkPathPositions, tilesWide, tilesHigh, 'dark_path');
+            
+            // Merge dark layer into pathLayer (dark overwrites light where they overlap)
+            if (!this.worldMap.pathLayer) {
+                this.worldMap.pathLayer = darkLayer;
+            } else {
+                for (let row = 0; row < tilesHigh; row++) {
+                    for (let col = 0; col < tilesWide; col++) {
+                        if (darkLayer[row] && darkLayer[row][col]) {
+                            this.worldMap.pathLayer[row][col] = darkLayer[row][col];
+                        }
+                    }
+                }
+            }
+            console.log(`Built dark cobblestone path layer: ${darkPathPositions.size} positions`);
         }
 
-        // Build the auto-tiled path layer
-        const pathAutoTiler = new PathAutoTiler();
-        this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(pathPositions, tilesWide, tilesHigh);
-
-        // Remove dirt_path decorations since they're now rendered as tiles
+        // Remove path decorations since they're now rendered as tiles
         const beforeCount = this.decorations.length;
-        this.decorations = this.decorations.filter(d => d.type !== 'dirt_path');
+        this.decorations = this.decorations.filter(d => d.type !== 'dirt_path' && d.type !== 'cobblestone_path');
         const removed = beforeCount - this.decorations.length;
 
-        console.log(`🛤️ Built path tile layer: ${pathPositions.size} path positions, removed ${removed} sprite decorations`);
+        console.log(`Built path tile layers: ${totalPaths} total path positions, removed ${removed} sprite decorations`);
     }
 
     // Create a path segment between two points

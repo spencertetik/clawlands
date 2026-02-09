@@ -43,9 +43,10 @@ class PathAutoTiler {
      * @param {Set<string>} pathPositions - Set of "col,row" strings where paths exist
      * @param {number} tilesWide - Map width in tiles
      * @param {number} tilesHigh - Map height in tiles
-     * @returns {Array<Array<object|null>>} 2D array of {id, tileset:'path'} or null
+     * @param {string} tilesetKey - Tileset key to use (default 'path')
+     * @returns {Array<Array<object|null>>} 2D array of {id, tileset} or null
      */
-    buildPathLayer(pathPositions, tilesWide, tilesHigh) {
+    buildPathLayer(pathPositions, tilesWide, tilesHigh, tilesetKey = 'path') {
         // Step 1: Build corner grid
         // Corner grid is (tilesWide+1) x (tilesHigh+1)
         // A corner at (cx, cy) is "upper" (path) if any of its 4 adjacent tiles is a path
@@ -124,7 +125,7 @@ class PathAutoTiler {
                 
                 // Map wang index to PNG tile position
                 const pngPosition = this.wangToPng[wangIndex];
-                pathLayer[row][col] = { id: pngPosition, tileset: 'path' };
+                pathLayer[row][col] = { id: pngPosition, tileset: tilesetKey };
             }
         }
         
