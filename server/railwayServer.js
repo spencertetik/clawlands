@@ -421,7 +421,6 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
             res.end(JSON.stringify({ totalBots: 0, activeBots: 0 }));
         }
 
-    } else {
     // ========== FEEDBACK API ==========
 
     } else if (url.pathname === '/api/feedback' && req.method === 'POST') {
