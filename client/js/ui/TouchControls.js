@@ -226,12 +226,12 @@ class TouchControls {
         `;
 
         // Button configs: SNES diamond layout
-        // X = top (Attack), A = right (Interact), B = bottom (Quest Log), Y = left (Inventory)
+        // X = top (Inventory), Y = left (Quest Log), B = bottom (Attack), A = right (Action/Interact)
         const buttons = [
-            { label: 'ATK', pos: 'top: 0; left: 50%; transform: translateX(-50%);',    color: '#6b5b8a', action: 'attack' },    // X (top) — purple
-            { label: 'ACT', pos: 'right: 0; top: 50%; transform: translateY(-50%);',   color: '#8a3a3a', action: 'interact' },   // A (right) — red
-            { label: 'LOG', pos: 'bottom: 0; left: 50%; transform: translateX(-50%);', color: '#3a6a3a', action: 'questlog' },   // B (bottom) — green
-            { label: 'INV', pos: 'left: 0; top: 50%; transform: translateY(-50%);',    color: '#3a5a8a', action: 'inventory' },  // Y (left) — blue
+            { label: 'X', pos: 'top: 0; left: 50%; transform: translateX(-50%);',    color: '#6b5b8a', action: 'inventory' },  // X (top) — purple
+            { label: 'A', pos: 'right: 0; top: 50%; transform: translateY(-50%);',   color: '#8a3a3a', action: 'interact' },   // A (right) — red
+            { label: 'B', pos: 'bottom: 0; left: 50%; transform: translateX(-50%);', color: '#3a6a3a', action: 'attack' },     // B (bottom) — green
+            { label: 'Y', pos: 'left: 0; top: 50%; transform: translateY(-50%);',    color: '#3a5a8a', action: 'questlog' },   // Y (left) — blue
         ];
 
         for (const b of buttons) {
