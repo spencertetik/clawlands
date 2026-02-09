@@ -1,107 +1,133 @@
-// PathAutoTiler for PixelLab Sand→Path Wang tilesets
-// Maps corner terrain to tile positions in the sand_path tileset PNG
-// "upper" = path present, "lower" = sand (no path)
+// PathAutoTiler for PixelLab Sand→Path Wang 2-Corner Tilesets
+//
+// KEY INSIGHT: Wang 2-corner tiles work on CORNERS, not cells.
+// The corner grid is offset from the tile grid — each tile has 4 corners:
+//   NW = corner(col, row)
+//   NE = corner(col+1, row)  
+//   SW = corner(col, row+1)
+//   SE = corner(col+1, row+1)
+//
+// A corner is "upper" (path) if ANY of the 4 tiles touching it is a path tile.
+// Standard Wang index: NE=1, SE=2, SW=4, NW=8
+// Then we map that index to the actual position in the PixelLab PNG.
+
 class PathAutoTiler {
     constructor() {
-        // Corner pattern → tile position in 4x4 PNG grid
-        // Order: NW, NE, SW, SE
-        this.cornerToTile = {
-            'upper,upper,lower,upper': 0,   // wang_13
-            'upper,lower,upper,lower': 1,   // wang_10
-            'lower,upper,lower,lower': 2,   // wang_4
-            'upper,upper,lower,lower': 3,   // wang_12
-            'lower,upper,upper,lower': 4,   // wang_6
-            'upper,lower,lower,lower': 5,   // wang_8
-            'lower,lower,lower,lower': 6,   // wang_0 (all sand - skip rendering)
-            'lower,lower,lower,upper': 7,   // wang_1
-            'upper,lower,upper,upper': 8,   // wang_11
-            'lower,lower,upper,upper': 9,   // wang_3
-            'lower,lower,upper,lower': 10,  // wang_2
-            'lower,upper,lower,upper': 11,  // wang_5
-            'upper,upper,upper,upper': 12,  // wang_15 (all path)
-            'upper,upper,upper,lower': 13,  // wang_14
-            'upper,lower,lower,upper': 14,  // wang_9
-            'lower,upper,upper,upper': 15,  // wang_7
-        };
+        // Standard Wang index → PNG position in PixelLab tileset
+        // Generated from pixellab_sand_path_metadata.json corner data
+        this.wangToPng = [
+            6,   // wang 0  → all sand (lower everywhere)
+            2,   // wang 1  → NE only
+            7,   // wang 2  → SE only
+            11,  // wang 3  → NE+SE
+            10,  // wang 4  → SW only
+            4,   // wang 5  → NE+SW (diagonal)
+            9,   // wang 6  → SE+SW
+            15,  // wang 7  → NE+SE+SW
+            5,   // wang 8  → NW only
+            3,   // wang 9  → NE+NW
+            14,  // wang 10 → SE+NW (diagonal)
+            0,   // wang 11 → NE+SE+NW
+            1,   // wang 12 → SW+NW
+            13,  // wang 13 → NE+SW+NW
+            8,   // wang 14 → SE+SW+NW
+            12,  // wang 15 → all path (upper everywhere)
+        ];
     }
 
     /**
-     * Build a path tile layer from a set of path positions
+     * Build a path tile layer from a set of path tile positions.
+     * Uses proper Wang 2-corner logic: corners are set based on
+     * which adjacent tiles are paths.
+     * 
      * @param {Set<string>} pathPositions - Set of "col,row" strings where paths exist
      * @param {number} tilesWide - Map width in tiles
      * @param {number} tilesHigh - Map height in tiles
      * @returns {Array<Array<object|null>>} 2D array of {id, tileset:'path'} or null
      */
     buildPathLayer(pathPositions, tilesWide, tilesHigh) {
-        const pathLayer = [];
-
-        const isPath = (col, row) => {
-            return pathPositions.has(`${col},${row}`);
-        };
-
-        for (let row = 0; row < tilesHigh; row++) {
-            pathLayer[row] = [];
-            for (let col = 0; col < tilesWide; col++) {
-                // Only process tiles that are paths or adjacent to paths
-                const currentIsPath = isPath(col, row);
-                
-                // Check if any neighbor is a path
-                const hasPathNeighbor = isPath(col-1, row) || isPath(col+1, row) || 
-                                        isPath(col, row-1) || isPath(col, row+1);
-                
-                if (!currentIsPath && !hasPathNeighbor) {
-                    pathLayer[row][col] = null;
-                    continue;
-                }
-
-                // Determine corner states using cardinal neighbor check
-                const n = isPath(col, row - 1);
-                const e = isPath(col + 1, row);
-                const s = isPath(col, row + 1);
-                const w = isPath(col - 1, row);
-
-                // For current path tiles: corners are "upper" (path) unless edge neighbor is sand
-                // For sand tiles adjacent to path: corners are "lower" (sand) unless edge neighbor is path
-                let nw, ne, sw, se;
-
-                if (currentIsPath) {
-                    // This IS a path tile — check which edges touch sand
-                    // Corner is "lower" only if BOTH adjacent edges are sand
-                    nw = (n || w) ? 'upper' : 'lower';
-                    ne = (n || e) ? 'upper' : 'lower';
-                    sw = (s || w) ? 'upper' : 'lower';
-                    se = (s || e) ? 'upper' : 'lower';
-
-                    // All-path interior tile
-                    if (n && e && s && w) {
-                        nw = ne = sw = se = 'upper';
+        // Step 1: Build corner grid
+        // Corner grid is (tilesWide+1) x (tilesHigh+1)
+        // A corner at (cx, cy) is "upper" (path) if any of its 4 adjacent tiles is a path
+        const cornersWide = tilesWide + 1;
+        const cornersHigh = tilesHigh + 1;
+        
+        const isPath = (col, row) => pathPositions.has(`${col},${row}`);
+        
+        // cornerIsUpper[cy][cx] = true if corner is "path" terrain
+        const cornerIsUpper = [];
+        for (let cy = 0; cy < cornersHigh; cy++) {
+            cornerIsUpper[cy] = [];
+            for (let cx = 0; cx < cornersWide; cx++) {
+                // Corner (cx, cy) is shared by tiles:
+                //   (cx-1, cy-1) = NW tile
+                //   (cx,   cy-1) = NE tile  
+                //   (cx-1, cy)   = SW tile
+                //   (cx,   cy)   = SE tile
+                cornerIsUpper[cy][cx] = 
+                    isPath(cx - 1, cy - 1) || 
+                    isPath(cx,     cy - 1) || 
+                    isPath(cx - 1, cy)     || 
+                    isPath(cx,     cy);
+            }
+        }
+        
+        // Step 2: Build a set of tiles that need path rendering
+        // Only actual path tiles and their immediate neighbors (1 tile border)
+        const relevantTiles = new Set();
+        for (const pos of pathPositions) {
+            const [c, r] = pos.split(',').map(Number);
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr >= 0 && nr < tilesHigh && nc >= 0 && nc < tilesWide) {
+                        relevantTiles.add(`${nc},${nr}`);
                     }
-                } else {
-                    // This is a SAND tile adjacent to path — show transition edge
-                    nw = (n && w) ? 'upper' : (n || w) ? 'lower' : 'lower';
-                    ne = (n && e) ? 'upper' : (n || e) ? 'lower' : 'lower';
-                    sw = (s && w) ? 'upper' : (s || w) ? 'lower' : 'lower';
-                    se = (s && e) ? 'upper' : (s || e) ? 'lower' : 'lower';
-                    
-                    // If all corners are lower, this is pure sand — skip
-                    if (nw === 'lower' && ne === 'lower' && sw === 'lower' && se === 'lower') {
-                        pathLayer[row][col] = null;
-                        continue;
-                    }
-                }
-
-                const key = `${nw},${ne},${sw},${se}`;
-                const tileId = this.cornerToTile[key];
-
-                if (tileId === undefined || tileId === 6) {
-                    // 6 = all sand, skip
-                    pathLayer[row][col] = null;
-                } else {
-                    pathLayer[row][col] = { id: tileId, tileset: 'path' };
                 }
             }
         }
-
+        
+        // Step 3: For each relevant tile, compute Wang index from its 4 corners
+        const pathLayer = [];
+        for (let row = 0; row < tilesHigh; row++) {
+            pathLayer[row] = [];
+            for (let col = 0; col < tilesWide; col++) {
+                // Skip tiles that aren't near any path
+                if (!relevantTiles.has(`${col},${row}`)) {
+                    pathLayer[row][col] = null;
+                    continue;
+                }
+                
+                // Tile (col, row) has corners:
+                //   NW = corner(col,   row)
+                //   NE = corner(col+1, row)
+                //   SW = corner(col,   row+1)
+                //   SE = corner(col+1, row+1)
+                const nw = cornerIsUpper[row][col];
+                const ne = cornerIsUpper[row][col + 1];
+                const sw = cornerIsUpper[row + 1][col];
+                const se = cornerIsUpper[row + 1][col + 1];
+                
+                // Standard Wang 2-corner index: NE=1, SE=2, SW=4, NW=8
+                let wangIndex = 0;
+                if (ne) wangIndex += 1;
+                if (se) wangIndex += 2;
+                if (sw) wangIndex += 4;
+                if (nw) wangIndex += 8;
+                
+                // Skip all-sand tiles (wang index 0)
+                if (wangIndex === 0) {
+                    pathLayer[row][col] = null;
+                    continue;
+                }
+                
+                // Map wang index to PNG tile position
+                const pngPosition = this.wangToPng[wangIndex];
+                pathLayer[row][col] = { id: pngPosition, tileset: 'path' };
+            }
+        }
+        
         return pathLayer;
     }
 }

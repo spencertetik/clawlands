@@ -745,94 +745,103 @@ class CombatSystem {
 
         ctx.save();
 
-        // --- UNIFIED HUD BOX (top-left) ---
-        const boxX = 6;
-        const boxY = 6;
-        const boxWidth = 150;
-        const pad = 4;
-        const lineH = 14;
+        // --- REDESIGNED HUD (top-left) ---
+        // Cleaner, more readable — no weapon name, bigger text, clear labels
+        const boxX = 8;
+        const boxY = 8;
+        const boxWidth = 160;
+        const pad = 6;
 
-        // Calculate layout
-        let contentH = pad;
-        const shellsY = boxY + contentH;
-        contentH += 14; // shell icons row
-        contentH += 3;  // gap
-        const weaponY = boxY + contentH;
-        contentH += lineH; // weapon line
-        const tokenY = boxY + contentH;
-        contentH += lineH; // token line
+        // Calculate layout heights
+        let y = boxY + pad;
+        
+        // Row 1: Health bar (simple horizontal bar, not shell icons)
+        const healthBarY = y;
+        y += 16; // health bar + label
+        y += 4;  // gap
+        
+        // Row 2: Brine Tokens
+        const tokenY = y;
+        y += 14;
+        y += 4; // gap
+        
+        // Row 3: Continuity tier + bar
+        const contY = y;
+        y += 18;
+        y += pad;
+        
+        const boxHeight = y - boxY;
 
-        // Continuity section
+        // Dark background with rounded feel
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.88)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.strokeStyle = '#5a3028';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        // --- HEALTH BAR ---
+        const healthPct = player.shellIntegrity / player.shellIntegrityMax;
+        const isHit = player.isInvulnerable && !player.spawnProtectionActive;
+        const flashOn = isHit && Math.floor(Date.now() / 80) % 2 === 0;
+        
+        // Health bar background
+        const barX = boxX + pad;
+        const barW = boxWidth - pad * 2;
+        const barH = 8;
+        const barY = healthBarY + 2;
+        
+        ctx.fillStyle = '#1a0e0a';
+        ctx.fillRect(barX, barY, barW, barH);
+        
+        // Health bar fill — color changes with health level
+        let barColor;
+        if (flashOn) barColor = '#ff4444';
+        else if (healthPct > 0.6) barColor = '#44aa44';
+        else if (healthPct > 0.3) barColor = '#ccaa33';
+        else barColor = '#cc3333';
+        
+        ctx.fillStyle = barColor;
+        ctx.fillRect(barX + 1, barY + 1, Math.max(0, (barW - 2) * healthPct), barH - 2);
+        
+        // Border
+        ctx.strokeStyle = '#5a3028';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(barX, barY, barW, barH);
+        
+        // Health text (right-aligned percentage or fraction)
+        const shellVal = Math.ceil(player.shellIntegrity);
+        const shellMax = player.shellIntegrityMax;
+        ctx.fillStyle = '#e8d5cc';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${shellVal}/${shellMax}`, barX + barW, barY + barH + 10);
+        
+        // "Shell" label (left-aligned)
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#8a7068';
+        ctx.fillText('Shell', barX, barY + barH + 10);
+
+        // --- BRINE TOKENS ---
+        if (this.game.currencySystem) {
+            const tokens = this.game.currencySystem.getDisplayTokens();
+            ctx.fillStyle = '#8a7068';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('Brine', barX, tokenY + 9);
+            
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(tokens, barX + barW, tokenY + 9);
+        }
+
+        // --- CONTINUITY ---
         let contValue = 0;
         let contTier = 'unmoored';
         if (this.game.continuitySystem) {
             contValue = this.game.continuitySystem.value || 0;
             contTier = this.game.continuitySystem.getTier ? this.game.continuitySystem.getTier() : 'unmoored';
         }
-        const contY = boxY + contentH;
-        contentH += lineH;
-        contentH += pad;
-        const boxHeight = contentH;
-
-        // Dark background
-        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-
-        // Border
-        ctx.strokeStyle = '#8a4030';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-
-        // --- Shell Health Icons (6 shells, 4 quarters each = 24 units) ---
-        const totalShells = 6;
-        const quartersPerShell = 4;
-        const totalQuarters = totalShells * quartersPerShell; // 24 quarter-units
-        const healthPct = player.shellIntegrity / player.shellIntegrityMax;
-        const filledQuarters = Math.ceil(healthPct * totalQuarters);
-        const shellSize = 12;
-        const shellGap = 3;
-        const shellRowX = boxX + pad + 1;
-
-        // Flash shells red on hit
-        const isHit = player.isInvulnerable && !player.spawnProtectionActive;
-        const flashOn = isHit && Math.floor(Date.now() / 80) % 2 === 0;
-
-        for (let i = 0; i < totalShells; i++) {
-            const sx = shellRowX + i * (shellSize + shellGap);
-            const sy = shellsY;
-            const shellStart = i * quartersPerShell;
-            const shellEnd = shellStart + quartersPerShell;
-            
-            // How many quarters filled in this shell (0-4)
-            let quarters = 0;
-            if (filledQuarters >= shellEnd) quarters = 4;
-            else if (filledQuarters > shellStart) quarters = filledQuarters - shellStart;
-            
-            this.drawShellIcon(ctx, sx, sy, shellSize, quarters, flashOn);
-        }
-
-        // --- Weapon ---
-        this.drawSwordIcon(ctx, boxX + pad, weaponY + 2);
-        ctx.fillStyle = '#8a7068';
-        ctx.font = '9px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(this.equippedWeapon.name, boxX + pad + 12, weaponY + 10);
-
-        // --- Brine Tokens ---
-        if (this.game.currencySystem) {
-            const tokens = this.game.currencySystem.getDisplayTokens();
-            this.drawCoinIcon(ctx, boxX + pad, tokenY + 2);
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = 'bold 10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(tokens, boxX + pad + 12, tokenY + 10);
-        }
-
-        // --- Continuity Meter ---
-        const contBarX = boxX + pad;
-        const contBarW = boxWidth - pad * 2;
-        const contBarH = 6;
-        const contBarY = contY + 4;
 
         const tierColors = {
             unmoored: '#888888',
@@ -843,18 +852,24 @@ class CombatSystem {
         };
         const contColor = tierColors[contTier] || '#888888';
 
-        ctx.fillStyle = '#8a7068';
-        ctx.font = '7px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('~' + contTier.toUpperCase(), contBarX, contBarY - 1);
-
-        ctx.fillStyle = '#2a1510';
-        ctx.fillRect(contBarX, contBarY, contBarW, contBarH);
+        // Tier label
         ctx.fillStyle = contColor;
-        ctx.fillRect(contBarX + 1, contBarY + 1, (contBarW - 2) * (contValue / 100), contBarH - 2);
-        ctx.strokeStyle = '#8a4030';
-        ctx.lineWidth = 0.5;
-        ctx.strokeRect(contBarX, contBarY, contBarW, contBarH);
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(contTier.charAt(0).toUpperCase() + contTier.slice(1), barX, contY + 8);
+        
+        // Continuity percentage
+        ctx.fillStyle = '#e8d5cc';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.floor(contValue) + '%', barX + barW, contY + 8);
+
+        // Continuity bar
+        const contBarY = contY + 11;
+        const contBarH = 4;
+        ctx.fillStyle = '#1a0e0a';
+        ctx.fillRect(barX, contBarY, barW, contBarH);
+        ctx.fillStyle = contColor;
+        ctx.fillRect(barX + 1, contBarY + 1, Math.max(0, (barW - 2) * (contValue / 100)), contBarH - 2);
 
         ctx.restore();
     }

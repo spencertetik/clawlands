@@ -3661,7 +3661,7 @@ class Game {
         this.assetLoader
             .loadImage('tileset_sand_water', 'assets/sprites/tiles/sand_water_tileset.png')
             .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
-            .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_path.png')
+            .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_cobblestone.png')
             .loadImageOptional('building_inn_base', 'assets/sprites/buildings/inn_base.png')
             .loadImageOptional('building_inn_roof', 'assets/sprites/buildings/inn_roof.png')
             .loadImageOptional('building_shop_base', 'assets/sprites/buildings/shop_base.png')
