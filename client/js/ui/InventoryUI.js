@@ -388,16 +388,19 @@ class InventoryUI {
     }
     
     onSlotHover(index) {
-        this.showSlotDetails(index);
+        // Only update details if this isn't the selected slot (don't clobber USE button)
+        if (this.selectedSlot === -1 || this.selectedSlot !== index) {
+            this.showSlotDetails(index, false);
+        }
     }
     
     onSlotClick(index) {
         this.selectedSlot = index;
-        this.showSlotDetails(index);
+        this.showSlotDetails(index, true);
         this.refresh();
     }
     
-    showSlotDetails(index) {
+    showSlotDetails(index, isSelected = false) {
         if (!this.inventory) return;
         
         const data = this.inventory.getSlot(index);
@@ -414,44 +417,68 @@ class InventoryUI {
                 const color = rarityColors[itemDef.rarity] || '#8a7068';
                 const categoryLabel = itemDef.category.charAt(0).toUpperCase() + itemDef.category.slice(1);
                 
-                // Usable/heal info
-                let actionHTML = '';
-                if (itemDef.usable && itemDef.healAmount) {
-                    actionHTML = `<div style="margin-top: 6px;">
-                        <span style="color: #44aa44; font-size: 11px;">Heals ${itemDef.healAmount} Shell</span>
-                        <button id="inv-use-btn" style="
-                            background: #44aa44; color: #fff; border: none; padding: 3px 12px;
-                            font-family: monospace; font-size: 11px; cursor: pointer;
-                            margin-left: 8px; border-radius: 2px;
-                        ">USE</button>
-                    </div>`;
-                }
                 // Sell price info
                 let sellHTML = '';
                 if (itemDef.sellPrice) {
-                    sellHTML = `<span style="color: #f5c542; font-size: 10px; margin-left: 8px;">Sells: ${itemDef.sellPrice} BT</span>`;
+                    sellHTML = `<span style="color: #f5c542; font-size: 10px; margin-left: 8px;">Sells: ${itemDef.sellPrice} tokens</span>`;
                 }
 
-                this.detailPanel.innerHTML = `
-                    <div style="color: ${color}; font-weight: bold; font-size: 13px; margin-bottom: 4px;">
-                        ${itemDef.icon} ${itemDef.name}
-                        <span style="font-weight: normal; font-size: 10px; opacity: 0.7;">[${rarityLabel}]</span>
-                    </div>
-                    <div style="color: #e8d5cc; opacity: 0.85;">${itemDef.description}</div>
-                    <div style="color: #8a7068; margin-top: 4px; font-size: 11px;">
-                        ${categoryLabel}${data.quantity > 1 ? ` · Qty: ${data.quantity}` : ''}${sellHTML}
-                    </div>
-                    ${actionHTML}
-                `;
-
-                // Wire up USE button
-                const useBtn = this.detailPanel.querySelector('#inv-use-btn');
-                if (useBtn) {
+                // Clear and rebuild detail panel using DOM (not innerHTML) so buttons work
+                this.detailPanel.innerHTML = '';
+                
+                // Item name + rarity
+                const nameRow = document.createElement('div');
+                nameRow.style.cssText = `color: ${color}; font-weight: bold; font-size: 13px; margin-bottom: 4px;`;
+                nameRow.innerHTML = `${itemDef.icon} ${itemDef.name} <span style="font-weight: normal; font-size: 10px; opacity: 0.7;">[${rarityLabel}]</span>`;
+                this.detailPanel.appendChild(nameRow);
+                
+                // Description
+                const descRow = document.createElement('div');
+                descRow.style.cssText = 'color: #e8d5cc; opacity: 0.85;';
+                descRow.textContent = itemDef.description;
+                this.detailPanel.appendChild(descRow);
+                
+                // Category + quantity + sell price
+                const infoRow = document.createElement('div');
+                infoRow.style.cssText = 'color: #8a7068; margin-top: 4px; font-size: 11px;';
+                infoRow.innerHTML = `${categoryLabel}${data.quantity > 1 ? ` · Qty: ${data.quantity}` : ''}${sellHTML}`;
+                this.detailPanel.appendChild(infoRow);
+                
+                // USE button — shown when slot is clicked/selected and item is usable
+                if (isSelected && itemDef.usable && itemDef.healAmount) {
+                    const actionRow = document.createElement('div');
+                    actionRow.style.cssText = 'margin-top: 8px; display: flex; align-items: center; gap: 8px;';
+                    
+                    const healLabel = document.createElement('span');
+                    healLabel.style.cssText = 'color: #44aa44; font-size: 11px;';
+                    healLabel.textContent = `Heals ${itemDef.healAmount} Shell`;
+                    actionRow.appendChild(healLabel);
+                    
+                    const useBtn = document.createElement('button');
+                    useBtn.textContent = 'USE';
+                    useBtn.style.cssText = `
+                        background: #44aa44; color: #fff; border: none; padding: 4px 16px;
+                        font-family: monospace; font-size: 12px; font-weight: bold; cursor: pointer;
+                        border-radius: 3px; transition: background 0.15s;
+                    `;
+                    useBtn.addEventListener('mouseenter', () => { useBtn.style.background = '#55cc55'; });
+                    useBtn.addEventListener('mouseleave', () => { useBtn.style.background = '#44aa44'; });
                     useBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         this.useItem(index, data.itemId);
                     });
+                    actionRow.appendChild(useBtn);
+                    
+                    this.detailPanel.appendChild(actionRow);
+                } else if (!isSelected && itemDef.usable) {
+                    // Hint to click
+                    const hint = document.createElement('div');
+                    hint.style.cssText = 'margin-top: 6px; color: #8a7068; font-size: 10px; font-style: italic;';
+                    hint.textContent = 'Click to select and use';
+                    this.detailPanel.appendChild(hint);
                 }
+                
                 return;
             }
         }

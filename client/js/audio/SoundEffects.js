@@ -117,42 +117,41 @@ class SoundEffects {
     // Attack swing — fast whoosh
     attackSwing() {
         const t = this.audioCtx.currentTime;
-        const dur = 0.18;
+        const dur = 0.22;
         
-        // Swoosh layer — filtered noise sweep (high to low = whoosh feel)
-        const g = this.createGain(0.4);
+        // Swoosh layer — loud filtered noise sweep
+        const g = this.createGain(1.0);
         const buf = this.noiseBuffer(dur, (i, len) => {
-            // Quick attack, longer decay envelope
             const pos = i / len;
-            const env = pos < 0.15 ? pos / 0.15 : Math.pow(1 - (pos - 0.15) / 0.85, 2);
+            const env = pos < 0.1 ? pos / 0.1 : Math.pow(1 - (pos - 0.1) / 0.9, 1.5);
             return (Math.random() * 2 - 1) * env;
         });
         const src = this.audioCtx.createBufferSource();
         src.buffer = buf;
         const hp = this.audioCtx.createBiquadFilter();
         hp.type = 'highpass';
-        hp.frequency.setValueAtTime(2000, t);
-        hp.frequency.exponentialRampToValueAtTime(400, t + dur);
+        hp.frequency.setValueAtTime(1500, t);
+        hp.frequency.exponentialRampToValueAtTime(300, t + dur);
         const bp = this.audioCtx.createBiquadFilter();
         bp.type = 'bandpass';
-        bp.frequency.setValueAtTime(3000, t);
-        bp.frequency.exponentialRampToValueAtTime(800, t + dur);
-        bp.Q.value = 1.5;
+        bp.frequency.setValueAtTime(2500, t);
+        bp.frequency.exponentialRampToValueAtTime(600, t + dur);
+        bp.Q.value = 1.2;
         src.connect(hp); hp.connect(bp); bp.connect(g);
-        g.gain.setValueAtTime(0.4, t);
+        g.gain.setValueAtTime(1.0, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.start(t); src.stop(t + dur);
         
-        // Tonal whoosh layer — quick descending tone for that sword-cut feel
-        const g2 = this.createGain(0.12);
+        // Tonal whoosh layer — descending tone for sword-cut feel
+        const g2 = this.createGain(0.5);
         const osc = this.audioCtx.createOscillator();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(600, t);
-        osc.frequency.exponentialRampToValueAtTime(150, t + 0.12);
+        osc.frequency.setValueAtTime(500, t);
+        osc.frequency.exponentialRampToValueAtTime(120, t + 0.15);
         osc.connect(g2);
-        g2.gain.setValueAtTime(0.12, t);
-        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-        osc.start(t); osc.stop(t + 0.12);
+        g2.gain.setValueAtTime(0.5, t);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.start(t); osc.stop(t + 0.15);
     }
 
     // Enemy hit — crunchy thud

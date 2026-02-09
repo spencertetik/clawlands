@@ -764,12 +764,12 @@ class CombatSystem {
         // Calculate layout heights
         let y = boxY + pad;
         
-        // Row 1: Health bar (simple horizontal bar, not shell icons)
+        // Row 1: Health bar + "Shell XX/XX" label below it
         const healthBarY = y;
-        y += 16; // health bar + label
-        y += 8;  // gap between health and tokens
+        y += 22; // health bar (8) + text below (10) + padding (4)
+        y += 6;  // gap between health and tokens
         
-        // Row 2: Tokens
+        // Row 2: Tokens (coin icon + number)
         const tokenY = y;
         y += 14;
         y += 6; // gap
