@@ -55,6 +55,13 @@ class SoundEffects {
             case 'quest_complete': return () => this.generateQuestComplete();
             case 'notification': return () => this.generateNotification();
             case 'bulletin_read': return () => this.generateBulletinRead();
+            // Combat sounds
+            case 'enemy_hit': return () => this.generateEnemyHit();
+            case 'enemy_death': return () => this.generateEnemyDeath();
+            case 'player_hit': return () => this.generatePlayerHit();
+            case 'attack_swing': return () => this.generateAttackSwing();
+            // Ambient birds (single chirp burst)
+            case 'bird_chirp': return () => this.generateBirdChirp();
             default:
                 console.warn(`🔊 Unknown sound effect: ${effectName}`);
                 return null;
@@ -257,5 +264,263 @@ class SoundEffects {
         
         source.start();
         source.stop(this.audioCtx.currentTime + 0.2);
+    }
+
+    // ============ COMBAT SOUNDS ============
+
+    // Enemy hit - Crunchy impact (noise burst + low thud)
+    generateEnemyHit() {
+        const t = this.audioCtx.currentTime;
+        const gain = this.createGain();
+        
+        // Low thud
+        const osc = this.audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.1);
+        osc.connect(gain);
+        
+        // Noise crunch
+        const bufferSize = this.audioCtx.sampleRate * 0.08;
+        const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.4 * (1 - i / bufferSize);
+        }
+        const noiseSource = this.audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        const filter = this.audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 800;
+        noiseSource.connect(filter);
+        filter.connect(gain);
+        
+        gain.gain.setValueAtTime(this.volume * 0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        
+        osc.start(t);
+        osc.stop(t + 0.12);
+        noiseSource.start(t);
+        noiseSource.stop(t + 0.08);
+    }
+
+    // Enemy death - Dissolving burst (descending noise + tone)
+    generateEnemyDeath() {
+        const t = this.audioCtx.currentTime;
+        const gain = this.createGain();
+        
+        // Descending tone
+        const osc = this.audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(400, t);
+        osc.frequency.exponentialRampToValueAtTime(80, t + 0.4);
+        osc.connect(gain);
+        
+        // Dissolve noise
+        const bufferSize = this.audioCtx.sampleRate * 0.5;
+        const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            const env = Math.pow(1 - i / bufferSize, 2);
+            data[i] = (Math.random() * 2 - 1) * 0.2 * env;
+        }
+        const noiseSource = this.audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        const filter = this.audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, t);
+        filter.frequency.exponentialRampToValueAtTime(200, t + 0.4);
+        noiseSource.connect(filter);
+        filter.connect(gain);
+        
+        gain.gain.setValueAtTime(this.volume * 0.35, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        
+        osc.start(t);
+        osc.stop(t + 0.45);
+        noiseSource.start(t);
+        noiseSource.stop(t + 0.5);
+    }
+
+    // Player hit - Short sharp pain sting
+    generatePlayerHit() {
+        const t = this.audioCtx.currentTime;
+        const gain = this.createGain();
+        
+        // Sharp descending sting
+        const osc = this.audioCtx.createOscillator();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(600, t);
+        osc.frequency.exponentialRampToValueAtTime(200, t + 0.1);
+        osc.connect(gain);
+        
+        // Noise impact
+        const bufferSize = this.audioCtx.sampleRate * 0.05;
+        const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.5 * (1 - i / bufferSize);
+        }
+        const src = this.audioCtx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(gain);
+        
+        gain.gain.setValueAtTime(this.volume * 0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        
+        osc.start(t);
+        osc.stop(t + 0.12);
+        src.start(t);
+        src.stop(t + 0.05);
+    }
+
+    // Attack swing - Quick whoosh
+    generateAttackSwing() {
+        const t = this.audioCtx.currentTime;
+        const gain = this.createGain();
+        
+        // Filtered noise swoosh
+        const bufferSize = this.audioCtx.sampleRate * 0.15;
+        const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            const env = Math.sin(Math.PI * i / bufferSize); // Bell envelope
+            data[i] = (Math.random() * 2 - 1) * 0.3 * env;
+        }
+        const src = this.audioCtx.createBufferSource();
+        src.buffer = buffer;
+        const filter = this.audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(300, t);
+        filter.frequency.linearRampToValueAtTime(1200, t + 0.08);
+        filter.frequency.linearRampToValueAtTime(200, t + 0.15);
+        filter.Q.value = 2;
+        src.connect(filter);
+        filter.connect(gain);
+        
+        gain.gain.setValueAtTime(this.volume * 0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        
+        src.start(t);
+        src.stop(t + 0.15);
+    }
+
+    // Bird chirp - Quick two-note trill
+    generateBirdChirp() {
+        const t = this.audioCtx.currentTime;
+        const gain = this.createGain();
+        
+        // Random bird pitch variation
+        const basePitch = 1800 + Math.random() * 1200;
+        
+        const osc = this.audioCtx.createOscillator();
+        osc.type = 'sine';
+        // Quick up-down chirp pattern
+        osc.frequency.setValueAtTime(basePitch, t);
+        osc.frequency.linearRampToValueAtTime(basePitch * 1.3, t + 0.04);
+        osc.frequency.linearRampToValueAtTime(basePitch * 0.9, t + 0.08);
+        osc.frequency.linearRampToValueAtTime(basePitch * 1.2, t + 0.12);
+        osc.frequency.linearRampToValueAtTime(basePitch * 0.7, t + 0.18);
+        osc.connect(gain);
+        
+        gain.gain.setValueAtTime(this.volume * 0.12, t);
+        gain.gain.setValueAtTime(this.volume * 0.08, t + 0.06);
+        gain.gain.setValueAtTime(this.volume * 0.1, t + 0.10);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        
+        osc.start(t);
+        osc.stop(t + 0.2);
+    }
+
+    // ============ AMBIENT SYSTEM ============
+    // Continuous background loops for ocean and environment
+
+    // Start ambient ocean loop
+    startOceanAmbient() {
+        if (!this.audioCtx) this.init();
+        if (!this.audioCtx || this._oceanRunning) return;
+        this._oceanRunning = true;
+        
+        // Create a looping ocean buffer (brown noise + gentle modulation)
+        const duration = 4; // seconds
+        const sampleRate = this.audioCtx.sampleRate;
+        const bufferSize = sampleRate * duration;
+        const buffer = this.audioCtx.createBuffer(2, bufferSize, sampleRate); // Stereo
+        
+        // Generate wave-like noise (brown noise with LFO-like volume shaping)
+        for (let ch = 0; ch < 2; ch++) {
+            const data = buffer.getChannelData(ch);
+            let lastSample = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const t = i / sampleRate;
+                // Brown noise (random walk)
+                lastSample += (Math.random() * 2 - 1) * 0.04;
+                lastSample *= 0.998; // Decay
+                
+                // Wave-like volume envelope (slow sine modulation)
+                const waveEnv = 0.5 + 0.5 * Math.sin(t * Math.PI * 2 / 3.5 + ch * 0.5);
+                
+                // Surf-like bursts
+                const surf = Math.max(0, Math.sin(t * Math.PI * 2 / 2.8 + ch * 1.2)) ** 3;
+                
+                data[i] = lastSample * (0.3 + waveEnv * 0.4 + surf * 0.3);
+            }
+        }
+        
+        this._oceanSource = this.audioCtx.createBufferSource();
+        this._oceanSource.buffer = buffer;
+        this._oceanSource.loop = true;
+        
+        // Low-pass filter for deep ocean feel
+        this._oceanFilter = this.audioCtx.createBiquadFilter();
+        this._oceanFilter.type = 'lowpass';
+        this._oceanFilter.frequency.value = 400;
+        
+        this._oceanGain = this.audioCtx.createGain();
+        this._oceanGain.gain.value = 0; // Start silent, will be controlled externally
+        
+        this._oceanSource.connect(this._oceanFilter);
+        this._oceanFilter.connect(this._oceanGain);
+        this._oceanGain.connect(this.audioCtx.destination);
+        
+        this._oceanSource.start();
+        console.log('🌊 Ocean ambient started');
+    }
+
+    // Set ocean volume (0-1) — call from game based on distance to water
+    setOceanVolume(vol) {
+        if (this._oceanGain) {
+            const target = Math.max(0, Math.min(1, vol)) * this.volume * 0.4;
+            this._oceanGain.gain.setTargetAtTime(target, this.audioCtx.currentTime, 0.3);
+        }
+    }
+
+    // Stop ocean ambient
+    stopOceanAmbient() {
+        if (this._oceanSource) {
+            try { this._oceanSource.stop(); } catch (e) {}
+            this._oceanSource = null;
+        }
+        this._oceanRunning = false;
+    }
+
+    // Start random bird chirps (timer-based)
+    startBirdAmbient() {
+        if (this._birdInterval) return;
+        this._birdInterval = setInterval(() => {
+            // Random chance each interval — sparser, more natural
+            if (Math.random() < 0.3) {
+                this.play('bird_chirp');
+            }
+        }, 4000 + Math.random() * 6000); // Every 4-10 seconds
+        console.log('🐦 Bird ambient started');
+    }
+
+    // Stop bird ambient
+    stopBirdAmbient() {
+        if (this._birdInterval) {
+            clearInterval(this._birdInterval);
+            this._birdInterval = null;
+        }
     }
 }

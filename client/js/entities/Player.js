@@ -40,6 +40,11 @@ class Player extends Entity {
         this.lastCombatTime = Date.now();
         this.damageFlashTimer = 200;
 
+        // Play player hit sound
+        if (window.game && window.game.sfx) {
+            window.game.sfx.play('player_hit');
+        }
+
         // Knockback away from source — with collision check to avoid getting pushed into walls/rocks
         if (source && source.position) {
             const dx = this.position.x - source.position.x;

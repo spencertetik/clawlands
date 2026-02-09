@@ -448,6 +448,12 @@ class Game {
             // Mark game as active — item pickups, interactions etc. now enabled
             this.gameActive = true;
             
+            // Start ambient sounds (ocean waves + occasional birds)
+            if (this.sfx) {
+                this.sfx.startOceanAmbient();
+                this.sfx.startBirdAmbient();
+            }
+            
             // Hide DOM HUD panel — now rendered on canvas
             const hudPanel = document.getElementById('hud-panel');
             if (hudPanel) hudPanel.style.display = 'none';
@@ -732,6 +738,38 @@ class Game {
         // Update footstep effects
         if (this.footstepEffects) {
             this.footstepEffects.update(deltaTime, this.player, this.worldMap);
+        }
+        
+        // Update ocean ambient volume based on proximity to water
+        if (this.sfx && this.sfx._oceanRunning && this.worldMap && this.player) {
+            this._oceanCheckTimer = (this._oceanCheckTimer || 0) + deltaTime;
+            if (this._oceanCheckTimer > 0.5) { // Check every 0.5s, not every frame
+                this._oceanCheckTimer = 0;
+                const tileSize = CONSTANTS.TILE_SIZE;
+                const px = Math.floor(this.player.position.x / tileSize);
+                const py = Math.floor(this.player.position.y / tileSize);
+                
+                // Check nearby tiles for water — closer to water = louder ocean
+                let minWaterDist = 20; // tiles
+                for (let dy = -15; dy <= 15; dy++) {
+                    for (let dx = -15; dx <= 15; dx++) {
+                        const tx = px + dx;
+                        const ty = py + dy;
+                        if (tx >= 0 && tx < this.worldMap.width && ty >= 0 && ty < this.worldMap.height) {
+                            if (this.worldMap.terrainMap?.[ty]?.[tx] === 1) {
+                                const dist = Math.sqrt(dx * dx + dy * dy);
+                                if (dist < minWaterDist) minWaterDist = dist;
+                            }
+                        }
+                    }
+                }
+                
+                // Map distance to volume (closer = louder, max at edge, silent far inland)
+                const vol = minWaterDist < 3 ? 1.0 :
+                           minWaterDist < 8 ? 0.6 :
+                           minWaterDist < 15 ? 0.3 : 0.1;
+                this.sfx.setOceanVolume(this.currentLocation === 'outdoor' ? vol : 0.05);
+            }
         }
     }
 

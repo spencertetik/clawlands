@@ -134,6 +134,10 @@ class CombatSystem {
                 // Show resolve UI when enemy starts dying
                 if (enemy.state === 'dying' && enemy.dyingTimer < 50 && !this.pendingResolve) {
                     this.pendingResolve = enemy;
+                    // Play death sound
+                    if (this.game.sfx) {
+                        this.game.sfx.play('enemy_death');
+                    }
                     // Show resolve after a brief moment
                     const resolveEnemy = enemy;
                     setTimeout(() => {
@@ -218,9 +222,9 @@ class CombatSystem {
         this.attackDuration = 200;
         this.attackActiveFrame = true;
 
-        // Play attack sound
+        // Play attack swing sound
         if (this.game.sfx) {
-            this.game.sfx.play('dialog_advance'); // Reuse for now
+            this.game.sfx.play('attack_swing');
         }
 
         // Create attack hitbox based on player direction
@@ -246,6 +250,11 @@ class CombatSystem {
                 const hit = enemy.takeDamage(weapon.damage, knockDir);
                 if (hit) {
                     hitAny = true;
+
+                    // Play hit sound
+                    if (this.game.sfx) {
+                        this.game.sfx.play('enemy_hit');
+                    }
 
                     // Spawn damage number
                     this.damageNumbers.push({
