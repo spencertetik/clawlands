@@ -3050,8 +3050,8 @@ class Game {
         // Combined pool selection happens per-decoration below (90% common, 10% rare)
         
         for (const island of islands) {
-            // Number of decorations based on island size
-            const numDecorations = Math.floor(island.size * 2);
+            // Number of decorations based on island size (reduced for cleaner look)
+            const numDecorations = Math.floor(island.size * 1.2);
             
             for (let i = 0; i < numDecorations; i++) {
                 // Random position within island
@@ -3073,12 +3073,25 @@ class Game {
                 for (const building of this.buildings) {
                     const dx = worldX - (building.x + building.width / 2);
                     const dy = worldY - (building.y + building.height / 2);
-                    if (Math.sqrt(dx*dx + dy*dy) < 40) {
+                    if (Math.sqrt(dx*dx + dy*dy) < 56) {
                         tooClose = true;
                         break;
                     }
                 }
                 if (tooClose) continue;
+                
+                // Check not too close to other decorations (min spacing)
+                let tooCloseToDecor = false;
+                for (const existing of this.decorations) {
+                    if (existing.type === 'dirt_path') continue; // paths don't count
+                    const ddx = worldX - existing.x;
+                    const ddy = worldY - existing.y;
+                    if (Math.sqrt(ddx*ddx + ddy*ddy) < 20) {
+                        tooCloseToDecor = true;
+                        break;
+                    }
+                }
+                if (tooCloseToDecor) continue;
                 
                 // Pick random decoration type (90% common, 10% rare)
                 const useRare = this.seededRandom() < 0.1;
