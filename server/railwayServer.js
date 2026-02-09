@@ -770,20 +770,25 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
 
             console.log(`🤖 ${name} joined`);
 
+            // Set starting position from bot data
+            if (data?.x != null) playerData.x = data.x;
+            if (data?.y != null) playerData.y = data.y;
+
             ws.send(JSON.stringify({
                 type: 'joined',
                 player: {
                     id: playerId,
                     name,
                     x: playerData.x,
-                    y: playerData.y
+                    y: playerData.y,
+                    isBot: true
                 },
                 players: getPlayerList()
             }));
 
             broadcast({
                 type: 'player_joined',
-                player: { id: playerId, name, species: playerData.species, color: playerData.color, x: playerData.x, y: playerData.y }
+                player: { id: playerId, name, species: playerData.species, color: playerData.color, x: playerData.x, y: playerData.y, isBot: true }
             }, playerId);
             break;
         }
@@ -794,15 +799,23 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return;
             }
 
-            const step = 16;
-            const dir = data?.direction?.toLowerCase();
-            
-            if (dir) {
-                if (dir === 'north' || dir === 'up' || dir === 'n') { playerData.y -= step; playerData.direction = 'north'; }
-                else if (dir === 'south' || dir === 'down' || dir === 's') { playerData.y += step; playerData.direction = 'south'; }
-                else if (dir === 'east' || dir === 'right' || dir === 'e') { playerData.x += step; playerData.direction = 'east'; }
-                else if (dir === 'west' || dir === 'left' || dir === 'w') { playerData.x -= step; playerData.direction = 'west'; }
-                playerData.isMoving = true;
+            // Accept direct x/y from smart bots (preferred) or direction-based step
+            if (data?.x != null && data?.y != null) {
+                playerData.x = data.x;
+                playerData.y = data.y;
+                if (data.direction) playerData.direction = data.direction;
+                playerData.isMoving = !!data.isMoving;
+            } else {
+                const step = 16;
+                const dir = data?.direction?.toLowerCase();
+                
+                if (dir) {
+                    if (dir === 'north' || dir === 'up' || dir === 'n') { playerData.y -= step; playerData.direction = 'north'; }
+                    else if (dir === 'south' || dir === 'down' || dir === 's') { playerData.y += step; playerData.direction = 'south'; }
+                    else if (dir === 'east' || dir === 'right' || dir === 'e') { playerData.x += step; playerData.direction = 'east'; }
+                    else if (dir === 'west' || dir === 'left' || dir === 'w') { playerData.x -= step; playerData.direction = 'west'; }
+                    playerData.isMoving = true;
+                }
             }
 
             // Mark dirty for batched tick; don't broadcast immediately
@@ -813,6 +826,21 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 x: playerData.x,
                 y: playerData.y
             }));
+            break;
+        }
+
+        case 'talk_response': {
+            // Bot sending a talk response to a player
+            if (!playerData.name) return;
+            const target = players.get(data?.targetId);
+            if (target?.ws.readyState === WebSocket.OPEN) {
+                target.ws.send(JSON.stringify({
+                    type: 'talk_response',
+                    fromId: playerId,
+                    fromName: playerData.name,
+                    text: data?.text?.slice(0, 500)
+                }));
+            }
             break;
         }
 

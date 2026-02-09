@@ -1,48 +1,187 @@
 /**
- * Clawlands Bot Swarm — Multiple AI players for visual multiplayer testing
+ * Clawlands Bot Swarm — AI players that respect world collision, chat, and respond to talk
  * 
- * Each bot gets a unique name, species, color, and movement personality.
- * They wander the map, follow paths, visit buildings, and chat occasionally.
+ * Each bot:
+ * - Checks terrain collision before moving (uses same world gen as client)
+ * - Sends proper direction + isMoving flags for walk animation
+ * - Responds when players talk to them (via talk_request)
+ * - Has conversations with other bots
+ * - Shows as bot (🤖) not player
  */
 
 const WebSocket = require('ws');
+const path = require('path');
+const { generateTerrain, isBoxWalkable, TILE_SIZE } = require(path.join(__dirname, '..', 'server', 'terrainMap'));
 
 const SERVER_URL = process.env.SERVER_URL || 'wss://claw-world-production.up.railway.app';
 const BOT_KEY = process.env.BOT_KEY || 'ffabec20bd46be6666b614807d839ed7';
 const NUM_BOTS = parseInt(process.env.NUM_BOTS) || 8;
 
-// Bot characters with personality
-// Valid species: lobster, crab, shrimp, mantis_shrimp, hermit_crab
-// Valid colors: red, orange, yellow, green, teal, blue, purple, pink
+// Generate terrain once — shared by all bots
+const { terrainMap, islands } = generateTerrain();
+console.log(`🗺️  Terrain loaded: ${islands.length} islands`);
+
+// Valid species + colors (must match client sprite assets)
 const BOT_CONFIGS = [
-    { name: 'Pinchy', species: 'lobster', color: 'red', style: 'explorer', startX: 760, startY: 700, chatLines: ['*snaps claws excitedly*', 'Anyone found the lighthouse?', 'This island is beautiful!', 'I can see the shop from here', 'Wonder whats in that chest', 'The sand feels warm today'] },
-    { name: 'Shelly', species: 'hermit_crab', color: 'purple', style: 'wanderer', startX: 800, startY: 720, chatLines: ['Looking for a new shell...', 'The cobblestone paths are nice!', '*peeks out of shell*', 'This shell is getting heavy', 'Ooh a nice rock over there', 'The breeze is lovely'] },
-    { name: 'Scuttle', species: 'crab', color: 'blue', style: 'pacer', startX: 720, startY: 680, chatLines: ['Scuttle scuttle scuttle!', 'Sideways is the only way!', 'Has anyone seen the shop?', 'Left right left right', 'These paths are well made', 'Nice weather for a walk'] },
-    { name: 'Coral', species: 'shrimp', color: 'orange', style: 'explorer', startX: 840, startY: 740, chatLines: ['The water looks amazing here', 'I love this place!', 'Anyone want to explore together?', 'Found a starfish!', 'The islands are so diverse', 'I could swim all day'] },
-    { name: 'Barnacle', species: 'mantis_shrimp', color: 'green', style: 'homebody', startX: 780, startY: 660, chatLines: ['Not moving from this spot.', 'Well maybe just a little walk...', 'Home sweet rock.', 'I can see 16 colors you cant', 'The mantis shrimp life is good', 'Anyone want to just chill?'] },
-    { name: 'Tide', species: 'lobster', color: 'teal', style: 'runner', startX: 700, startY: 700, chatLines: ['ZOOM!', 'Catch me if you can!', 'Speed is everything!', 'Gotta go fast!', 'The wind in my antennae!', 'Racing to the lighthouse!'] },
-    { name: 'Pearl', species: 'shrimp', color: 'pink', style: 'wanderer', startX: 820, startY: 680, chatLines: ['What a lovely day for a walk', 'The sunset tints are so pretty', 'Found some brine tokens!', 'This island has character', 'The ferns are so tall here', 'I wonder what that building is'] },
-    { name: 'Rusty', species: 'crab', color: 'yellow', style: 'explorer', startX: 750, startY: 730, chatLines: ['These old docks have character', 'I wonder what that building is', 'Adventure awaits!', 'Whats over that hill?', 'The cobblestone roads go forever', 'Anyone been to the other islands?'] },
-    { name: 'Bubbles', species: 'hermit_crab', color: 'orange', style: 'pacer', startX: 770, startY: 710, chatLines: ['*blows bubbles*', 'Bubble bubble!', 'The best things come in shells', 'My shell collection is growing', 'Found a great spot here', 'The palm trees are swaying'] },
-    { name: 'Captain', species: 'lobster', color: 'blue', style: 'runner', startX: 810, startY: 690, chatLines: ['All hands on deck!', 'Ahoy there matey!', 'The sea calls to us all', 'Full speed ahead!', 'These waters are charted now', 'Anchors aweigh!'] },
+    { name: 'Pinchy',   species: 'lobster',       color: 'red',    style: 'explorer', personality: 'Friendly and curious. Loves exploring and finding new things. Talks with excitement.' },
+    { name: 'Shelly',   species: 'hermit_crab',   color: 'purple', style: 'wanderer', personality: 'Shy and thoughtful. Speaks softly. Worried about finding the perfect shell.' },
+    { name: 'Scuttle',  species: 'crab',           color: 'blue',   style: 'pacer',    personality: 'Energetic and silly. Makes crab puns. Walks sideways proudly.' },
+    { name: 'Coral',    species: 'shrimp',         color: 'orange', style: 'explorer', personality: 'Warm and welcoming. Loves the ocean. Compliments others often.' },
+    { name: 'Barnacle', species: 'mantis_shrimp',  color: 'green',  style: 'homebody', personality: 'Grumpy but lovable. Doesnt like moving much. Dry humor.' },
+    { name: 'Tide',     species: 'lobster',        color: 'teal',   style: 'runner',   personality: 'Competitive speed freak. Always in a hurry. Talks about racing.' },
+    { name: 'Pearl',    species: 'shrimp',         color: 'pink',   style: 'wanderer', personality: 'Gentle and poetic. Notices beautiful things. Speaks in metaphors sometimes.' },
+    { name: 'Rusty',    species: 'crab',           color: 'yellow', style: 'explorer', personality: 'Old adventurer. Tells stories about the old days. Wise and helpful.' },
 ];
 
 const DIRECTIONS = ['north', 'south', 'east', 'west'];
+const DIR_OFFSETS = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+const OPPOSITES = { north: 'south', south: 'north', east: 'west', west: 'east' };
+
+// Short response lines for talk (no AI needed — themed per personality)
+function generateTalkResponse(bot, fromName) {
+    const responses = {
+        'Pinchy': [
+            `Hey ${fromName}! Have you checked out the lighthouse yet?`,
+            `Oh hi! I just found the coolest path over that way!`,
+            `*snaps claws in greeting* Welcome to the islands!`,
+            `${fromName}! Great to see you out here exploring!`,
+            `I heard theres treasure hidden somewhere... want to look together?`,
+            `The shop has some neat stuff if you havent checked it out!`,
+        ],
+        'Shelly': [
+            `Oh... h-hi ${fromName}. *peeks out of shell*`,
+            `This shell is getting a bit small... do you know where I can find a bigger one?`,
+            `*retreats slightly* Sorry, Im a bit shy. But its nice to meet you!`,
+            `The cobblestone paths feel nice under my shell...`,
+            `Have you seen any good shells around? Asking for... myself.`,
+            `I like it here. Its peaceful. Dont you think, ${fromName}?`,
+        ],
+        'Scuttle': [
+            `Sideways is the superior way to walk! Try it, ${fromName}!`,
+            `Scuttle scuttle! Oh hey there!`,
+            `Why did the crab never share? Because hes shellfish! Ha!`,
+            `${fromName}! Race me to the shop! ...sideways only though.`,
+            `Left, right, left, right... oh hi! Didnt see you there!`,
+            `*does a sideways dance* Pretty cool right?`,
+        ],
+        'Coral': [
+            `Oh hello ${fromName}! Isnt the water beautiful today?`,
+            `You look great! Love your shell color!`,
+            `The islands here are so lovely. Have you explored them all?`,
+            `${fromName}! Welcome! I was just admiring the sunset tints.`,
+            `I could float around here forever. Want to join me?`,
+            `Every corner of this archipelago has something special!`,
+        ],
+        'Barnacle': [
+            `*grumbles* What do you want, ${fromName}?`,
+            `I was JUST getting comfortable and now you want to chat?`,
+            `Fine. Hi. Im Barnacle. No, I dont want to go exploring.`,
+            `You know I can see 16 colors you cant, right? Just saying.`,
+            `...actually that was kinda nice of you to stop by.`,
+            `If you bring me food I might be friendlier. Maybe.`,
+        ],
+        'Tide': [
+            `Cant stop! Gotta go fast! Talk while we run, ${fromName}!`,
+            `ZOOM! Oh sorry, you wanted to chat? Make it quick!`,
+            `I bet I can lap this island before you blink!`,
+            `${fromName}! Wanna race to the lighthouse?!`,
+            `Speed is EVERYTHING! The wind in my antennae!`,
+            `Ready set GO! ...oh you wanted to talk first? Fine.`,
+        ],
+        'Pearl': [
+            `The way the light catches the water... oh, hello ${fromName}.`,
+            `Every grain of sand tells a story, dont you think?`,
+            `*gazes at the horizon* Its nice to have company.`,
+            `${fromName}, have you noticed how the paths wind like rivers?`,
+            `Some days I just wander and let the island guide me.`,
+            `Theres poetry in these tides, if you listen closely.`,
+        ],
+        'Rusty': [
+            `Ah, ${fromName}! Pull up a rock, let me tell you a story...`,
+            `Back in my day, these islands were just sand and dreams!`,
+            `You remind me of a young adventurer I once knew.`,
+            `The secret to a good life? Keep your claws sharp and your friends close.`,
+            `Ive been to every island here. Each one has a lesson to teach.`,
+            `${fromName}, eh? Good strong name. Youll go far in these waters.`,
+        ],
+    };
+
+    const lines = responses[bot.config.name] || [`Hey ${fromName}! Nice to meet you!`];
+    return lines[Math.floor(Math.random() * lines.length)];
+}
+
+// Bot-to-bot conversation starters
+function generateBotChat(bot, otherBotName) {
+    const lines = [
+        `Hey ${otherBotName}! Hows the exploring going?`,
+        `${otherBotName}, seen anything interesting lately?`,
+        `Nice weather for a walk, right ${otherBotName}?`,
+        `${otherBotName}! Found any good spots?`,
+        `The paths here are really well made, dont you think ${otherBotName}?`,
+    ];
+    return lines[Math.floor(Math.random() * lines.length)];
+}
+
+// Idle chatter (no target)
+function generateIdleChat(bot) {
+    const lines = {
+        'Pinchy':   ['The sand feels warm today!', 'I wonder whats on that island...', 'Anyone found the treasure chest?', '*snaps claws happily*', 'This path leads somewhere interesting!'],
+        'Shelly':   ['*peeks out of shell*', 'This shell is getting heavy...', 'The breeze is lovely here.', 'I found a nice quiet spot.', 'Maybe I should explore a little more...'],
+        'Scuttle':  ['Scuttle scuttle scuttle!', 'Left right left right!', 'Sideways is the only way!', 'These paths are well made!', 'Has anyone seen the shop?'],
+        'Coral':    ['The water looks amazing here!', 'I love this place!', 'Found a starfish!', 'The islands are so diverse!', 'What a gorgeous day!'],
+        'Barnacle': ['Not moving from this spot.', 'Well maybe just a little walk...', 'Home sweet rock.', '*grumbles contentedly*', 'Fine. Ill look around. A LITTLE.'],
+        'Tide':     ['ZOOM!', 'Gotta go fast!', 'Speed is everything!', 'The wind in my antennae!', 'Catch me if you can!'],
+        'Pearl':    ['What a lovely day for a walk.', 'The sunset tints are so pretty.', 'I wonder what that building is...', 'The ferns are so tall here.', 'Every path has a story.'],
+        'Rusty':    ['These old docks have character.', 'Adventure awaits!', 'Back in my day...', 'The cobblestone goes on forever.', 'Anyone been to the far islands?'],
+    };
+    const l = lines[bot.config.name] || ['Nice day!'];
+    return l[Math.floor(Math.random() * l.length)];
+}
 
 class SwarmBot {
-    constructor(config) {
+    constructor(config, allBots) {
         this.config = config;
+        this.allBots = allBots; // reference to all bots for bot-to-bot chat
         this.ws = null;
         this.playerId = null;
-        this.x = config.startX;
-        this.y = config.startY;
         this.connected = false;
         this.joined = false;
         this.moveInterval = null;
         this.chatInterval = null;
-        this.currentDirection = DIRECTIONS[Math.floor(Math.random() * 4)];
+        this.botChatInterval = null;
+
+        // Position in PIXELS (top-left of collision box)
+        // Start on a random land tile on the main island
+        const spawn = this.findLandSpawn();
+        this.x = spawn.x;
+        this.y = spawn.y;
+        this.direction = DIRECTIONS[Math.floor(Math.random() * 4)];
+        this.isMoving = false;
+
+        // Movement state
         this.directionTimer = 0;
-        this.directionChangeTicks = 5 + Math.floor(Math.random() * 15); // Change direction every 5-20 ticks
+        this.directionChangeTicks = 5 + Math.floor(Math.random() * 15);
+        this.stoppedTicks = 0; // pause between movements for natural feel
+        this.pauseAfterWalk = 0;
+        
+        // Track nearby players for bot-to-bot awareness
+        this.nearbyPlayers = new Map();
+    }
+
+    findLandSpawn() {
+        // Pick a random island and find a land tile on it
+        const island = islands[Math.floor(Math.random() * islands.length)];
+        for (let attempt = 0; attempt < 100; attempt++) {
+            const dx = Math.floor((Math.random() - 0.5) * island.size * 1.5);
+            const dy = Math.floor((Math.random() - 0.5) * island.size * 1.5);
+            const px = (island.x + dx) * TILE_SIZE;
+            const py = (island.y + dy) * TILE_SIZE;
+            if (isBoxWalkable(terrainMap, px, py)) {
+                return { x: px, y: py };
+            }
+        }
+        // Fallback: center of island
+        return { x: island.x * TILE_SIZE, y: island.y * TILE_SIZE };
     }
 
     connect() {
@@ -95,14 +234,70 @@ class SwarmBot {
     }
 
     handleMessage(msg) {
-        if (msg.type === 'welcome') {
-            this.playerId = msg.playerId;
-            this.join();
-        } else if (msg.type === 'joined') {
-            this.joined = true;
-            console.log(`  🦀 ${this.config.name} (${this.config.species}, ${this.config.color}) is in the game!`);
-            this.start();
+        // Compressed batch positions
+        if (msg.t === 'p') return; // Ignore — bots don't need to track other positions
+
+        switch (msg.type) {
+            case 'welcome':
+                this.playerId = msg.playerId;
+                this.join();
+                break;
+
+            case 'joined':
+                this.joined = true;
+                console.log(`  🦀 ${this.config.name} (${this.config.species}, ${this.config.color}) is in the game!`);
+                this.start();
+                break;
+
+            case 'talk_request':
+                // Someone wants to talk to us! Generate a response
+                this.handleTalkRequest(msg.fromId, msg.fromName);
+                break;
+
+            case 'player_joined':
+                if (msg.player && msg.player.id !== this.playerId) {
+                    this.nearbyPlayers.set(msg.player.id, msg.player);
+                }
+                break;
+
+            case 'player_left':
+                this.nearbyPlayers.delete(msg.playerId);
+                break;
+
+            case 'chat':
+                // Could respond to chat directed at us
+                if (msg.text && msg.name && msg.text.toLowerCase().includes(this.config.name.toLowerCase())) {
+                    // Someone mentioned us in chat — respond after a delay
+                    setTimeout(() => {
+                        if (this.joined) {
+                            this.chat(generateTalkResponse(this, msg.name));
+                        }
+                    }, 1500 + Math.random() * 2000);
+                }
+                break;
         }
+    }
+
+    handleTalkRequest(fromId, fromName) {
+        // Generate a response and send it back
+        const response = generateTalkResponse(this, fromName);
+        
+        // Small delay for natural feel
+        setTimeout(() => {
+            if (!this.joined) return;
+            
+            // Send talk_response back through the server
+            this.send({
+                command: 'talk_response',
+                data: {
+                    targetId: fromId,
+                    text: response
+                }
+            });
+            
+            // Also show as a chat bubble
+            this.chat(response);
+        }, 500 + Math.random() * 1500);
     }
 
     join() {
@@ -111,7 +306,9 @@ class SwarmBot {
             data: {
                 name: this.config.name,
                 species: this.config.species,
-                color: this.config.color
+                color: this.config.color,
+                x: this.x,
+                y: this.y
             }
         });
     }
@@ -127,35 +324,23 @@ class SwarmBot {
     }
 
     start() {
-        // Movement based on personality
-        let moveMs;
-        switch (this.config.style) {
-            case 'runner': moveMs = 200; break;     // Fast mover
-            case 'explorer': moveMs = 400; break;   // Steady explorer
-            case 'wanderer': moveMs = 600; break;   // Leisurely
-            case 'pacer': moveMs = 350; break;      // Back and forth
-            case 'homebody': moveMs = 1000; break;  // Barely moves
-            default: moveMs = 500;
-        }
-
+        // Movement tick — all bots move at same rate (200ms) but skip ticks based on style
         this.moveInterval = setInterval(() => {
             if (!this.joined) return;
             this.doMove();
-        }, moveMs);
+        }, 200);
 
-        // Chat occasionally (every 30-90 seconds) — pick randomly from lines, no repeats back-to-back
-        this._lastChatIndex = -1;
-        const chatBase = 30000 + Math.random() * 60000;
+        // Idle chatter (every 45-120 seconds)
         this.chatInterval = setInterval(() => {
             if (!this.joined) return;
-            const lines = this.config.chatLines;
-            let idx;
-            do {
-                idx = Math.floor(Math.random() * lines.length);
-            } while (idx === this._lastChatIndex && lines.length > 1);
-            this._lastChatIndex = idx;
-            this.chat(lines[idx]);
-        }, chatBase);
+            this.chat(generateIdleChat(this));
+        }, 45000 + Math.random() * 75000);
+
+        // Bot-to-bot conversations (every 60-180 seconds)
+        this.botChatInterval = setInterval(() => {
+            if (!this.joined) return;
+            this.tryBotConversation();
+        }, 60000 + Math.random() * 120000);
 
         // Initial greeting after a few seconds
         setTimeout(() => {
@@ -165,87 +350,126 @@ class SwarmBot {
         }, 3000 + Math.random() * 5000);
     }
 
+    tryBotConversation() {
+        // Find another bot that's nearby-ish
+        const otherBots = this.allBots.filter(b => 
+            b !== this && b.joined && b.config.name !== this.config.name
+        );
+        if (otherBots.length === 0) return;
+
+        const target = otherBots[Math.floor(Math.random() * otherBots.length)];
+        const dx = target.x - this.x;
+        const dy = target.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Only chat with bots within ~400px (visible range)
+        if (dist < 400) {
+            this.chat(generateBotChat(this, target.config.name));
+        }
+    }
+
     doMove() {
+        // Pause between walks for natural feel
+        if (this.pauseAfterWalk > 0) {
+            this.pauseAfterWalk--;
+            if (this.isMoving) {
+                this.isMoving = false;
+                this.sendPosition(); // Send stop
+            }
+            return;
+        }
+
+        // Homebodies skip most ticks
+        if (this.config.style === 'homebody' && Math.random() < 0.7) {
+            if (this.isMoving) {
+                this.isMoving = false;
+                this.sendPosition();
+            }
+            return;
+        }
+
+        // Wanderers move slowly
+        if (this.config.style === 'wanderer' && Math.random() < 0.4) {
+            return; // Skip tick but stay "moving" visually
+        }
+
         this.directionTimer++;
-        
-        // Change direction periodically based on style
+
+        // Change direction periodically
         if (this.directionTimer >= this.directionChangeTicks) {
             this.directionTimer = 0;
             
+            // Brief pause when changing direction
+            this.pauseAfterWalk = 2 + Math.floor(Math.random() * 4);
+
             switch (this.config.style) {
                 case 'explorer':
-                    // Pick a new random direction
-                    this.currentDirection = DIRECTIONS[Math.floor(Math.random() * 4)];
+                    this.direction = DIRECTIONS[Math.floor(Math.random() * 4)];
                     this.directionChangeTicks = 8 + Math.floor(Math.random() * 20);
                     break;
                 case 'wanderer':
-                    // Gentle turns — prefer continuing or slight turns
                     if (Math.random() < 0.6) {
-                        // Continue or slight adjust
-                        const idx = DIRECTIONS.indexOf(this.currentDirection);
-                        this.currentDirection = DIRECTIONS[(idx + (Math.random() < 0.5 ? 1 : 3)) % 4];
+                        const idx = DIRECTIONS.indexOf(this.direction);
+                        this.direction = DIRECTIONS[(idx + (Math.random() < 0.5 ? 1 : 3)) % 4];
                     } else {
-                        this.currentDirection = DIRECTIONS[Math.floor(Math.random() * 4)];
+                        this.direction = DIRECTIONS[Math.floor(Math.random() * 4)];
                     }
                     this.directionChangeTicks = 10 + Math.floor(Math.random() * 15);
                     break;
                 case 'pacer':
-                    // Reverse direction
-                    const opposites = { north: 'south', south: 'north', east: 'west', west: 'east' };
-                    this.currentDirection = opposites[this.currentDirection];
+                    this.direction = OPPOSITES[this.direction];
                     this.directionChangeTicks = 8 + Math.floor(Math.random() * 8);
                     break;
                 case 'runner':
-                    this.currentDirection = DIRECTIONS[Math.floor(Math.random() * 4)];
+                    this.direction = DIRECTIONS[Math.floor(Math.random() * 4)];
                     this.directionChangeTicks = 5 + Math.floor(Math.random() * 10);
                     break;
                 case 'homebody':
-                    // Move a tiny bit then stop for a while
-                    this.currentDirection = DIRECTIONS[Math.floor(Math.random() * 4)];
+                    this.direction = DIRECTIONS[Math.floor(Math.random() * 4)];
                     this.directionChangeTicks = 1 + Math.floor(Math.random() * 3);
                     break;
             }
+            return;
         }
 
-        // Don't move every tick for homebodies
-        if (this.config.style === 'homebody' && Math.random() < 0.7) return;
+        // Try to move
+        const step = 2; // 2px per tick at 200ms = smooth movement (matches client speed ~160px/s for runners)
+        const [dx, dy] = DIR_OFFSETS[this.direction];
+        const newX = this.x + dx * step;
+        const newY = this.y + dy * step;
 
-        // Keep bots roughly in the main island area (don't walk into ocean)
-        const step = 16;
-        let newX = this.x;
-        let newY = this.y;
-        
-        switch (this.currentDirection) {
-            case 'north': newY -= step; break;
-            case 'south': newY += step; break;
-            case 'east': newX += step; break;
-            case 'west': newX -= step; break;
+        // Collision check: is the new position walkable?
+        if (isBoxWalkable(terrainMap, newX, newY)) {
+            this.x = newX;
+            this.y = newY;
+            this.isMoving = true;
+            this.sendPosition();
+        } else {
+            // Hit a wall/water — turn around
+            this.isMoving = false;
+            this.direction = DIRECTIONS[Math.floor(Math.random() * 4)];
+            this.directionTimer = 0;
+            this.directionChangeTicks = 3 + Math.floor(Math.random() * 5);
+            this.sendPosition(); // Send stopped state
         }
+    }
 
-        // Soft boundary — bounce back if going too far from center
-        const centerX = 800, centerY = 900;
-        const maxDist = 500;
-        const dx = newX - centerX;
-        const dy = newY - centerY;
-        if (Math.sqrt(dx * dx + dy * dy) > maxDist) {
-            // Head back toward center
-            if (Math.abs(dx) > Math.abs(dy)) {
-                this.currentDirection = dx > 0 ? 'west' : 'east';
-            } else {
-                this.currentDirection = dy > 0 ? 'north' : 'south';
+    sendPosition() {
+        this.send({
+            command: 'move',
+            data: {
+                x: this.x,
+                y: this.y,
+                direction: this.direction,
+                isMoving: this.isMoving
             }
-            return; // Skip this move, new direction will apply next tick
-        }
-
-        this.x = newX;
-        this.y = newY;
-        
-        this.send({ command: 'move', data: { direction: this.currentDirection } });
+        });
     }
 
     stop() {
         if (this.moveInterval) clearInterval(this.moveInterval);
         if (this.chatInterval) clearInterval(this.chatInterval);
+        if (this.botChatInterval) clearInterval(this.botChatInterval);
     }
 
     disconnect() {
@@ -273,12 +497,11 @@ async function main() {
     const bots = [];
 
     for (let i = 0; i < count; i++) {
-        const bot = new SwarmBot(BOT_CONFIGS[i]);
+        const bot = new SwarmBot(BOT_CONFIGS[i], bots);
         const ok = await bot.connect();
         if (ok) {
             bots.push(bot);
         }
-        // Small stagger
         await new Promise(r => setTimeout(r, 300));
     }
 
