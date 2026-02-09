@@ -371,10 +371,23 @@ class DriftFauna extends Entity {
         this.hurtTimer = 0;
         this.renderColor = '#ffffff';
 
-        // Apply knockback
+        // Apply knockback — with collision check to avoid pushing into walls/rocks
         if (knockbackDir) {
-            this.position.x += knockbackDir.x * this.knockbackForce;
-            this.position.y += knockbackDir.y * this.knockbackForce;
+            const game = window.game;
+            const cs = game && game.collisionSystem;
+            const kx = knockbackDir.x * this.knockbackForce;
+            const ky = knockbackDir.y * this.knockbackForce;
+            if (cs) {
+                if (!cs.checkCollision(this.position.x + kx, this.position.y, this.width, this.height)) {
+                    this.position.x += kx;
+                }
+                if (!cs.checkCollision(this.position.x, this.position.y + ky, this.width, this.height)) {
+                    this.position.y += ky;
+                }
+            } else {
+                this.position.x += kx;
+                this.position.y += ky;
+            }
         }
 
         // Spawn hit particles

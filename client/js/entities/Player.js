@@ -40,13 +40,31 @@ class Player extends Entity {
         this.lastCombatTime = Date.now();
         this.damageFlashTimer = 200;
 
-        // Knockback away from source
+        // Knockback away from source — with collision check to avoid getting pushed into walls/rocks
         if (source && source.position) {
             const dx = this.position.x - source.position.x;
             const dy = this.position.y - source.position.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            this.position.x += (dx / dist) * 6;
-            this.position.y += (dy / dist) * 6;
+            const knockX = (dx / dist) * 6;
+            const knockY = (dy / dist) * 6;
+            
+            // Check collision before applying each axis independently
+            const game = window.game;
+            const cs = game && game.collisionSystem;
+            if (cs) {
+                const newX = this.position.x + knockX;
+                const newY = this.position.y + knockY;
+                if (!cs.checkCollision(newX, this.position.y, this.width, this.height)) {
+                    this.position.x = newX;
+                }
+                if (!cs.checkCollision(this.position.x, newY, this.width, this.height)) {
+                    this.position.y = newY;
+                }
+            } else {
+                // No collision system available — apply raw knockback
+                this.position.x += knockX;
+                this.position.y += knockY;
+            }
         }
 
         return true;
