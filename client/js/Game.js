@@ -3166,35 +3166,8 @@ class Game {
                     lore: decorType.lore || null
                 };
                 
-                // Mark collision tiles for solid decorations
-                // Use the BASE of the decoration for collision footprint
-                if (decor.solid) {
-                    // Calculate footprint: how many tiles wide/tall the trunk/base is
-                    // For palms/trees: mark a 2-tile-wide footprint at the base
-                    // For small items: mark 1 tile
-                    const footprintW = Math.max(1, Math.ceil(decor.width / tileSize));
-                    const footprintH = Math.min(2, Math.max(1, Math.ceil(decor.height / tileSize / 2))); // Lower half only
-                    
-                    // Base center of the sprite
-                    const baseCenterX = decor.x + decor.width / 2;
-                    const baseBottomY = decor.y + decor.height;
-                    
-                    // Start from bottom-center and expand outward
-                    const startCol = Math.floor(baseCenterX / tileSize) - Math.floor((footprintW - 1) / 2);
-                    const startRow = Math.floor(baseBottomY / tileSize) - footprintH;
-                    
-                    for (let r = 0; r < footprintH; r++) {
-                        for (let c = 0; c < footprintW; c++) {
-                            const cr = startRow + r;
-                            const cc = startCol + c;
-                            if (cr >= 0 && cr < this.worldMap.height &&
-                                cc >= 0 && cc < this.worldMap.width &&
-                                this.worldMap.collisionLayer[cr]) {
-                                this.worldMap.collisionLayer[cr][cc] = 1;
-                            }
-                        }
-                    }
-                }
+                // Collision is now marked in a separate pass after all decorations are placed
+                // (including editor-placed ones) — see markDecorationCollisions()
                 
                 this.decorations.push(decor);
             }
@@ -4296,6 +4269,9 @@ class Game {
 
         // Apply editor map data (Spencer's hand-placed roads & decorations)
         this.applyEditorMapData();
+        
+        // Mark collision for ALL solid decorations (procedural + editor-placed)
+        this.markDecorationCollisions();
 
         // Build auto-tiled path layer from dirt_path decoration positions
         this.buildPathTileLayer();
@@ -4433,6 +4409,64 @@ class Game {
         
         // Fill corner gaps at L-junctions
         this.fillPathCorners();
+    }
+    
+    // Mark collision tiles for all solid decorations (called AFTER editor data is applied)
+    markDecorationCollisions() {
+        const tileSize = CONSTANTS.TILE_SIZE;
+        
+        // Types that should block movement, with their collision width in tiles at the base
+        // collisionW: how many tiles wide the trunk/base blocks
+        // collisionH: how many tiles tall the collision footprint is
+        const solidTypes = {
+            'palm':             { collisionW: 1, collisionH: 1 },
+            'palm2':            { collisionW: 1, collisionH: 1 },
+            'rock':             { collisionW: 1, collisionH: 1 },
+            'rock2':            { collisionW: 1, collisionH: 1 },
+            'treasure_chest':   { collisionW: 1, collisionH: 1 },
+            'treasure_chest2':  { collisionW: 1, collisionH: 1 },
+            'lobster_statue':   { collisionW: 1, collisionH: 1 },
+            'wooden_sign':      { collisionW: 1, collisionH: 1 },
+            'anchor':           { collisionW: 1, collisionH: 1 },
+            'campfire':         { collisionW: 1, collisionH: 1 },
+            'log_pile':         { collisionW: 1, collisionH: 1 },
+            'buoy':             { collisionW: 1, collisionH: 1 },
+        };
+        
+        let marked = 0;
+        for (const decor of this.decorations) {
+            const solidDef = solidTypes[decor.type];
+            if (!solidDef) continue;
+            
+            const cw = solidDef.collisionW;
+            const ch = solidDef.collisionH;
+            
+            // Center collision at the base (bottom-center of sprite)
+            const baseCenterX = decor.x + decor.width / 2;
+            const baseBottomY = decor.y + decor.height;
+            
+            const centerCol = Math.floor(baseCenterX / tileSize);
+            const bottomRow = Math.floor((baseBottomY - 1) / tileSize);
+            
+            // Expand from center
+            const startCol = centerCol - Math.floor((cw - 1) / 2);
+            const startRow = bottomRow - (ch - 1);
+            
+            for (let r = 0; r < ch; r++) {
+                for (let c = 0; c < cw; c++) {
+                    const cr = startRow + r;
+                    const cc = startCol + c;
+                    if (cr >= 0 && cr < this.worldMap.height &&
+                        cc >= 0 && cc < this.worldMap.width &&
+                        this.worldMap.collisionLayer[cr]) {
+                        this.worldMap.collisionLayer[cr][cc] = 1;
+                        marked++;
+                    }
+                }
+            }
+        }
+        
+        console.log(`Marked ${marked} collision tiles for solid decorations`);
     }
     
     // Apply hand-placed editor map data (roads, decorations, deletions)
