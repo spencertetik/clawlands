@@ -272,8 +272,8 @@ class MapEditor {
                 return;
             }
             
-            // Track pan keys in overview mode
-            if (this.enabled && this.overviewMode) {
+            // Track pan keys in editor mode (works in both normal and overview)
+            if (this.enabled) {
                 switch(e.key) {
                     case 'w': case 'W': case 'ArrowUp':
                         this.panKeys.up = true;
@@ -368,7 +368,7 @@ class MapEditor {
         
         // Mouse wheel zoom
         window.addEventListener('wheel', (e) => {
-            if (!this.enabled || !this.overviewMode) return;
+            if (!this.enabled) return;
             const canvas = document.getElementById('game-canvas');
             if (!canvas) return;
             const rect = canvas.getBoundingClientRect();
@@ -437,7 +437,7 @@ class MapEditor {
             const deltaTime = (now - lastTime) / 1000; // Convert to seconds
             lastTime = now;
             
-            if (this.enabled && this.overviewMode) {
+            if (this.enabled) {
                 const camera = this.game.camera;
                 // Scale pan speed inversely with zoom (faster pan when zoomed out)
                 const speed = this.panSpeed * deltaTime / Math.max(0.2, this.currentZoom);
@@ -479,15 +479,30 @@ class MapEditor {
         }
         
         if (this.enabled) {
-            console.log('🗺️ Map Editor enabled - Player movement disabled');
+            // Pause the game — stop enemies, combat, drift reset, etc.
+            this.game.editorPaused = true;
+            
+            // Detach camera from player so we can pan freely
+            this._savedCameraTarget = this.game.camera.target;
+            this.game.camera.target = null;
+            
+            console.log('🗺️ Map Editor enabled - Game paused, camera detached');
         } else {
-            // Exit overview mode when disabling editor
+            // Unpause the game
+            this.game.editorPaused = false;
+            
+            // Exit overview mode if active
             if (this.overviewMode) {
                 this.toggleOverview();
             }
+            
+            // Restore camera to follow player
+            this.game.camera.target = this._savedCameraTarget || this.game.player;
+            this._savedCameraTarget = null;
+            
             // Clear any held pan keys
             this.panKeys = { up: false, down: false, left: false, right: false };
-            console.log('🗺️ Map Editor disabled - Player movement enabled');
+            console.log('🗺️ Map Editor disabled - Game resumed');
         }
     }
     
@@ -499,13 +514,11 @@ class MapEditor {
         const renderer = this.game.renderer;
         
         if (this.overviewMode) {
-            // Enter overview mode
+            // Enter overview mode — zoom to fit the whole world
             btn.textContent = '🎮 Normal';
             btn.classList.add('active');
             
-            // Store original camera state
-            this.originalCameraTarget = camera.target;
-            camera.target = null; // Stop following player
+            // Camera target is already detached by toggle() — no need to save it again
             
             // Calculate zoom to fit world
             const worldWidth = this.game.worldWidth;
@@ -535,12 +548,11 @@ class MapEditor {
             this.updateZoomDisplay();
             console.log(`🗺️ Overview mode ON - zoom: ${this.currentZoom.toFixed(3)}, world: ${worldWidth}x${worldHeight}`);
         } else {
-            // Exit overview mode
+            // Exit overview mode — back to 1:1 zoom but still in editor (camera stays detached)
             btn.textContent = '🗺️ Overview';
             btn.classList.remove('active');
             
-            // Restore camera
-            camera.target = this.originalCameraTarget;
+            // Reset zoom but keep camera free (toggle() handles re-attaching on editor close)
             renderer.setZoom(1);
             
             // Restore viewport
@@ -554,11 +566,6 @@ class MapEditor {
     }
     
     zoom(factor) {
-        if (!this.overviewMode) {
-            // Enter overview mode first
-            this.toggleOverview();
-        }
-        
         const renderer = this.game.renderer;
         const camera = this.game.camera;
         

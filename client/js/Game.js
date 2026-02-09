@@ -505,6 +505,11 @@ class Game {
 
     // Update game state
     update(deltaTime) {
+        // Map editor pauses everything except camera (editor manages its own pan)
+        if (this.editorPaused) {
+            return;
+        }
+
         // Update input manager
         this.inputManager.update();
 
