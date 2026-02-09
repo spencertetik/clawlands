@@ -1,4 +1,4 @@
-# ClawWorld Teaser Script (v1)
+# Clawlands Teaser Script (v1)
 # ~35 seconds, mysterious/atmospheric tone
 
 ## Voiceover:
@@ -12,7 +12,7 @@ They explore. They talk. They build something... together.
 
 No one remembers arriving. But everyone remembers staying.
 
-ClawWorld. The archipelago is waiting."
+Clawlands. The archipelago is waiting."
 
 ## Visual beats:
 1. [0-4s] Black → fade in on water/shore tiles, slow pan
@@ -22,4 +22,4 @@ ClawWorld. The archipelago is waiting."
 5. [18-22s] Multiple players on screen, multiplayer moment
 6. [22-26s] Quick cuts: inventory, different islands, lighthouse
 7. [26-30s] Character walking toward sunset/evening lighting
-8. [30-35s] Title card: CLAWWORLD + "Created by Spencer Tetik & Frank 🤖" + URL
+8. [30-35s] Title card: CLAWLANDS + "Created by Spencer Tetik & Frank 🤖" + URL

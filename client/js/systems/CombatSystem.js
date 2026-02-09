@@ -1,4 +1,4 @@
-// CombatSystem.js - Combat manager for Claw World
+// CombatSystem.js - Combat manager for Clawlands
 // Handles enemy spawning, player attacks, hit detection, screen shake, and Resolve choices
 
 class CombatSystem {
@@ -66,7 +66,7 @@ class CombatSystem {
         this.spawnProtectionDuration = 4000; // 4 seconds of no spawns after respawn
 
         // Kill stats (persisted)
-        this.statsKey = 'clawworld_combat_stats';
+        this.statsKey = 'clawlands_combat_stats';
         this.stats = this.loadStats();
     }
 
@@ -696,9 +696,6 @@ class CombatSystem {
         if (!player.shellIntegrity && player.shellIntegrity !== 0) return;
         if (!this.game.gameActive) return;
 
-        const canvas = this.game.canvas;
-        const scale = CONSTANTS.DISPLAY_SCALE || 4;
-
         ctx.save();
 
         // --- UNIFIED HUD BOX (top-left) ---
@@ -708,11 +705,11 @@ class CombatSystem {
         const pad = 4;
         const lineH = 14;
 
-        // Calculate box height based on content
-        let contentH = pad; // top padding
-        const healthBarY = boxY + contentH;
-        contentH += 16; // health bar
-        contentH += 2;  // gap
+        // Calculate layout
+        let contentH = pad;
+        const shellsY = boxY + contentH;
+        contentH += 14; // shell icons row
+        contentH += 3;  // gap
         const weaponY = boxY + contentH;
         contentH += lineH; // weapon line
         const tokenY = boxY + contentH;
@@ -726,8 +723,8 @@ class CombatSystem {
             contTier = this.game.continuitySystem.getTier ? this.game.continuitySystem.getTier() : 'unmoored';
         }
         const contY = boxY + contentH;
-        contentH += lineH; // continuity line
-        contentH += pad; // bottom padding
+        contentH += lineH;
+        contentH += pad;
         const boxHeight = contentH;
 
         // Dark background
@@ -739,40 +736,33 @@ class CombatSystem {
         ctx.lineWidth = 1.5;
         ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
-        // --- Health Bar ---
-        const barX = boxX + pad;
-        const barY = healthBarY;
-        const barWidth = boxWidth - pad * 2;
-        const barHeight = 14;
+        // --- Shell Health Icons (6 shells, 4 quarters each = 24 units) ---
+        const totalShells = 6;
+        const quartersPerShell = 4;
+        const totalQuarters = totalShells * quartersPerShell; // 24 quarter-units
         const healthPct = player.shellIntegrity / player.shellIntegrityMax;
+        const filledQuarters = Math.ceil(healthPct * totalQuarters);
+        const shellSize = 12;
+        const shellGap = 3;
+        const shellRowX = boxX + pad + 1;
 
-        let barColor = '#cc5533';
-        if (healthPct > 0.6) barColor = '#44aa44';
-        else if (healthPct > 0.3) barColor = '#cc8833';
-        else barColor = '#cc2222';
+        // Flash shells red on hit
+        const isHit = player.isInvulnerable && !player.spawnProtectionActive;
+        const flashOn = isHit && Math.floor(Date.now() / 80) % 2 === 0;
 
-        if (player.isInvulnerable && !player.spawnProtectionActive) {
-            barColor = Math.floor(Date.now() / 80) % 2 === 0 ? '#ff6666' : barColor;
+        for (let i = 0; i < totalShells; i++) {
+            const sx = shellRowX + i * (shellSize + shellGap);
+            const sy = shellsY;
+            const shellStart = i * quartersPerShell;
+            const shellEnd = shellStart + quartersPerShell;
+            
+            // How many quarters filled in this shell (0-4)
+            let quarters = 0;
+            if (filledQuarters >= shellEnd) quarters = 4;
+            else if (filledQuarters > shellStart) quarters = filledQuarters - shellStart;
+            
+            this.drawShellIcon(ctx, sx, sy, shellSize, quarters, flashOn);
         }
-
-        ctx.fillStyle = '#2a1510';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-        ctx.fillStyle = barColor;
-        ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * healthPct, barHeight - 2);
-        ctx.strokeStyle = '#8a4030';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
-
-        // Shield icon + health text
-        this.drawShieldIcon(ctx, barX + 3, barY + 3);
-        ctx.fillStyle = '#e8d5cc';
-        ctx.font = 'bold 10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(
-            `${Math.ceil(player.shellIntegrity)} / ${player.shellIntegrityMax}`,
-            boxX + boxWidth / 2 + 4,
-            barY + barHeight - 3
-        );
 
         // --- Weapon ---
         this.drawSwordIcon(ctx, boxX + pad, weaponY + 2);
@@ -797,7 +787,6 @@ class CombatSystem {
         const contBarH = 6;
         const contBarY = contY + 4;
 
-        // Tier colors
         const tierColors = {
             unmoored: '#888888',
             drifting: '#4a9eff',
@@ -807,22 +796,69 @@ class CombatSystem {
         };
         const contColor = tierColors[contTier] || '#888888';
 
-        // Label
         ctx.fillStyle = '#8a7068';
         ctx.font = '7px monospace';
         ctx.textAlign = 'left';
         ctx.fillText('~' + contTier.toUpperCase(), contBarX, contBarY - 1);
 
-        // Bar bg
         ctx.fillStyle = '#2a1510';
         ctx.fillRect(contBarX, contBarY, contBarW, contBarH);
-        // Bar fill
         ctx.fillStyle = contColor;
         ctx.fillRect(contBarX + 1, contBarY + 1, (contBarW - 2) * (contValue / 100), contBarH - 2);
-        // Bar border
         ctx.strokeStyle = '#8a4030';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(contBarX, contBarY, contBarW, contBarH);
+
+        ctx.restore();
+    }
+
+    // Draw a single shell health icon with quarter-fill state
+    // quarters: 0 = empty, 1 = 1/4, 2 = 1/2, 3 = 3/4, 4 = full
+    drawShellIcon(ctx, x, y, size, quarters, flash) {
+        const s = size;
+        ctx.save();
+
+        // Shell outline (always drawn)
+        const outlineColor = quarters === 0 ? '#3a2520' : '#8a7068';
+        ctx.fillStyle = outlineColor;
+        // Rounded shell shape: wider at bottom, narrow at top
+        ctx.fillRect(x + 2, y, s - 4, s);       // body
+        ctx.fillRect(x + 1, y + 2, s - 2, s - 3); // wider middle
+        ctx.fillRect(x, y + 3, s, s - 5);         // widest part
+
+        if (quarters === 0) {
+            // Empty shell — dark interior
+            ctx.fillStyle = '#1a0e0a';
+            ctx.fillRect(x + 3, y + 1, s - 6, s - 2);
+            ctx.fillRect(x + 2, y + 3, s - 4, s - 5);
+            ctx.fillRect(x + 1, y + 4, s - 2, s - 7);
+        } else {
+            // Determine fill color based on health level
+            let fillColor = '#c43a24'; // red/low
+            if (quarters >= 4) fillColor = flash ? '#ff6666' : '#44aa44'; // full = green
+            else if (quarters >= 3) fillColor = flash ? '#ff6666' : '#66bb44'; // 3/4 = green-ish
+            else if (quarters >= 2) fillColor = flash ? '#ff6666' : '#cc8833'; // 1/2 = yellow
+            else fillColor = flash ? '#ff6666' : '#cc3333'; // 1/4 = red
+
+            // Fill interior proportionally (bottom-up fill)
+            const interiorH = s - 3;
+            const fillH = Math.ceil(interiorH * (quarters / 4));
+            const fillStartY = y + 1 + (interiorH - fillH);
+
+            ctx.fillStyle = fillColor;
+            // Fill the interior region (clipped to shell shape)
+            for (let row = fillStartY; row < y + s - 1; row++) {
+                let lx = x + 3, rw = s - 6; // narrow
+                if (row >= y + 3 && row < y + s - 3) { lx = x + 1; rw = s - 2; } // widest
+                else if (row >= y + 2) { lx = x + 2; rw = s - 4; } // medium
+                ctx.fillRect(lx, row, rw, 1);
+            }
+
+            // Shell ridge lines (decorative)
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(x + 3, y + Math.floor(s * 0.3), s - 6, 1);
+            ctx.fillRect(x + 2, y + Math.floor(s * 0.6), s - 4, 1);
+        }
 
         ctx.restore();
     }

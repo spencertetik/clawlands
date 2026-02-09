@@ -23,7 +23,7 @@ class ChronicleStone {
 
     // Storage key for this stone's messages
     getStorageKey() {
-        return `claw_world_chronicle_${this.stoneId}`;
+        return `clawlands_chronicle_${this.stoneId}`;
     }
 
     // Load messages from localStorage
@@ -217,7 +217,7 @@ class ChronicleStone {
     // Load global rumor pool
     static loadRumorPool() {
         try {
-            const stored = localStorage.getItem('claw_world_rumors');
+            const stored = localStorage.getItem('clawlands_rumors');
             ChronicleStone.rumorPool = stored ? JSON.parse(stored) : [];
         } catch (e) {
             ChronicleStone.rumorPool = [];
@@ -227,7 +227,7 @@ class ChronicleStone {
     // Save global rumor pool
     static saveRumorPool() {
         try {
-            localStorage.setItem('claw_world_rumors', JSON.stringify(ChronicleStone.rumorPool));
+            localStorage.setItem('clawlands_rumors', JSON.stringify(ChronicleStone.rumorPool));
         } catch (e) {
             console.warn('Could not save rumors:', e);
         }

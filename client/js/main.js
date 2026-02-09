@@ -1,6 +1,6 @@
 // Entry point - initialize and start the game
 window.addEventListener('DOMContentLoaded', () => {
-    console.log('🦀 Claw World Loading...');
+    console.log('🦀 Clawlands Loading...');
 
     const detectFrameScreen = () => {
         const frameScene = document.getElementById('frame-scene');
@@ -171,7 +171,7 @@ window.addEventListener('DOMContentLoaded', () => {
         console.log('🗺️ Map Editor loaded - Press E to toggle');
     }
 
-    console.log('🦀 Claw World Started!');
+    console.log('🦀 Clawlands Started!');
     console.log('Controls: WASD to move, Space to interact');
     console.log('Press ` (backtick) to toggle debug mode');
     console.log('Press M to toggle music');

@@ -1132,7 +1132,7 @@ class MapEditor {
         // Load existing save data
         let allSaveData = {};
         try {
-            const existing = localStorage.getItem('clawworld_map_edits_v2');
+            const existing = localStorage.getItem('clawlands_map_edits_v2');
             if (existing) {
                 allSaveData = JSON.parse(existing);
             }
@@ -1156,7 +1156,7 @@ class MapEditor {
             timestamp: Date.now()
         };
         
-        localStorage.setItem('clawworld_map_edits_v2', JSON.stringify(allSaveData));
+        localStorage.setItem('clawlands_map_edits_v2', JSON.stringify(allSaveData));
         console.log(`💾 Saved ${locationPlaced.length} items for ${locationKey}`);
         alert(`Saved ${locationPlaced.length} items for ${locationKey === 'outdoor' ? 'outdoor' : 'this interior'}!`);
     }
@@ -1167,7 +1167,7 @@ class MapEditor {
     
     loadEditsForLocation(locationKey) {
         try {
-            const saved = localStorage.getItem('clawworld_map_edits_v2');
+            const saved = localStorage.getItem('clawlands_map_edits_v2');
             if (!saved) return;
             
             const allData = JSON.parse(saved);
@@ -1232,8 +1232,8 @@ class MapEditor {
             this.game.decorations = this.game.decorations.filter(d => !d.editorPlaced);
             this.placedItems = [];
             this.deletedItems.clear();
-            localStorage.removeItem('clawworld_map_edits');
-            localStorage.removeItem('clawworld_map_edits_v2');
+            localStorage.removeItem('clawlands_map_edits');
+            localStorage.removeItem('clawlands_map_edits_v2');
             console.log('🗑️ Cleared all editor changes (all locations)');
         } else {
             // Clear just current location
@@ -1242,11 +1242,11 @@ class MapEditor {
             
             // Remove from save
             try {
-                const saved = localStorage.getItem('clawworld_map_edits_v2');
+                const saved = localStorage.getItem('clawlands_map_edits_v2');
                 if (saved) {
                     const allData = JSON.parse(saved);
                     delete allData[locationKey];
-                    localStorage.setItem('clawworld_map_edits_v2', JSON.stringify(allData));
+                    localStorage.setItem('clawlands_map_edits_v2', JSON.stringify(allData));
                 }
             } catch (e) {}
             
@@ -1280,7 +1280,7 @@ class MapEditor {
         a.href = url;
         a.style.display = 'none';
         const loc = this.getCurrentLocationKey().replace(/[^a-z0-9]/g, '_');
-        a.download = `clawworld_map_${loc}_${new Date().toISOString().slice(0,10)}.json`;
+        a.download = `clawlands_map_${loc}_${new Date().toISOString().slice(0,10)}.json`;
         document.body.appendChild(a);
         a.click();
         

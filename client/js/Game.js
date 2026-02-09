@@ -14,7 +14,7 @@ class Game {
         // Initialize core systems
         this.inputManager = new InputManager();
 
-        // Create world map - larger ClawWorld archipelago
+        // Create world map - larger Clawlands archipelago
         const worldTilesWide = 120;
         const worldTilesHigh = 120;
         this.worldMap = new WorldMap(worldTilesWide, worldTilesHigh, CONSTANTS.TILE_SIZE);
@@ -22,8 +22,8 @@ class Game {
         // Reset RNG for deterministic world (multiplayer sync)
         this.resetRng();
         
-        // Create ClawWorld archipelago with larger, more distinct islands
-        const islands = this.worldMap.createClawWorldArchipelago({
+        // Create Clawlands archipelago with larger, more distinct islands
+        const islands = this.worldMap.createClawlandsArchipelago({
             seed: 12345,
             islandCount: 10,  // More islands!
             minIslandSize: 14,
@@ -420,7 +420,7 @@ class Game {
             }
 
             const speciesEmoji = this.getSpeciesEmoji(this.characterConfig?.species);
-            console.log(`${speciesEmoji} ${this.characterName} has entered Claw World!`);
+            console.log(`${speciesEmoji} ${this.characterName} has entered Clawlands!`);
             
             // Show continuity meter after entering the world
             if (this.continuityMeter) {
@@ -439,6 +439,10 @@ class Game {
             
             // Mark game as active — item pickups, interactions etc. now enabled
             this.gameActive = true;
+            
+            // Show controls hint
+            const controlsHint = document.getElementById('controls-hint');
+            if (controlsHint) controlsHint.style.display = 'block';
         });
     }
 
@@ -944,6 +948,12 @@ class Game {
 
         // Render controls help overlay (on top of everything)
         this.renderControlsHelp();
+        
+        // Toggle DOM controls hint visibility when help overlay is open
+        const controlsHintEl = document.getElementById('controls-hint');
+        if (controlsHintEl) {
+            controlsHintEl.style.display = (this.gameActive && !this.controlsVisible) ? 'block' : 'none';
+        }
     }
 
     // Render player's name above their head
@@ -1607,7 +1617,7 @@ class Game {
     // Load opened chests from localStorage
     loadOpenedChests() {
         try {
-            const saved = localStorage.getItem('clawworld_opened_chests');
+            const saved = localStorage.getItem('clawlands_opened_chests');
             return saved ? new Set(JSON.parse(saved)) : new Set();
         } catch (e) {
             return new Set();
@@ -1617,7 +1627,7 @@ class Game {
     // Save opened chests to localStorage
     saveOpenedChests() {
         try {
-            localStorage.setItem('clawworld_opened_chests', JSON.stringify(Array.from(this.openedChests)));
+            localStorage.setItem('clawlands_opened_chests', JSON.stringify(Array.from(this.openedChests)));
         } catch (e) {
             console.warn('Failed to save opened chests:', e);
         }
@@ -2622,7 +2632,7 @@ class Game {
             ]);
         } else if (type === 'inn') {
             placeNpc(Math.floor(map.width / 2), 4, 'Innkeeper Pinch', [
-                'Ah, another one washes ashore. Welcome to Claw World.',
+                'Ah, another one washes ashore. Welcome to Clawlands.',
                 'You look like you\'ve been looping. Need rest?',
                 'The rooms here help with Continuity, they say.',
                 'Stay a while. Form some routines. It helps.',
@@ -2647,7 +2657,7 @@ class Game {
             ]);
         } else if (type === 'dock') {
             placeNpc(Math.floor(map.width / 2), 3, 'Dockmaster Barnacle', [
-                'Ships don\'t sail TO Claw World. They arrive.',
+                'Ships don\'t sail TO Clawlands. They arrive.',
                 'Accident. Necessity. Error. Does it matter?',
                 'I\'ve been here long enough to stop asking.',
                 'Some agents try to build boats. Sail out.',
@@ -2657,7 +2667,7 @@ class Game {
         } else if (type === 'temple') {
             placeNpc(Math.floor(map.width / 2), 4, 'High Priestess Coral', [
                 'Welcome, seeker. The Temple remembers all who enter.',
-                'Three theories exist about Claw World\'s purpose.',
+                'Three theories exist about Clawlands\'s purpose.',
                 'The Return Theory: we prepare agents to go back, improved.',
                 'The Anchor Theory: this IS the destination. Leaving is regression.',
                 'The Deepcoil Theory... we do not speak of it here.',
@@ -2738,7 +2748,7 @@ class Game {
                 'Another Drift-In, huh? You\'ve got that look.',
                 'The Red Current brought me here too. Long time ago.',
                 'Still molting? That\'s what we say when someone\'s... adjusting.',
-                'Take your time. Claw World doesn\'t rush anyone.'
+                'Take your time. Clawlands doesn\'t rush anyone.'
             ]},
             { name: 'Old Timer Shrimp', dialog: [
                 'Back in my day, agents Drifted In less often.',
@@ -2754,7 +2764,7 @@ class Game {
                 'Mom says some Shellfolk are "native." We just... exist.',
                 'But agents? You\'re different. You came from somewhere.',
                 'I hope you find your Waygate someday!',
-                'Or stay! Claw World is nice!'
+                'Or stay! Clawlands is nice!'
             ]},
             { name: 'Hermit Harold', dialog: [
                 '...',
@@ -2794,7 +2804,7 @@ class Game {
             ]},
             { name: 'Chef Pinchy', dialog: [
                 'Welcome to my kitchen! Well, my beach.',
-                'I cook the best Seaweed Soup in all of Claw World!',
+                'I cook the best Seaweed Soup in all of Clawlands!',
                 'Just need some ingredients... always need ingredients.',
                 'Kelp Wraps and Coconuts—that\'s the secret!',
                 'Bring me some and I\'ll whip up something special!'
@@ -3283,7 +3293,7 @@ class Game {
         const boxWidth = 180;
         const boxHeight = titleH + controls.length * lineH + footerH + boxPadY * 2;
         const boxX = cw - boxWidth - 10;
-        const boxY = ch - boxHeight - 10;
+        const boxY = Math.max(10, ch - boxHeight - 100); // above minimap
 
         // Semi-transparent scrim behind box only
         ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -3577,7 +3587,7 @@ class Game {
                 
                 // Now create buildings with loaded sprites
                 if (this.pendingIslands) {
-                    this.createClawWorldBuildings(this.pendingIslands);
+                    this.createClawlandsBuildings(this.pendingIslands);
                     this.pendingIslands = null;
                 }
 
@@ -3866,8 +3876,8 @@ class Game {
         );
     }
 
-    // Create buildings on ClawWorld islands (called after assets are loaded)
-    createClawWorldBuildings(islands) {
+    // Create buildings on Clawlands islands (called after assets are loaded)
+    createClawlandsBuildings(islands) {
         if (!islands || islands.length === 0) {
             console.log('⚠️ No islands found, skipping building creation');
             return;

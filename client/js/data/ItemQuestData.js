@@ -197,7 +197,7 @@ const ItemQuestData = [
 ];
 
 // Storage key for completed item quests
-const ITEM_QUEST_STORAGE_KEY = 'clawworld_item_quests';
+const ITEM_QUEST_STORAGE_KEY = 'clawlands_item_quests';
 
 // Helper: get quest for a specific NPC
 function getItemQuestForNPC(npcName) {

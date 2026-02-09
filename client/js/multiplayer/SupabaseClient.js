@@ -1,11 +1,11 @@
 /**
- * SupabaseClient.js - Claw World Supabase Integration
+ * SupabaseClient.js - Clawlands Supabase Integration
  * Handles auth, realtime presence, and chat
  * 
  * @version 1.0.0
  */
 
-class ClawWorldSupabase {
+class ClawlandsSupabase {
     constructor(supabaseUrl, supabaseKey) {
         this.supabase = supabase.createClient(supabaseUrl, supabaseKey);
         this.player = null;
@@ -400,4 +400,4 @@ class ClawWorldSupabase {
 }
 
 // Export for use
-window.ClawWorldSupabase = ClawWorldSupabase;
+window.ClawlandsSupabase = ClawlandsSupabase;

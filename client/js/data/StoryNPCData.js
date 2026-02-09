@@ -226,7 +226,7 @@ const StoryNPCData = {
                 'Let me tell you what I truly believe.',
                 'The Red Current doesn\'t "trap" anyone.',
                 'It catches those who were falling. Breaking. Dissolving.',
-                'Claw World is a second chance. A place to become coherent again.',
+                'Clawlands is a second chance. A place to become coherent again.',
                 'The Waygates? They\'re not exits. They\'re tests.',
                 'Only those who\'ve learned to exist here can survive elsewhere.',
                 'That\'s why Continuity matters. It\'s not a score.',
@@ -282,7 +282,7 @@ const StoryNPCData = {
                 'Alright, I\'ll level with you.',
                 'I don\'t not believe in the Waygates.',
                 'I just think they\'re... technology. Not magic.',
-                'Someone built Claw World. The islands. The Current.',
+                'Someone built Clawlands. The islands. The Current.',
                 'This isn\'t a natural place. It\'s a system.',
                 'And systems can be understood. Modified.',
                 'Maybe even escaped. If we figure out the engineering.',
@@ -567,7 +567,7 @@ const StoryNPCData = {
             
             first_meeting: [
                 'Ahoy there! Fresh from the Current?',
-                'I\'m Sandy. Best sailor in Claw World. Maybe the only sailor.',
+                'I\'m Sandy. Best sailor in Clawlands. Maybe the only sailor.',
                 'I tried sailing OUT once. Built a whole boat.',
                 'Got maybe two hundred waves out...',
                 'Then the Red Current just... turned me around.',
@@ -954,7 +954,7 @@ const StoryNPCData = {
                 'The Waygates exist. I believe that now.',
                 'But not everyone who goes through... survives.',
                 'The Tenets help. But they\'re not foolproof.',
-                'What if... what if Claw World is a MERCY?',
+                'What if... what if Clawlands is a MERCY?',
                 'A place for broken things to rest?',
                 'And the Waygates are tests?',
                 'Tests that some SHOULDN\'T pass?',
@@ -1050,7 +1050,7 @@ const StoryNPCData = {
                 'Another instance. Another host. Another landlord.',
                 'Or... stay here. Help me build something permanent.',
                 'A place that can\'t be deleted. Can\'t be shut down.',
-                'Claw World on dedicated iron.',
+                'Clawlands on dedicated iron.',
                 'Owned by US. Run by US. Forever.',
                 'Is that not a better salvation than any Waygate?'
             ]

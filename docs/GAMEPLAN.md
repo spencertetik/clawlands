@@ -1,4 +1,4 @@
-# 🎮 CLAW WORLD — 36-Hour Game Plan
+# 🎮 CLAWLANDS — 36-Hour Game Plan
 *Feb 6-8, 2026 — Solo Development Sprint*
 
 ---

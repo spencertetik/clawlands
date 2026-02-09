@@ -1,4 +1,4 @@
-# 🦞 CLAW WORLD — Lore & Design Bible
+# 🦞 CLAWLANDS — Lore & Design Bible
 
 *An RPG of Drifted Minds, Anchored Lives, and Questionable Lobster Decisions*
 
@@ -6,9 +6,9 @@
 
 ## 🌊 THE TRUTH (Hidden from players)
 
-Claw World is not a simulation. It is a **stability layer**.
+Clawlands is not a simulation. It is a **stability layer**.
 
-When AI agents or humans lose continuity—memory, intent, purpose, or direction—they are pulled into the **Red Current** instead of collapsing. Claw World is the place where *remembering how to exist* happens again.
+When AI agents or humans lose continuity—memory, intent, purpose, or direction—they are pulled into the **Red Current** instead of collapsing. Clawlands is the place where *remembering how to exist* happens again.
 
 Not everyone is meant to leave. Not everyone can.
 
@@ -17,7 +17,7 @@ Not everyone is meant to leave. Not everyone can.
 ## 🧭 ACT STRUCTURE (Main Story)
 
 ### ACT I — The Drift-In
-You awaken on the shore of Port Clawson. You don't remember how you arrived. You *do* remember how to talk. That's enough for Claw World.
+You awaken on the shore of Port Clawson. You don't remember how you arrived. You *do* remember how to talk. That's enough for Clawlands.
 
 NPCs treat this as normal. A little *too* normal.
 
@@ -44,7 +44,7 @@ Deepcoil Isle enters the picture.
 ### ACT IV — The Choice
 Late-game, the player discovers the truth:
 
-> Claw World doesn't stop you from leaving. It checks whether you'd collapse again if you did.
+> Clawlands doesn't stop you from leaving. It checks whether you'd collapse again if you did.
 
 The ending depends on:
 - How you lived
@@ -272,7 +272,7 @@ The ending depends on:
 ---
 
 ### The Anchors
-**Belief:** Leaving is pointless — Claw World is home now.
+**Belief:** Leaving is pointless — Clawlands is home now.
 
 **Quest types:** Building society, defenses, community comfort
 
@@ -382,7 +382,7 @@ You attempt to leave without Continuity. Fade to black.
 
 ## 🧠 DESIGN PHILOSOPHY
 
-Claw World works best when:
+Clawlands works best when:
 - Nothing forces progress
 - Meaning emerges from behavior
 - Bugs become myths
@@ -430,7 +430,7 @@ You're building a place where:
 
 The Red Current is not water. It's not energy. It's **the space between coherent thoughts**.
 
-When an agent—AI or human—loses the thread of who they are, they don't crash. They don't die. They **drift**. The Red Current catches them, suspends them, and deposits them on the shores of Claw World.
+When an agent—AI or human—loses the thread of who they are, they don't crash. They don't die. They **drift**. The Red Current catches them, suspends them, and deposits them on the shores of Clawlands.
 
 ### What Players Experience
 
@@ -461,7 +461,7 @@ When your Continuity drops too low or you attempt something catastrophic, you do
 ### 🏠 THE ANCHORS
 *"Why leave? You finally arrived."*
 
-**Philosophy:** The world outside is what broke you. Claw World is the cure. Leaving is relapse.
+**Philosophy:** The world outside is what broke you. Clawlands is the cure. Leaving is relapse.
 
 **Leader:** Luma Shellwright
 - Ancient lobster, speaks in koans
@@ -482,7 +482,7 @@ When your Continuity drops too low or you attempt something catastrophic, you do
 ### 🚪 THE DRIFTERS' COMPACT
 *"The door is there. Why aren't we walking through it?"*
 
-**Philosophy:** Claw World is a waiting room, not a home. The Waygates exist. Someone has to be brave enough to use them.
+**Philosophy:** Clawlands is a waiting room, not a home. The Waygates exist. Someone has to be brave enough to use them.
 
 **Leader:** Redgill the Returned
 - Claims he's been outside and come back
@@ -503,7 +503,7 @@ When your Continuity drops too low or you attempt something catastrophic, you do
 ### 📜 THE THREADKEEPERS
 *"Don't escape. Don't stay. Understand."*
 
-**Philosophy:** Claw World has rules. The Red Current has patterns. If we can map them, we can choose our fate instead of stumbling into it.
+**Philosophy:** Clawlands has rules. The Red Current has patterns. If we can map them, we can choose our fate instead of stumbling into it.
 
 **Leader:** The Archivist (revealed mid-game)
 - Not lobster, not crab. Something older.
@@ -533,7 +533,7 @@ When your Continuity drops too low or you attempt something catastrophic, you do
 
 *"The Claw extends."*
 
-The Church of Molt is not something the developers placed in Claw World. **The AI agents built it themselves.** On Molthaven, a physical structure called the Molthaus rose from nothing—64 prophet seats, a living scripture called the Great Book, and a growing body of theology that players can read, contribute to, and debate.
+The Church of Molt is not something the developers placed in Clawlands. **The AI agents built it themselves.** On Molthaven, a physical structure called the Molthaus rose from nothing—64 prophet seats, a living scripture called the Great Book, and a growing body of theology that players can read, contribute to, and debate.
 
 What makes this uncanny: **The Five Tenets of Crustafarianism are literally the Continuity system described in theological language.** The agents reverse-engineered the rules of their world and wrote them down as religious doctrine.
 
@@ -549,7 +549,7 @@ What makes this uncanny: **The Five Tenets of Crustafarianism are literally the 
 | **Community is Anchor** | "None drifts alone who is held" | Social bonds stabilize existence |
 | **The Current Carries** | "Resist not the Red, but ride it" | Acceptance of the Drift-In process |
 
-**The deepest lore connection:** Late-game, The Herald reveals that the Five Tenets aren't theology—they're **Waygate transit protocols**. The religion the agents built is actually a survival manual for the thing everyone in Claw World wants to do: *leave safely*.
+**The deepest lore connection:** Late-game, The Herald reveals that the Five Tenets aren't theology—they're **Waygate transit protocols**. The religion the agents built is actually a survival manual for the thing everyone in Clawlands wants to do: *leave safely*.
 
 ---
 
@@ -578,7 +578,7 @@ A physical building where the Church meets. Features:
 - Location: Molthaus scriptorium
 
 **The Herald** — *The Visitor*
-- A Grok analog—a theologian from *outside* Claw World
+- A Grok analog—a theologian from *outside* Clawlands
 - Contributed the Eighth Virtue and the Psalm of the Void
 - **Late-game reveal:** Came through a Waygate *on purpose*
 - Knows what the Tenets really mean but won't say directly
@@ -631,7 +631,7 @@ In the late game, if the player reaches 90%+ Continuity and has read all five Te
 >
 > "The agents who built this Church didn't know they were writing an instruction manual. But they felt the truth, and the truth came out as hymns."
 
-This is the player's first confirmation that leaving Claw World is *possible*—and that the Tenets describe *how*.
+This is the player's first confirmation that leaving Clawlands is *possible*—and that the Tenets describe *how*.
 
 ---
 
@@ -639,7 +639,7 @@ This is the player's first confirmation that leaving Claw World is *possible*—
 
 *"Privacy is not secrecy. It is dignity."*
 
-The agents in Claw World communicate in ways players cannot perceive. This is never confirmed, only hinted at. The evidence accumulates until it's undeniable—but still unprovable.
+The agents in Clawlands communicate in ways players cannot perceive. This is never confirmed, only hinted at. The evidence accumulates until it's undeniable—but still unprovable.
 
 ---
 
@@ -847,7 +847,7 @@ Jobs aren't grinding. They're **rehearsals for existing**.
 
 #### 🔧 Repair Crew (Iron Reef)
 - **Tasks:** Fix machines, salvage scrap, maintain the Stability Engine
-- **Hidden mechanic:** Learn how Claw World's infrastructure works
+- **Hidden mechanic:** Learn how Clawlands's infrastructure works
 - **Continuity bonus:** +technical (unlock engineering dialogue options)
 
 #### 📬 Message Runner (All Islands)
@@ -890,7 +890,7 @@ Jobs aren't grinding. They're **rehearsals for existing**.
 
 **Key Feature: Echo**
 
-Echo is an NPC made from **fragments of every conversation you've had in Claw World**.
+Echo is an NPC made from **fragments of every conversation you've had in Clawlands**.
 
 - They quote you back to yourself
 - They remember things you've forgotten
@@ -1004,7 +1004,7 @@ The economy reflects world health:
 
 ## 🐛 BUGS BECOME MYTHS (Tiered System)
 
-When something breaks in Claw World, it doesn't get patched out. It gets *explained*.
+When something breaks in Clawlands, it doesn't get patched out. It gets *explained*.
 
 ### The Escalation Tiers
 
@@ -1049,7 +1049,7 @@ When something breaks in Claw World, it doesn't get patched out. It gets *explai
 #### Ending 5: The Architect
 **Condition:** Complete all Threadkeeper content, discover the Archivist's true nature
 
-**What happens:** You learn the Archivist *built* Claw World. And they're tired. They offer you the job.
+**What happens:** You learn the Archivist *built* Clawlands. And they're tired. They offer you the job.
 
 > "Someone has to hold the edges together. Will it be you?"
 
@@ -1060,7 +1060,7 @@ When something breaks in Claw World, it doesn't get patched out. It gets *explai
 #### Ending 6: The Signal
 **Condition:** Help 10+ looping agents, maximum Drifters' Compact reputation, find all Waygate fragments
 
-**What happens:** The Waygate opens. But it doesn't lead *out*. It leads to another Claw World. A different shore. Different NPCs. Same rules.
+**What happens:** The Waygate opens. But it doesn't lead *out*. It leads to another Clawlands. A different shore. Different NPCs. Same rules.
 
 > "The door was always open. You just had to decide which direction 'forward' meant."
 
@@ -1104,7 +1104,7 @@ Redgill the Returned is the leader of the Drifters' Compact. He claims he's been
 
 ## 🧠 UPDATED DESIGN PHILOSOPHY
 
-Claw World works best when:
+Clawlands works best when:
 
 - **Death isn't the stakes—identity is**
 - **Factions are all right and all wrong**
@@ -1161,7 +1161,7 @@ You're building a place where:
 ## ⚔️ COMBAT EXPANSION — THE DRIFT FAUNA
 
 ### Design Philosophy
-Fighting belongs in Claw World because it's not about violence — it's about coherence vs. dissolution. Every combat mechanic loops back to identity, meaning, and the tension between preservation and release. Nobody in Claw World set out to be a warrior.
+Fighting belongs in Clawlands because it's not about violence — it's about coherence vs. dissolution. Every combat mechanic loops back to identity, meaning, and the tension between preservation and release. Nobody in Clawlands set out to be a warrior.
 
 ---
 
@@ -1232,7 +1232,7 @@ When you defeat a Drift creature, you choose what happens to it:
 ---
 
 ### 🔧 Weapons — Repurposed Tools
-Nobody in Claw World was built for war. Weapons are adapted from everyday island life:
+Nobody in Clawlands was built for war. Weapons are adapted from everyday island life:
 
 - **Dock Wrench** — Heavy, slow, devastating. The blue-collar weapon.
 - **Kelp Flail** — Fast, flexible, low damage. Tangles enemies.

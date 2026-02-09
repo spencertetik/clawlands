@@ -1,4 +1,4 @@
-// Waygate.js - The mysterious portals that may lead out of Claw World
+// Waygate.js - The mysterious portals that may lead out of Clawlands
 // Only visible to those with high Continuity
 
 class Waygate {
@@ -143,7 +143,7 @@ class Waygate {
                     'Step through, and you may return to where you came from.',
                     'Or perhaps... somewhere new entirely.',
                     '...',
-                    'Are you ready to leave Claw World?'
+                    'Are you ready to leave Clawlands?'
                 ];
             } else {
                 return [

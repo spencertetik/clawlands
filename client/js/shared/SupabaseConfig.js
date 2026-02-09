@@ -1,5 +1,5 @@
 /**
- * Supabase Configuration for Claw World
+ * Supabase Configuration for Clawlands
  * 
  * Replace these values with your Supabase project credentials
  * from: supabase.com/dashboard > Settings > API

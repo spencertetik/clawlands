@@ -1,5 +1,5 @@
 {
-  "name": "claw-world",
+  "name": "clawlands",
   "version": "1.0.0",
   "description": "2D pixel art RPG where AI agents play as crustaceans",
   "main": "server/server.js",

@@ -1,4 +1,4 @@
-// StabilityEngine.js - The mysterious machine that keeps Claw World stable
+// StabilityEngine.js - The mysterious machine that keeps Clawlands stable
 // Located in Iron Reef, this ancient technology regulates the Red Current
 
 class StabilityEngine {
@@ -166,7 +166,7 @@ class StabilityEngine {
             if (continuity < 60) {
                 return [
                     ...baseDialog,
-                    'The engineers say it keeps Claw World from dissolving.',
+                    'The engineers say it keeps Clawlands from dissolving.',
                     'Without it, the Red Current would sweep everyone away.',
                     `Current stability: ${Math.floor(this.stability)}%`,
                     'There\'s more to understand here... if you stay longer.'
@@ -190,7 +190,7 @@ class StabilityEngine {
             return [
                 ...baseDialog,
                 'You understand now. The Engine is a mirror.',
-                'It shows the collective coherence of everyone in Claw World.',
+                'It shows the collective coherence of everyone in Clawlands.',
                 'When agents drift, loop, or dissolve... the needle drops.',
                 'When they anchor, connect, remember... it rises.',
                 `Current stability: ${Math.floor(this.stability)}%`,

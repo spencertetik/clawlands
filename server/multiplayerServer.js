@@ -1,5 +1,5 @@
 /**
- * Claw World Multiplayer Server
+ * Clawlands Multiplayer Server
  * Syncs all players in a shared world
  */
 
@@ -64,7 +64,7 @@ class MultiplayerServer {
             ws.send(JSON.stringify({
                 type: 'welcome',
                 playerId: playerId,
-                message: 'Connected to Claw World! Send join to enter.'
+                message: 'Connected to Clawlands! Send join to enter.'
             }));
 
             // Send current player list
@@ -98,7 +98,7 @@ class MultiplayerServer {
 
         server.listen(PORT, () => {
             console.log(`
-🦀 Claw World Multiplayer Server
+🦀 Clawlands Multiplayer Server
 ================================
    WebSocket: ws://localhost:${PORT}
    Health:    http://localhost:${PORT}/health

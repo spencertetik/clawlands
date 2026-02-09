@@ -1,5 +1,5 @@
 // RedCurrent.js - Visual representation of the mysterious Red Current
-// The Current surrounds the archipelago and is what "drifts" players/agents into Claw World
+// The Current surrounds the archipelago and is what "drifts" players/agents into Clawlands
 
 class RedCurrent {
     constructor(worldWidth, worldHeight) {

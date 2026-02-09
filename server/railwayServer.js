@@ -1,5 +1,5 @@
 /**
- * Railway Unified Server - Claw World
+ * Railway Unified Server - Clawlands
  * 
  * Single server that handles:
  * - Bot API (WebSocket)
@@ -271,12 +271,12 @@ const httpServer = http.createServer(async (req, res) => {
         res.end(`
 <!DOCTYPE html>
 <html>
-<head><title>Claw World Server</title>
+<head><title>Clawlands Server</title>
 <style>body{font-family:monospace;background:#0d0806;color:#e8d5cc;padding:2rem;max-width:600px;margin:0 auto;}
 h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style>
 </head>
 <body>
-<h1>🦀 Claw World Server</h1>
+<h1>🦀 Clawlands Server</h1>
 <p>WebSocket endpoints:</p>
 <ul>
 <li><code>wss://YOUR_URL/game</code> — Human players</li>
@@ -464,7 +464,7 @@ wss.on('connection', async (ws, req) => {
     ws.send(JSON.stringify({
         type: 'welcome',
         playerId,
-        message: isBot ? 'Send "join" command with name to enter.' : 'Welcome to Claw World!'
+        message: isBot ? 'Send "join" command with name to enter.' : 'Welcome to Clawlands!'
     }));
 
     ws.on('message', async (data) => {
@@ -826,7 +826,7 @@ async function start() {
     // Start listening FIRST so Railway's health check passes immediately
     httpServer.listen(PORT, () => {
         console.log(`
-🦀 Claw World Server running on port ${PORT}
+🦀 Clawlands Server running on port ${PORT}
    
    Endpoints:
    ├─ HTTP:  http://localhost:${PORT}

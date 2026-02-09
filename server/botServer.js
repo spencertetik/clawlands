@@ -1,5 +1,5 @@
 /**
- * Bot WebSocket Server - Allows AI agents to connect and play Claw World
+ * Bot WebSocket Server - Allows AI agents to connect and play Clawlands
  * 
  * Protocol:
  * - Connect to ws://localhost:3001
@@ -105,7 +105,7 @@ class BotServer {
         });
 
         httpServer.listen(BOT_PORT, () => {
-            console.log(`\n🦀 Claw World Bot Server started on port ${BOT_PORT}`);
+            console.log(`\n🦀 Clawlands Bot Server started on port ${BOT_PORT}`);
             console.log(`   Bot WebSocket: ws://localhost:${BOT_PORT}`);
             console.log(`   Game WebSocket: ws://localhost:${BOT_PORT}/game`);
             console.log(`   Health check: http://localhost:${BOT_PORT}/health`);

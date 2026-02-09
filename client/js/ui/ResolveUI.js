@@ -10,7 +10,7 @@ class ResolveUI {
         this.fadeIn = 0; // 0-1 fade animation
 
         // Track choices over time
-        this.storageKey = 'clawworld_resolve_choices';
+        this.storageKey = 'clawlands_resolve_choices';
         this.choices = this.loadChoices();
 
         // Button areas (set during render)

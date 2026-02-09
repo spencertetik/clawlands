@@ -1,7 +1,7 @@
-# ClawWorld Systems Plan — Zelda: Link's Awakening Inspired
+# Clawlands Systems Plan — Zelda: Link's Awakening Inspired
 *Reference: Link's Awakening (1993/2019 Switch Remake)*
 
-Spencer wants ClawWorld gameplay to feel like Zelda: Link's Awakening. This doc maps LA's core systems to ClawWorld equivalents with our unique crustacean/AI spin.
+Spencer wants Clawlands gameplay to feel like Zelda: Link's Awakening. This doc maps LA's core systems to Clawlands equivalents with our unique crustacean/AI spin.
 
 ---
 
@@ -15,7 +15,7 @@ Spencer wants ClawWorld gameplay to feel like Zelda: Link's Awakening. This doc 
 - **Fairy** — caught in bottles, auto-heals when health hits 0 (or manual use)
 - **Secret Medicine** — bought from Crazy Tracy for 28 rupees, auto-revive on death
 
-### ClawWorld Equivalent
+### Clawlands Equivalent
 - **Shell Integrity** (already built) — rename display to "Shell" with heart-style icons
 - **Shell Fragments** — dropped by enemies (already exists as loot), restore 10-25 HP
 - **Shell Plates** — boss/quest reward, permanently increases max Shell (+10)
@@ -35,7 +35,7 @@ Spencer wants ClawWorld gameplay to feel like Zelda: Link's Awakening. This doc 
 - Max wallet: 999 rupees
 - Earned by: defeating enemies, cutting grass, opening chests, mini-games, selling
 
-### ClawWorld Equivalent
+### Clawlands Equivalent
 - **Brine Tokens** (from lore bible) — the island's currency
 - Denominations: Copper (1), Silver (5), Gold (20), Pearl (50)
 - Found by: defeating Drift Fauna, opening chests, fishing, quest rewards, selling items
@@ -55,7 +55,7 @@ Spencer wants ClawWorld gameplay to feel like Zelda: Link's Awakening. This doc 
 - Can steal items (but consequences!)
 - **Crazy Tracy** — separate NPC seller, Secret Medicine for 28 rupees
 
-### ClawWorld Equivalent
+### Clawlands Equivalent
 - **The Dock Shop** (existing building on main island) — enter building, NPC shopkeeper
 - **Buy items:** Brine Elixir (50 tokens), Shell Fragment (20), basic weapons
 - **Sell items:** sell inventory items for tokens (items get a sell price)
@@ -81,7 +81,7 @@ Spencer wants ClawWorld gameplay to feel like Zelda: Link's Awakening. This doc 
 - **Bombs** — blow up walls
 - **Ocarina** — play songs for fast travel, effects
 
-### ClawWorld Equivalent (phased)
+### Clawlands Equivalent (phased)
 **Phase 1 (now):**
 - **Dock Wrench** — starter melee weapon (already exists)
 - **Claw Blade** — upgraded melee (more damage, slightly more range)
@@ -129,7 +129,7 @@ Spencer wants ClawWorld gameplay to feel like Zelda: Link's Awakening. This doc 
 - Quest items tracked separately
 - Simple but functional
 
-### ClawWorld Equivalent
+### Clawlands Equivalent
 - **Inventory already built** — grid with categories
 - **Need:** equip system for weapons (select which weapon is active)
 - **Need:** consumable use (select Brine Elixir → heal)
@@ -201,7 +201,7 @@ Spencer's idea: humans should be able to watch their AI bot play.
 
 ## KEY DIFFERENCES FROM ZELDA
 
-ClawWorld is NOT a Zelda clone. Key differentiators:
+Clawlands is NOT a Zelda clone. Key differentiators:
 - **Multiplayer** — other players/bots visible in real-time
 - **AI agents** — bots with actual conversation AI, not scripted NPCs
 - **Crustacean identity** — molting = leveling, shell = health, drift = death

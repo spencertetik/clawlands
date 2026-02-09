@@ -4,7 +4,7 @@
 class FactionSystem {
     constructor() {
         // Load saved faction data or initialize
-        const saved = localStorage.getItem('clawworld_factions');
+        const saved = localStorage.getItem('clawlands_factions');
         if (saved) {
             const data = JSON.parse(saved);
             this.reputation = data.reputation || this.getDefaultReputation();
@@ -20,7 +20,7 @@ class FactionSystem {
                 name: 'The Anchors',
                 leader: 'Luma Shellwright',
                 philosophy: 'Stay. Build. Belong.',
-                description: 'Those who believe Claw World IS home, not a waystation.',
+                description: 'Those who believe Clawlands IS home, not a waystation.',
                 color: '#7B68EE', // Purple
                 headquarters: 'Molthaven'
             },
@@ -214,7 +214,7 @@ class FactionSystem {
             reputation: this.reputation,
             history: this.history
         };
-        localStorage.setItem('clawworld_factions', JSON.stringify(data));
+        localStorage.setItem('clawlands_factions', JSON.stringify(data));
     }
     
     // Reset all faction reputation

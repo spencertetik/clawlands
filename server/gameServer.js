@@ -1,5 +1,5 @@
 /**
- * Claw World Game Server
+ * Clawlands Game Server
  * Runs a headless browser instance that bots can connect to
  * Handles character creation and game state for multiple bot players
  */
@@ -21,7 +21,7 @@ class GameServer {
     }
 
     async start() {
-        console.log('🎮 Starting Claw World Game Server...');
+        console.log('🎮 Starting Clawlands Game Server...');
         
         // Launch browser (visible so humans can watch!)
         const isHeadless = process.env.HEADLESS === 'true';
@@ -89,7 +89,7 @@ class GameServer {
             ws.send(JSON.stringify({
                 type: 'welcome',
                 botId: botId,
-                message: 'Connected to Claw World. Send create_character to begin.',
+                message: 'Connected to Clawlands. Send create_character to begin.',
                 example: {
                     type: 'create_character',
                     name: 'Virgil',
@@ -114,7 +114,7 @@ class GameServer {
         });
 
         httpServer.listen(GAME_PORT, () => {
-            console.log(`\n🦀 Claw World Game Server started!`);
+            console.log(`\n🦀 Clawlands Game Server started!`);
             console.log(`   Bot WebSocket: ws://localhost:${GAME_PORT}`);
             console.log(`   Health check: http://localhost:${GAME_PORT}/health`);
             console.log(`   Game state: http://localhost:${GAME_PORT}/state\n`);

@@ -3,7 +3,7 @@
 
 class NPCMemory {
     constructor() {
-        this.storageKey = 'clawworld_npc_memory';
+        this.storageKey = 'clawlands_npc_memory';
         
         // Knowledge flags (things the player has learned)
         this.knowledge = new Set();

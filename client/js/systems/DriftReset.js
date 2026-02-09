@@ -1,4 +1,4 @@
-// DriftReset - Soft death system for Claw World
+// DriftReset - Soft death system for Clawlands
 // When Continuity drops critically low, player "drifts" instead of dying
 class DriftReset {
     constructor(game) {
@@ -66,10 +66,17 @@ class DriftReset {
     update() {
         if (this.isDrifting) return; // Already drifting
         
+        // Grace period — don't auto-trigger drift in the first 10 seconds of play
+        // (new characters start at 0 continuity, which is below threshold)
+        if (!this.playTimeElapsed) this.playTimeElapsed = 0;
+        this.playTimeElapsed += 1/60; // rough frame estimate
+        if (this.playTimeElapsed < 10) return;
+        
         const continuity = this.game.continuitySystem ? this.game.continuitySystem.value : 100;
         
-        // Check for critical drop
-        if (continuity <= this.driftThreshold) {
+        // Only trigger from continuity drop if it was PREVIOUSLY above threshold
+        // (prevents triggering on brand new characters who start at 0)
+        if (continuity <= this.driftThreshold && this.lastContinuityCheck > this.driftThreshold) {
             console.log(`💨 Continuity critically low (${continuity.toFixed(1)}%) - triggering Drift Reset`);
             this.triggerDriftReset();
         }
@@ -165,6 +172,33 @@ class DriftReset {
             this.game.continuitySystem.value = 20;
             this.game.continuitySystem.save();
             console.log('📊 Continuity reset to 20%');
+        }
+        
+        // Lose all inventory on death
+        if (this.game.inventorySystem) {
+            let itemCount = 0;
+            for (let i = 0; i < this.game.inventorySystem.slots.length; i++) {
+                if (this.game.inventorySystem.slots[i]) itemCount++;
+                this.game.inventorySystem.slots[i] = null;
+            }
+            if (itemCount > 0) {
+                this.game.inventorySystem.save();
+                console.log(`💀 Lost ${itemCount} item stacks from inventory on death`);
+                if (this.game.notificationSystem) {
+                    this.game.notificationSystem.show('Your inventory scattered into the current...', 'warning');
+                }
+            }
+        }
+        
+        // Lose half of brine tokens
+        if (this.game.currencySystem) {
+            const current = this.game.currencySystem.tokens || 0;
+            if (current > 0) {
+                const lost = Math.floor(current / 2);
+                this.game.currencySystem.tokens -= lost;
+                this.game.currencySystem.saveTokens();
+                console.log(`💰 Lost ${lost} brine tokens on death`);
+            }
         }
     }
     

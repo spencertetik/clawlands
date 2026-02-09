@@ -5,7 +5,7 @@
 class QuestManager {
     constructor(playerName) {
         this.playerName = playerName || 'default';
-        this.storageKey = `clawworld_questmgr_${this.playerName}`;
+        this.storageKey = `clawlands_questmgr_${this.playerName}`;
         
         // Merge all quest sources into one lookup
         this.allQuests = {};
@@ -197,7 +197,7 @@ class QuestManager {
     // Update player name (when character is created)
     setPlayerName(name) {
         this.playerName = name;
-        this.storageKey = `clawworld_questmgr_${this.playerName}`;
+        this.storageKey = `clawlands_questmgr_${this.playerName}`;
         this.load();
     }
 }

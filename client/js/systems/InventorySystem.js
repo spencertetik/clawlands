@@ -4,7 +4,7 @@
 class InventorySystem {
     constructor(playerName) {
         this.playerName = playerName || 'default';
-        this.storageKey = `clawworld_inventory_${this.playerName}`;
+        this.storageKey = `clawlands_inventory_${this.playerName}`;
         this.maxSlots = 20;
         this.slots = []; // Array of { itemId, quantity } or null for empty
         this.listeners = [];
@@ -20,7 +20,7 @@ class InventorySystem {
     // Set player name (used when player logs in / creates character)
     setPlayerName(name) {
         this.playerName = name;
-        this.storageKey = `clawworld_inventory_${this.playerName}`;
+        this.storageKey = `clawlands_inventory_${this.playerName}`;
         this.load();
     }
     

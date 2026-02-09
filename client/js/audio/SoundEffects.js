@@ -1,4 +1,4 @@
-// Sound Effects for Claw World
+// Sound Effects for Clawlands
 // Generates short retro sound effects using Web Audio API
 
 class SoundEffects {

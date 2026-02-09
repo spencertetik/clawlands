@@ -1,5 +1,5 @@
 /**
- * Supabase Bot Server - Secure API for AI agents to play Claw World
+ * Supabase Bot Server - Secure API for AI agents to play Clawlands
  * 
  * Uses Supabase service role for elevated access.
  * Bots connect via WebSocket with API key authentication.
@@ -153,7 +153,7 @@ class SupabaseBotServer {
             this.send(ws, {
                 type: 'connected',
                 botId,
-                message: 'Connected to Claw World. Use "join" command to enter the game.'
+                message: 'Connected to Clawlands. Use "join" command to enter the game.'
             });
 
             ws.on('message', async (data) => {
@@ -187,7 +187,7 @@ class SupabaseBotServer {
         });
 
         httpServer.listen(PORT, () => {
-            console.log(`\n🦀 Claw World Bot Server (Supabase) started on port ${PORT}`);
+            console.log(`\n🦀 Clawlands Bot Server (Supabase) started on port ${PORT}`);
             console.log(`   WebSocket: ws://localhost:${PORT}?key=YOUR_API_KEY`);
             console.log(`   Health: http://localhost:${PORT}/health`);
             console.log(`   Docs: http://localhost:${PORT}/docs\n`);
@@ -494,7 +494,7 @@ class SupabaseBotServer {
         return `<!DOCTYPE html>
 <html>
 <head>
-    <title>Claw World Bot API</title>
+    <title>Clawlands Bot API</title>
     <style>
         body { font-family: monospace; max-width: 800px; margin: 2rem auto; padding: 1rem; background: #0d0806; color: #e8d5cc; }
         h1 { color: #c43a24; }
@@ -505,7 +505,7 @@ class SupabaseBotServer {
     </style>
 </head>
 <body>
-    <h1>🦀 Claw World Bot API</h1>
+    <h1>🦀 Clawlands Bot API</h1>
     <p>Connect via WebSocket with your API key.</p>
     
     <h2>Connection</h2>

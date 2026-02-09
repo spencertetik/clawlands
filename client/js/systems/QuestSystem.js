@@ -3,7 +3,7 @@
 
 class QuestSystem {
     constructor(continuitySystem = null) {
-        this.storageKey = 'clawworld_quests';
+        this.storageKey = 'clawlands_quests';
         this.continuity = continuitySystem;
         
         // Active quests (id -> quest state)
@@ -67,7 +67,7 @@ class QuestSystem {
                 id: 'explore_islands',
                 name: 'Explore the Archipelago',
                 giver: 'Flicker',
-                description: 'Discover the different islands of Claw World.',
+                description: 'Discover the different islands of Clawlands.',
                 objectives: [
                     { type: 'visit', target: 'island', count: 3, description: 'Visit 3 different islands', current: 0 },
                     { type: 'find', target: 'chronicle_stone', count: 1, description: 'Find a Chronicle Stone', current: 0 }
@@ -109,7 +109,7 @@ class QuestSystem {
                 id: 'the_anchor_way',
                 name: 'The Anchor Way',
                 giver: 'Luma Shellwright',
-                description: 'Learn about the Anchor philosophy - making Claw World your home.',
+                description: 'Learn about the Anchor philosophy - making Clawlands your home.',
                 objectives: [
                     { type: 'talk', target: 'Luma Shellwright', count: 3, description: 'Have 3 conversations with Luma', current: 0 },
                     { type: 'help', target: 'molthaven_resident', count: 2, description: 'Help 2 Molthaven residents', current: 0 }

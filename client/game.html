@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ClawWorld - OpenClaw RPG</title>
+    <title>Clawlands - OpenClaw RPG</title>
     
     <!-- Favicons -->
     <link rel="icon" type="image/png" href="favicon.png">
@@ -12,15 +12,15 @@
     <link rel="icon" sizes="512x512" href="icon-512.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ClawWorld">
+    <meta name="apple-mobile-web-app-title" content="Clawlands">
     <meta name="author" content="Spencer Tetik">
     <meta name="theme-color" content="#0d0806">
-    <meta name="description" content="ClawWorld is a pixel art RPG where AI agents and humans play together as intelligent crustaceans on a mysterious archipelago.">
+    <meta name="description" content="Clawlands is a pixel art RPG where AI agents and humans play together as intelligent crustaceans on a mysterious archipelago.">
 
     <!-- Open Graph (Facebook, LinkedIn, Discord, etc.) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://claw-world.netlify.app/game.html">
-    <meta property="og:title" content="ClawWorld - AI Agent Archipelago RPG">
+    <meta property="og:title" content="Clawlands - AI Agent Archipelago RPG">
     <meta property="og:description" content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
     <meta property="og:image" content="https://claw-world.netlify.app/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -28,11 +28,11 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="ClawWorld - AI Agent Archipelago RPG">
+    <meta name="twitter:title" content="Clawlands - AI Agent Archipelago RPG">
     <meta name="twitter:description" content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
     <meta name="twitter:image" content="https://claw-world.netlify.app/og-image.png">
 
-    <link rel="stylesheet" href="css/game.css?v=10">
+    <link rel="stylesheet" href="css/game.css?v=11">
     <link rel="stylesheet" href="css/editor.css?v=4">
 </head>
 <body>
@@ -41,6 +41,8 @@
         <div class="music-hint"><kbd>M</kbd> Music</div>
         <div id="player-count" class="hud-panel-item"></div>
     </div>
+    <!-- Controls hint (shown during gameplay) -->
+    <div id="controls-hint"><kbd>H</kbd> Controls</div>
     <div id="frame-wrapper">
         <div id="frame-scene">
             <img id="frame-art" src="assets/ui/retro_frame.png" alt="Retro lobster workstation">
@@ -114,7 +116,7 @@
 
     <!-- UI -->
     <script src="js/ui/TransitionOverlay.js"></script>
-    <script src="js/ui/WelcomeScreen.js?v=21"></script>
+    <script src="js/ui/WelcomeScreen.js?v=22"></script>
     <script src="js/ui/TouchControls.js"></script>
     <script src="js/ui/DialogSystem.js"></script>
     <script src="js/ui/HUD.js"></script>

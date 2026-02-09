@@ -1,9 +1,9 @@
-// CurrencySystem.js - Manages Brine Tokens in ClawWorld
+// CurrencySystem.js - Manages Brine Tokens in Clawlands
 // Handles storage, transactions, and display formatting
 
 class CurrencySystem {
     constructor() {
-        this.storageKey = 'clawworld_brine_tokens';
+        this.storageKey = 'clawlands_brine_tokens';
         this.tokens = this.loadTokens();
         
         // Token denominations for display (cosmetic only)
@@ -18,7 +18,7 @@ class CurrencySystem {
     // Set player name (updates storage key for per-player tokens)
     setPlayerName(name) {
         if (name) {
-            this.storageKey = `clawworld_brine_tokens_${name}`;
+            this.storageKey = `clawlands_brine_tokens_${name}`;
             this.tokens = this.loadTokens();
         }
     }

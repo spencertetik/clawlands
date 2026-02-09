@@ -1,5 +1,5 @@
 /**
- * Claw World Configuration
+ * Clawlands Configuration
  * URLs can be overridden via query params: ?server=wss://...
  * 
  * Railway deployment: Set RAILWAY_SERVER_URL env var or use query param

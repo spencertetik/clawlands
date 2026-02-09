@@ -18,10 +18,10 @@ class WelcomeScreen {
      * Add CSS animations for red terminal theme
      */
     addTerminalAnimations() {
-        if (document.getElementById('claw-world-animations')) return;
+        if (document.getElementById('clawlands-animations')) return;
         
         const style = document.createElement('style');
-        style.id = 'claw-world-animations';
+        style.id = 'clawlands-animations';
         style.textContent = `
             @keyframes pulse {
                 0%, 100% { transform: scale(1); }
@@ -233,7 +233,7 @@ class WelcomeScreen {
      * Quick start - skip all menus and go straight to game
      */
     quickStartGame() {
-        let savedData = localStorage.getItem('clawworld_character');
+        let savedData = localStorage.getItem('clawlands_character');
         let character;
         
         if (savedData) {
@@ -244,7 +244,7 @@ class WelcomeScreen {
                 color: 'red',
                 name: 'Player'
             };
-            localStorage.setItem('clawworld_character', JSON.stringify(character));
+            localStorage.setItem('clawlands_character', JSON.stringify(character));
         }
         
         this.setGameVisibility(true);
@@ -302,7 +302,7 @@ class WelcomeScreen {
 
         // Title
         const title = document.createElement('div');
-        title.textContent = 'CLAWWORLD';
+        title.textContent = 'CLAWLANDS';
         title.style.cssText = `
             font-size: 32px;
             font-weight: bold;
@@ -757,7 +757,7 @@ class WelcomeScreen {
         `;
 
         const logoTitle = document.createElement('div');
-        logoTitle.innerHTML = '<span style="color:#c43a24">CLAW</span><span style="color:#e8d5cc">WORLD</span>';
+        logoTitle.innerHTML = '<span style="color:#c43a24">CLAW</span><span style="color:#e8d5cc">LANDS</span>';
         logoTitle.style.cssText = `
             font-size: 54px;
             letter-spacing: 4px;
@@ -810,7 +810,7 @@ class WelcomeScreen {
         };
         beginButton.onclick = () => {
             // If player has a saved character, skip creation and enter the world
-            const savedData = localStorage.getItem('clawworld_character');
+            const savedData = localStorage.getItem('clawlands_character');
             if (savedData) {
                 try {
                     const character = JSON.parse(savedData);
@@ -852,7 +852,7 @@ class WelcomeScreen {
         });
 
         const storyLines = [
-            '>> Initializing ClawWorld Terminal...',
+            '>> Initializing Clawlands Terminal...',
             '>> Signal lock acquired. Establishing uplink.',
             '',
             'Deep beneath the waves, a mysterious portal has opened.',
@@ -1479,7 +1479,7 @@ class WelcomeScreen {
         buttonsRow.appendChild(randomBtn);
 
         const enterBtn = document.createElement('button');
-        enterBtn.textContent = 'Enter World';
+        enterBtn.textContent = 'Enter Clawlands';
         enterBtn.style.cssText = `
             padding: 6px 12px;
             background: #c43a24;
@@ -1526,7 +1526,7 @@ class WelcomeScreen {
      */
     finalize(config, name) {
         // Save character for returning players
-        localStorage.setItem('clawworld_character', JSON.stringify({
+        localStorage.setItem('clawlands_character', JSON.stringify({
             species: config.species,
             hueShift: config.hueShift || 0,
             color: config.color || config.species,

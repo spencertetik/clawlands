@@ -1,5 +1,5 @@
 /**
- * BotAPI - Text-based interface for AI agents to play Claw World
+ * BotAPI - Text-based interface for AI agents to play Clawlands
  * Provides structured game state and accepts text commands
  */
 

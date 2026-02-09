@@ -1,10 +1,10 @@
-// ContinuitySystem.js - Hidden stat tracking player's connection to Claw World
+// ContinuitySystem.js - Hidden stat tracking player's connection to Clawlands
 // High Continuity = deeper dialogue, Waygate perception, true endings
 // Low Continuity = NPCs forget you, looping areas, Whisper Reef access
 
 class ContinuitySystem {
     constructor() {
-        this.storageKey = 'clawworld_continuity';
+        this.storageKey = 'clawlands_continuity';
         
         // Core continuity value (0-100)
         this.value = 0;

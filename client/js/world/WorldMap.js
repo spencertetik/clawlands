@@ -109,8 +109,8 @@ class WorldMap {
         console.log('✅ World autotiled with Wang tileset');
     }
 
-    // Create a ClawWorld archipelago with multiple islands
-    createClawWorldArchipelago(options = {}) {
+    // Create a Clawlands archipelago with multiple islands
+    createClawlandsArchipelago(options = {}) {
         const tilesWide = this.width;
         const tilesHigh = this.height;
 
@@ -118,7 +118,7 @@ class WorldMap {
         this.groundLayer = this.createEmptyLayer();
         this.decorationLayer = this.createEmptyLayer();
         this.collisionLayer = this.createEmptyLayer();
-        this.meta = { type: 'outdoor', name: 'ClawWorld Archipelago' };
+        this.meta = { type: 'outdoor', name: 'Clawlands Archipelago' };
 
         const config = {
             seed: options.seed ?? 42,
@@ -128,7 +128,7 @@ class WorldMap {
             bridgeChance: options.bridgeChance ?? 0.8
         };
 
-        console.log(`🏝️ Generating ClawWorld archipelago with ${config.islandCount} islands...`);
+        console.log(`🏝️ Generating Clawlands archipelago with ${config.islandCount} islands...`);
 
         // Step 1: Create base ocean
         const terrainMap = [];
