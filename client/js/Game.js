@@ -259,7 +259,7 @@ class Game {
         // Debug mode (off by default, toggle with backtick key, or ?debug=true URL param)
         const urlParams = new URLSearchParams(window.location.search);
         this.debugMode = urlParams.get('debug') === 'true';
-        this.useNumberedTileset = false;
+        // (numbered tileset debug feature removed)
 
         // Controls help overlay
         this.controlsVisible = false;
@@ -3688,29 +3688,6 @@ class Game {
         }
     }
 
-    // Toggle numbered tileset for visual diagnostics
-    toggleNumberedTileset() {
-        this.useNumberedTileset = !this.useNumberedTileset;
-        const tilesetKey = this.useNumberedTileset ? 'main_numbered' : 'main';
-        let tileset = this.tileRenderer.tilesets.get(tilesetKey);
-
-        // If numbered tileset isn't registered yet but image is loaded, register it now
-        if (!tileset && tilesetKey === 'main_numbered') {
-            const numberedImage = this.assetLoader.getImage('tileset_sand_water_numbered');
-            if (numberedImage) {
-                this.tileRenderer.addTileset('main_numbered', numberedImage, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
-                tileset = this.tileRenderer.tilesets.get('main_numbered');
-            }
-        }
-
-        if (tileset) {
-            this.tileRenderer.addTileset('main', tileset.image, tileset.tileWidth, tileset.tileHeight, tileset.columns);
-            console.log(`🧩 Tileset switched to: ${tilesetKey}`);
-        } else {
-            console.warn(`⚠️ Tileset not found: ${tilesetKey}`);
-        }
-    }
-
     // Force reload character sprites for a specific species and rebuild combined sheets
     async reloadCharacterAssets(species = 'lobster') {
         // Get base path for species - check if species folder exists, fallback to root
@@ -3815,7 +3792,7 @@ class Game {
 
         this.assetLoader
             .loadImage('tileset_sand_water', 'assets/sprites/tiles/pixellab_sand_water.png')
-            .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
+            // numbered tileset removed — no longer needed
             .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_cobblestone.png')
             .loadImageOptional('tileset_dark_cobble', 'assets/sprites/tiles/dark_cobblestone_tileset.png')
             // dirt_cobble transition removed — paths butt up with straight edges
@@ -3877,15 +3854,9 @@ class Game {
 
                 // Load tileset - try PixelLab first, fallback to placeholder
                 const pixelLabTileset = this.assetLoader.getImage('tileset_sand_water');
-                const numberedTileset = this.assetLoader.getImage('tileset_sand_water_numbered');
                 if (pixelLabTileset) {
                     this.tileRenderer.addTileset('main', pixelLabTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
                     console.log('✅ Loaded PixelLab sand/water tileset');
-
-                    if (numberedTileset) {
-                        this.tileRenderer.addTileset('main_numbered', numberedTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
-                        console.log('✅ Loaded numbered sand/water tileset');
-                    }
                 } else {
                     // Fallback to placeholder
                     if (!this.assetLoader.hasImage('tileset_placeholder')) {

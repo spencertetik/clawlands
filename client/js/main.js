@@ -184,13 +184,6 @@ window.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             game.toggleDebug();
         }
-        // Toggle numbered tileset for debugging
-        else if (e.key === 't' || e.key === 'T') {
-            e.preventDefault();
-            if (game && typeof game.toggleNumberedTileset === 'function') {
-                game.toggleNumberedTileset();
-            }
-        }
         // Debug: Hold Shift+R to reset character (clear localStorage)
         else if (e.key === 'R' && e.shiftKey) {
             e.preventDefault();
