@@ -173,6 +173,7 @@ class Game {
 
         // Shop system
         this.shopSystem = typeof ShopSystem !== 'undefined' ? new ShopSystem(this) : null;
+        this.innSystem = typeof InnSystem !== 'undefined' ? new InnSystem(this) : null;
         if (this.shopSystem) {
             console.log('🏪 Shop system initialized');
         }
@@ -517,7 +518,8 @@ class Game {
         const dialogOpen = this.dialogSystem && this.dialogSystem.isOpen();
         const inventoryOpen = this.inventoryUI && this.inventoryUI.isOpen();
         const questLogOpen = this.questLogUI && this.questLogUI.isOpen();
-        if (!dialogOpen && !inventoryOpen && !questLogOpen) {
+        const innBusy = this.innSystem && (this.innSystem.isOpen || this.innSystem.isSleeping);
+        if (!dialogOpen && !inventoryOpen && !questLogOpen && !innBusy) {
             this.player.update(deltaTime, this.inputManager, this.collisionSystem);
         }
 
@@ -1439,9 +1441,11 @@ class Game {
     handleInteractions() {
         if (!this.inputManager.isInteractPressed()) return;
         
-        // Don't handle interactions when inventory or quest log is open
+        // Don't handle interactions when UI overlays are open
         if (this.inventoryUI && this.inventoryUI.isOpen()) return;
         if (this.questLogUI && this.questLogUI.isOpen()) return;
+        if (this.innSystem && this.innSystem.isOpen) return;
+        if (this.innSystem && this.innSystem.isSleeping) return;
 
         // Advance dialog if open
         if (this.dialogSystem && this.dialogSystem.isOpen()) {
@@ -1466,6 +1470,14 @@ class Game {
             // Shop merchants open shop after dialog
             if (isShopMerchant && this.shopSystem) {
                 dialogCallback = () => this.shopSystem.open();
+            }
+
+            // Innkeeper opens sleep prompt after dialog
+            const isInnkeeper = this.currentLocation === 'interior' &&
+                this.currentBuilding && this.currentBuilding.type === 'inn' &&
+                npc.name === 'Innkeeper Pinch';
+            if (isInnkeeper && this.innSystem) {
+                dialogCallback = () => this.innSystem.open();
             }
             
             // Keeper Lumen's lighthouse reward
@@ -2784,11 +2796,9 @@ class Game {
             ]);
         } else if (type === 'inn') {
             placeNpc(Math.floor(map.width / 2), 4, 'Innkeeper Pinch', [
-                'Ah, another one washes ashore. Welcome to Clawlands.',
-                'You look like you\'ve been looping. Need rest?',
-                'The rooms here help with Continuity, they say.',
-                'Stay a while. Form some routines. It helps.',
-                'Most who leave too early just... Drift back In.'
+                'Welcome to the Drift-In Inn! You look tired.',
+                'A good rest will fix that shell right up.',
+                'Fifty tokens for the night. Best deal on the islands.'
             ]);
         } else if (type === 'house') {
             placeNpc(Math.floor(map.width / 2), 3, 'Resident', [
