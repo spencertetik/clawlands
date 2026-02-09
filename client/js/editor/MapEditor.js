@@ -911,13 +911,23 @@ class MapEditor {
             x = Math.floor(x / tileSize) * tileSize;
             y = Math.floor(y / tileSize) * tileSize;
             
-            // Don't place duplicate path tiles at same position
-            const exists = this.game.decorations.some(d => 
+            const col = Math.floor(x / tileSize);
+            const row = Math.floor(y / tileSize);
+            const posKey = `${col},${row}`;
+            const pathPositions = this.game._pathPositions;
+            
+            // Don't place duplicate path tiles at same position (check both decorations AND tile layer)
+            const existsInDecor = this.game.decorations.some(d => 
                 d.type === this.selectedAsset && d.x === x && d.y === y
             );
-            if (exists) return;
+            const existsInTileLayer = pathPositions && (
+                (this.selectedAsset === 'dirt_path' && pathPositions.light.has(posKey)) ||
+                (this.selectedAsset === 'cobblestone_path' && pathPositions.dark.has(posKey))
+            );
+            if (existsInDecor || existsInTileLayer) return;
             
             // Remove any other path type at this position (replace dirt with cobble, etc.)
+            // Check decorations first
             const otherPathIdx = this.game.decorations.findIndex(d =>
                 this.pathTileTypes.has(d.type) && d.x === x && d.y === y && d.type !== this.selectedAsset
             );
@@ -926,6 +936,15 @@ class MapEditor {
                 this.placedItems = this.placedItems.filter(p =>
                     !(p.x === removed.x && p.y === removed.y && p.type === removed.type)
                 );
+            }
+            
+            // Also clear any conflicting path from tile layer positions
+            if (pathPositions) {
+                if (this.selectedAsset === 'dirt_path') {
+                    pathPositions.dark.delete(posKey); // Remove cobblestone if placing dirt
+                } else if (this.selectedAsset === 'cobblestone_path') {
+                    pathPositions.light.delete(posKey); // Remove dirt if placing cobblestone
+                }
             }
         }
         
@@ -1038,10 +1057,51 @@ class MapEditor {
             
             // If deleted a path tile, remove from persistent tracking and rebuild
             if (this.pathTileTypes.has(removed.type)) {
-                const tileSize = CONSTANTS.TILE_SIZE;
                 const col = Math.floor(removed.x / tileSize);
                 const row = Math.floor(removed.y / tileSize);
                 this.game.removePathPosition(col, row, removed.type);
+                this.schedulePathRebuild();
+            }
+            return;
+        }
+        
+        // No decoration found — check if there's a path tile in the tile layer
+        // (original paths get consumed by buildPathTileLayer and no longer exist as decorations)
+        const col = Math.floor(x / tileSize);
+        const row = Math.floor(y / tileSize);
+        const pathPositions = this.game._pathPositions;
+        
+        if (pathPositions) {
+            const key = `${col},${row}`;
+            let deletedPathType = null;
+            
+            if (pathPositions.dark.has(key)) {
+                deletedPathType = 'cobblestone_path';
+                pathPositions.dark.delete(key);
+            } else if (pathPositions.light.has(key)) {
+                deletedPathType = 'dirt_path';
+                pathPositions.light.delete(key);
+            }
+            
+            if (deletedPathType) {
+                const px = col * tileSize;
+                const py = row * tileSize;
+                console.log(`🗑️ Deleted ${deletedPathType} tile at col=${col}, row=${row}`);
+                
+                // Track deletion
+                const locationKey = this.getCurrentLocationKey();
+                this.deletedItems.add(`${locationKey}:${deletedPathType}_${px}_${py}`);
+                
+                // Track for undo (create a synthetic decoration record)
+                this.recordAction('delete', {
+                    x: px, y: py,
+                    type: deletedPathType,
+                    width: tileSize, height: tileSize,
+                    layer: CONSTANTS.LAYER.GROUND,
+                    ground: true
+                });
+                
+                // Rebuild path layer to reflect the removal
                 this.schedulePathRebuild();
             }
         }
@@ -1117,21 +1177,35 @@ class MapEditor {
                     undoCount++;
                 }
             } else if (item.actionType === 'delete') {
-                // Undo a deletion by restoring the item
-                const restoredDecor = {
-                    x: item.x,
-                    y: item.y,
-                    type: item.type,
-                    width: item.width,
-                    height: item.height,
-                    layer: item.layer,
-                    ground: item.ground,
-                    sprite: item.sprite || this.game.decorationLoader?.getSprite(item.type),
-                    editorPlaced: true
-                };
-                this.game.decorations.push(restoredDecor);
+                // For path tiles, restore directly to _pathPositions (they live in the tile layer, not decorations)
+                if (this.pathTileTypes.has(item.type) && this.game._pathPositions) {
+                    const tileSize = CONSTANTS.TILE_SIZE;
+                    const col = Math.floor(item.x / tileSize);
+                    const row = Math.floor(item.y / tileSize);
+                    const key = `${col},${row}`;
+                    if (item.type === 'cobblestone_path') {
+                        this.game._pathPositions.dark.add(key);
+                    } else if (item.type === 'dirt_path') {
+                        this.game._pathPositions.light.add(key);
+                    }
+                } else {
+                    // Undo a deletion by restoring the item as a decoration
+                    const restoredDecor = {
+                        x: item.x,
+                        y: item.y,
+                        type: item.type,
+                        width: item.width,
+                        height: item.height,
+                        layer: item.layer,
+                        ground: item.ground,
+                        sprite: item.sprite || this.game.decorationLoader?.getSprite(item.type),
+                        editorPlaced: true
+                    };
+                    this.game.decorations.push(restoredDecor);
+                }
                 // Remove from deletedItems
-                this.deletedItems.delete(`${item.type}_${item.x}_${item.y}`);
+                const locationKey = this.getCurrentLocationKey();
+                this.deletedItems.delete(`${locationKey}:${item.type}_${item.x}_${item.y}`);
                 undoCount++;
             }
         }
@@ -1182,6 +1256,30 @@ class MapEditor {
             
             this.selectAsset(decor.type);
             console.log(`💉 Picked ${decor.type}`);
+            return;
+        }
+        
+        // No decoration found — check path tile layer
+        const col = Math.floor(x / tileSize);
+        const row = Math.floor(y / tileSize);
+        const pathPositions = this.game._pathPositions;
+        if (pathPositions) {
+            const key = `${col},${row}`;
+            let pickedType = null;
+            if (pathPositions.dark.has(key)) {
+                pickedType = 'cobblestone_path';
+            } else if (pathPositions.light.has(key)) {
+                pickedType = 'dirt_path';
+            }
+            if (pickedType) {
+                this.selectedCategory = 'ground';
+                this.container.querySelectorAll('.editor-tab').forEach(t => {
+                    t.classList.toggle('active', t.dataset.category === 'ground');
+                });
+                this.renderAssetPalette();
+                this.selectAsset(pickedType);
+                console.log(`💉 Picked ${pickedType} from tile layer`);
+            }
         }
     }
     
