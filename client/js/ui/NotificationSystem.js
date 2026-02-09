@@ -99,8 +99,9 @@ class NotificationSystem {
         this.container.appendChild(notification);
         this.notifications.push(notification);
         
-        // Remove oldest if too many
-        while (this.notifications.length > this.maxVisible) {
+        // Remove oldest if too many (dismiss() removes from array synchronously)
+        let safety = 20;
+        while (this.notifications.length > this.maxVisible && safety-- > 0) {
             this.dismiss(this.notifications[0]);
         }
         
@@ -122,18 +123,24 @@ class NotificationSystem {
     
     // Dismiss a notification
     dismiss(notification) {
-        if (!notification || !notification.parentNode) return;
+        if (!notification) return;
         
+        // Remove from tracking array IMMEDIATELY (sync) to prevent infinite loop
+        // in the while(notifications.length > maxVisible) check inside show()
+        const idx = this.notifications.indexOf(notification);
+        if (idx >= 0) {
+            this.notifications.splice(idx, 1);
+        }
+        
+        if (!notification.parentNode) return;
+        
+        // Animate out, then remove DOM element after transition
         notification.style.opacity = '0';
         notification.style.transform = 'translateY(-8px)';
         
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
-            }
-            const idx = this.notifications.indexOf(notification);
-            if (idx >= 0) {
-                this.notifications.splice(idx, 1);
             }
         }, 200);
     }

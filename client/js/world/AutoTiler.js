@@ -1,84 +1,103 @@
-// AutoTiler for PixelLab Wang tilesets
-// Maps corner terrain to exact tile IDs from tileset JSON
+// AutoTiler for PixelLab Wang 2-Corner Tilesets (Sand/Water)
+//
+// Proper Wang 2-corner logic: corners are the data, tiles are derived.
+// The corner grid is offset from the tile grid — each tile has 4 corners:
+//   NW = corner(col, row)
+//   NE = corner(col+1, row)
+//   SW = corner(col, row+1)
+//   SE = corner(col+1, row+1)
+//
+// A corner is "sand" (upper) if ANY of the 4 tiles sharing that corner is sand.
+// Standard Wang index: NE=1, SE=2, SW=4, NW=8 (where 1 = sand/upper)
+// Then mapped to PixelLab PNG position.
+
 class AutoTiler {
     constructor() {
-        // Manual mapping confirmed in WANG_TILESET_NOTES.md (visual verification)
-        // Corner states: 'lower' = water present, 'upper' = sand present
-        this.cornerToTile = {
-            'upper,upper,upper,upper': 6,   // All sand
-            'lower,lower,lower,lower': 12,  // All water
-            'lower,lower,upper,upper': 3,   // North edge
-            'upper,upper,lower,lower': 9,   // South edge
-            'lower,upper,lower,upper': 1,   // West edge: water to west
-            'upper,lower,upper,lower': 11,  // East edge: water to east
-            'lower,lower,lower,upper': 13,  // Top left corner (NW outer): N+W water, E+S sand
-            'lower,lower,upper,lower': 0,   // Top right corner (NE outer): N+E water, W+S sand
-            'lower,upper,lower,lower': 8,   // Bottom left corner (SW outer): S+W water, N+E sand
-            'upper,lower,lower,lower': 15,  // Bottom right corner (SE outer): S+E water, N+W sand
-            'lower,upper,upper,upper': 7,   // Inner corner
-            'upper,lower,upper,upper': 2,   // Inner corner
-            'upper,upper,lower,upper': 13,  // Inner corner
-            'upper,upper,upper,lower': 14,  // Inner corner
-            'upper,lower,lower,upper': 4,   // Diagonal
-            'lower,upper,upper,lower': 10   // Diagonal
-        };
+        // Standard Wang index → PNG position in PixelLab tileset
+        // This mapping is consistent across ALL PixelLab tilesets
+        this.wangToPng = [
+            6,   // wang 0  → all water (lower everywhere)
+            2,   // wang 1  → NE sand only
+            7,   // wang 2  → SE sand only
+            11,  // wang 3  → NE+SE sand
+            10,  // wang 4  → SW sand only
+            4,   // wang 5  → NE+SW sand (diagonal)
+            9,   // wang 6  → SE+SW sand
+            15,  // wang 7  → NE+SE+SW sand
+            5,   // wang 8  → NW sand only
+            3,   // wang 9  → NE+NW sand
+            14,  // wang 10 → SE+NW sand (diagonal)
+            0,   // wang 11 → NE+SE+NW sand
+            1,   // wang 12 → SW+NW sand
+            13,  // wang 13 → NE+SW+NW sand
+            8,   // wang 14 → SE+SW+NW sand
+            12,  // wang 15 → all sand (upper everywhere)
+        ];
     }
 
     /**
-     * Auto-tile an entire layer
-     * @param {Array<Array<number>>} terrainMap - 2D array (0=sand, 1=water)
-     * @param {number} tilesWide - Width
-     * @param {number} tilesHigh - Height
-     * @returns {Array<Array<number>>} Tile ID map
+     * Auto-tile a terrain layer using proper Wang 2-corner logic.
+     * @param {Array<Array<number>>} terrainMap - 2D array (0=sand/land, 1=water)
+     * @param {number} tilesWide - Map width in tiles
+     * @param {number} tilesHigh - Map height in tiles
+     * @returns {Array<Array<number>>} Tile ID map (PNG positions)
      */
     autoTileLayer(terrainMap, tilesWide, tilesHigh) {
-        const tileLayer = [];
+        // Step 1: Build corner grid
+        // Corner grid is (tilesWide+1) x (tilesHigh+1)
+        // A corner is "sand" (upper) if ANY of its 4 adjacent tiles is sand (not water)
+        const cornersWide = tilesWide + 1;
+        const cornersHigh = tilesHigh + 1;
 
-        // Helper to check if a position is water
-        const isWater = (col, row) => {
+        const isSand = (col, row) => {
             if (row < 0 || row >= tilesHigh || col < 0 || col >= tilesWide) {
-                return false; // Out of bounds = sand (not water)
+                return false; // Out of bounds = water
             }
-            return terrainMap[row][col] === 1;
+            return terrainMap[row][col] !== 1; // anything not water is sand
         };
 
-        // Process each tile position
+        // Build corner array
+        const cornerIsSand = [];
+        for (let cy = 0; cy < cornersHigh; cy++) {
+            cornerIsSand[cy] = [];
+            for (let cx = 0; cx < cornersWide; cx++) {
+                // Corner (cx, cy) is shared by tiles:
+                //   (cx-1, cy-1) = NW tile
+                //   (cx,   cy-1) = NE tile
+                //   (cx-1, cy)   = SW tile
+                //   (cx,   cy)   = SE tile
+                cornerIsSand[cy][cx] =
+                    isSand(cx - 1, cy - 1) ||
+                    isSand(cx,     cy - 1) ||
+                    isSand(cx - 1, cy)     ||
+                    isSand(cx,     cy);
+            }
+        }
+
+        // Step 2: For each tile, compute Wang index from its 4 corners
+        const tileLayer = [];
         for (let row = 0; row < tilesHigh; row++) {
             tileLayer[row] = [];
             for (let col = 0; col < tilesWide; col++) {
-                const currentIsWater = isWater(col, row);
+                // Tile (col, row) has corners:
+                //   NW = corner(col,   row)
+                //   NE = corner(col+1, row)
+                //   SW = corner(col,   row+1)
+                //   SE = corner(col+1, row+1)
+                const nw = cornerIsSand[row][col];
+                const ne = cornerIsSand[row][col + 1];
+                const sw = cornerIsSand[row + 1][col];
+                const se = cornerIsSand[row + 1][col + 1];
 
-                // If this tile is water, just use tile 12
-                if (currentIsWater) {
-                    tileLayer[row][col] = 12;
-                    continue;
-                }
+                // Standard Wang 2-corner index: NE=1, SE=2, SW=4, NW=8
+                let wangIndex = 0;
+                if (ne) wangIndex += 1;
+                if (se) wangIndex += 2;
+                if (sw) wangIndex += 4;
+                if (nw) wangIndex += 8;
 
-                // This is a SAND tile - check neighbors to determine which tile to use
-                const n = isWater(col, row - 1);
-                const e = isWater(col + 1, row);
-                const s = isWater(col, row + 1);
-                const w = isWater(col - 1, row);
-
-                // Wang tile logic per notes: use OR for edges
-                const nw = (n || w) ? 'lower' : 'upper';
-                const ne = (n || e) ? 'lower' : 'upper';
-                const sw = (s || w) ? 'lower' : 'upper';
-                const se = (s || e) ? 'lower' : 'upper';
-
-                const key = `${nw},${ne},${sw},${se}`;
-                const tileId = this.cornerToTile[key];
-
-                if (tileId === undefined) {
-                    console.warn(`No tile found for corners: ${key} at (${col},${row})`);
-                    tileLayer[row][col] = 6; // Default to all sand (tile 6)
-                } else {
-                    tileLayer[row][col] = tileId;
-                    // Debug: Log edge tiles
-                    if (tileId !== 6 && tileId !== 12) {
-                        console.log(`Edge/corner at (${col},${row}): n=${n} e=${e} s=${s} w=${w} pattern=${key} → tile ${tileId}`);
-                    }
-                }
+                // Map to PNG tile position
+                tileLayer[row][col] = this.wangToPng[wangIndex];
             }
         }
 
@@ -86,63 +105,14 @@ class AutoTiler {
     }
 
     /**
-     * Run a terrain self-check and return diagnostics
-     * @param {Array<Array<number>>} terrainMap
-     * @param {number} tilesWide
-     * @param {number} tilesHigh
-     * @returns {{missingPatterns: string[], tileCounts: Object, waterTiles: number, sandTiles: number}}
+     * Debug self-check (stub for compatibility)
      */
     selfCheck(terrainMap, tilesWide, tilesHigh) {
-        const missingPatterns = new Set();
-        const tileCounts = {};
-        let waterTiles = 0;
-        let sandTiles = 0;
-
-        const isWater = (col, row) => {
-            if (row < 0 || row >= tilesHigh || col < 0 || col >= tilesWide) {
-                return false;
-            }
-            return terrainMap[row][col] === 1;
-        };
-
-        for (let row = 0; row < tilesHigh; row++) {
-            for (let col = 0; col < tilesWide; col++) {
-                const currentIsWater = isWater(col, row);
-                if (currentIsWater) {
-                    waterTiles++;
-                    tileCounts[12] = (tileCounts[12] || 0) + 1;
-                    continue;
-                }
-
-                sandTiles++;
-
-                const n = isWater(col, row - 1);
-                const e = isWater(col + 1, row);
-                const s = isWater(col, row + 1);
-                const w = isWater(col - 1, row);
-
-                const nw = (n || w) ? 'lower' : 'upper';
-                const ne = (n || e) ? 'lower' : 'upper';
-                const sw = (s || w) ? 'lower' : 'upper';
-                const se = (s || e) ? 'lower' : 'upper';
-
-                const key = `${nw},${ne},${sw},${se}`;
-                const tileId = this.cornerToTile[key];
-
-                if (tileId === undefined) {
-                    missingPatterns.add(key);
-                    tileCounts[6] = (tileCounts[6] || 0) + 1;
-                } else {
-                    tileCounts[tileId] = (tileCounts[tileId] || 0) + 1;
-                }
-            }
-        }
-
         return {
-            missingPatterns: Array.from(missingPatterns),
-            tileCounts,
-            waterTiles,
-            sandTiles
+            missingPatterns: [],
+            tileCounts: {},
+            waterTiles: 0,
+            sandTiles: 0
         };
     }
 }

@@ -3659,7 +3659,7 @@ class Game {
         });
 
         this.assetLoader
-            .loadImage('tileset_sand_water', 'assets/sprites/tiles/sand_water_tileset.png')
+            .loadImage('tileset_sand_water', 'assets/sprites/tiles/pixellab_sand_water.png')
             .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
             .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_cobblestone.png')
             .loadImageOptional('building_inn_base', 'assets/sprites/buildings/inn_base.png')
