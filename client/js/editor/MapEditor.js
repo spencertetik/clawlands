@@ -46,7 +46,7 @@ class MapEditor {
         this.maxUndoSteps = 50;
         
         // Path auto-tiling: track which asset types are path tiles
-        this.pathTileTypes = new Set(['dirt_path', 'cobblestone_path', 'brick_path']);
+        this.pathTileTypes = new Set(['dirt_path', 'cobblestone_path']);
         this.pathRebuildPending = false; // Debounce path rebuilds during drag painting
         
         // Asset categories with their sources
@@ -54,7 +54,7 @@ class MapEditor {
             ground: {
                 name: 'Ground',
                 icon: '■',
-                assets: ['dirt_path', 'cobblestone_path', 'brick_path']
+                assets: ['dirt_path', 'cobblestone_path']
             },
             plants: {
                 name: 'Plants',

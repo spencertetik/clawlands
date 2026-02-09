@@ -3803,7 +3803,7 @@ class Game {
             .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
             .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_cobblestone.png')
             .loadImageOptional('tileset_dark_cobble', 'assets/sprites/tiles/dark_cobblestone_tileset.png')
-            .loadImageOptional('tileset_dirt_cobble', 'assets/sprites/tiles/pixellab_dirt_cobblestone.png')
+            // dirt_cobble transition removed — paths butt up with straight edges
             .loadImageOptional('building_inn_base', 'assets/sprites/buildings/inn_base.png')
             .loadImageOptional('building_inn_roof', 'assets/sprites/buildings/inn_roof.png')
             .loadImageOptional('building_shop_base', 'assets/sprites/buildings/shop_base.png')
@@ -3897,12 +3897,7 @@ class Game {
                     console.log('Loaded dark cobblestone tileset');
                 }
                 
-                // Load dirt→cobblestone transition tileset
-                const dirtCobbleTileset = this.assetLoader.getImage('tileset_dirt_cobble');
-                if (dirtCobbleTileset) {
-                    this.tileRenderer.addTileset('dirt_cobble', dirtCobbleTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
-                    console.log('Loaded dirt→cobblestone transition tileset');
-                }
+                // dirt_cobble transition tileset removed — paths butt up with straight edges
 
                 // Always create a simple beach decoration tileset (can be replaced later)
                 const decorTileset = this.assetLoader.createBeachDecorTileset();
@@ -4735,35 +4730,7 @@ class Game {
             console.log(`Built dark cobblestone path layer: ${darkPathPositions.size} positions`);
         }
 
-        // Build dirt→cobblestone transition layer (where light meets dark paths)
-        if (lightPathPositions.size > 0 && darkPathPositions.size > 0 && this.tileRenderer.tilesets.has('dirt_cobble')) {
-            // Wang auto-tile cobblestone positions against a background of dirt
-            // The "lower" terrain is dirt, "upper" is cobblestone
-            // We only care about tiles in the dirt→cobble border zone
-            const transitionAutoTiler = new PathAutoTiler();
-            const transitionLayer = transitionAutoTiler.buildPathLayer(darkPathPositions, tilesWide, tilesHigh, 'dirt_cobble');
-            
-            if (transitionLayer && this.worldMap.pathLayer) {
-                for (let row = 0; row < tilesHigh; row++) {
-                    for (let col = 0; col < tilesWide; col++) {
-                        const trans = transitionLayer[row]?.[col];
-                        if (!trans) continue;
-                        
-                        // Only apply transition at the boundary between dirt and cobblestone
-                        // Check if this tile or its neighbors include BOTH dirt and cobblestone
-                        const isDirt = lightPathPositions.has(`${col},${row}`);
-                        const isCobble = darkPathPositions.has(`${col},${row}`);
-                        const neighborsDirt = this.tileNeighborsDirt(col, row, lightPathPositions);
-                        
-                        // Apply where: cobblestone tile borders dirt, OR dirt tile borders cobblestone
-                        if ((isCobble && neighborsDirt) || (isDirt && this.tileNeighborsDirt(col, row, darkPathPositions))) {
-                            this.worldMap.pathLayer[row][col] = trans;
-                        }
-                    }
-                }
-                console.log(`Built dirt→cobblestone transition layer`);
-            }
-        }
+        // No transition between dirt and cobblestone — they butt up with straight edges
 
         if (!keepDecorations) {
             // Remove path decorations since they're now rendered as tiles
@@ -4788,16 +4755,6 @@ class Game {
     }
     
     // Check if a tile position neighbors any dirt path tiles
-    tileNeighborsDirt(col, row, dirtPositions) {
-        for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-                if (dr === 0 && dc === 0) continue;
-                if (dirtPositions.has(`${col + dc},${row + dr}`)) return true;
-            }
-        }
-        return false;
-    }
-
     // Create a path segment between two points
     createPathSegment(x1, y1, x2, y2) {
         const dx = Math.sign(x2 - x1);

@@ -246,12 +246,7 @@ class DecorationLoader {
             collision: null,
             ground: true
         },
-        brick_path: {
-            path: 'assets/sprites/decorations/brick_path.png',
-            width: 16, height: 16,
-            collision: null,
-            ground: true
-        },
+        // brick_path removed — only dirt_path and cobblestone_path in use
         
         // Ground decorations (rendered below entities)
         flower: {
