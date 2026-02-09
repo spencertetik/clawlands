@@ -4708,9 +4708,13 @@ class Game {
 
         const pathAutoTiler = new PathAutoTiler();
         
+        // Combined set of ALL path positions — used for corner computation so that
+        // where dirt meets cobblestone, both see "path" instead of "sand" (no gaps)
+        const allPathPositions = new Set([...lightPathPositions, ...darkPathPositions]);
+        
         // Build light cobblestone path layer (from dirt_path)
         if (lightPathPositions.size > 0 && this.tileRenderer.tilesets.has('path')) {
-            this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(lightPathPositions, tilesWide, tilesHigh);
+            this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(lightPathPositions, tilesWide, tilesHigh, 'path', allPathPositions);
             console.log(`Built light path layer: ${lightPathPositions.size} positions`);
         } else {
             this.worldMap.pathLayer = null;
@@ -4718,7 +4722,7 @@ class Game {
         
         // Build dark cobblestone path layer (from cobblestone_path)
         if (darkPathPositions.size > 0 && this.tileRenderer.tilesets.has('dark_path')) {
-            const darkLayer = pathAutoTiler.buildPathLayer(darkPathPositions, tilesWide, tilesHigh, 'dark_path');
+            const darkLayer = pathAutoTiler.buildPathLayer(darkPathPositions, tilesWide, tilesHigh, 'dark_path', allPathPositions);
             
             // Merge dark layer into pathLayer (dark overwrites light where they overlap)
             if (!this.worldMap.pathLayer) {
@@ -4734,8 +4738,6 @@ class Game {
             }
             console.log(`Built dark cobblestone path layer: ${darkPathPositions.size} positions`);
         }
-
-        // No transition between dirt and cobblestone — they butt up with straight edges
 
         if (!keepDecorations) {
             // Remove path decorations since they're now rendered as tiles

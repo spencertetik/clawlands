@@ -44,16 +44,22 @@ class PathAutoTiler {
      * @param {number} tilesWide - Map width in tiles
      * @param {number} tilesHigh - Map height in tiles
      * @param {string} tilesetKey - Tileset key to use (default 'path')
+     * @param {Set<string>} allPathPositions - Optional combined set of ALL path types for corner computation.
+     *   When provided, corners treat any position in this set as "upper" terrain,
+     *   but only positions in pathPositions get rendered. This prevents sand gaps
+     *   where different path types meet (e.g. dirt next to cobblestone).
      * @returns {Array<Array<object|null>>} 2D array of {id, tileset} or null
      */
-    buildPathLayer(pathPositions, tilesWide, tilesHigh, tilesetKey = 'path') {
+    buildPathLayer(pathPositions, tilesWide, tilesHigh, tilesetKey = 'path', allPathPositions = null) {
         // Step 1: Build corner grid
         // Corner grid is (tilesWide+1) x (tilesHigh+1)
         // A corner at (cx, cy) is "upper" (path) if any of its 4 adjacent tiles is a path
         const cornersWide = tilesWide + 1;
         const cornersHigh = tilesHigh + 1;
         
-        const isPath = (col, row) => pathPositions.has(`${col},${row}`);
+        // Use allPathPositions for corner computation if provided (prevents sand gaps between path types)
+        const cornerSet = allPathPositions || pathPositions;
+        const isPath = (col, row) => cornerSet.has(`${col},${row}`);
         
         // cornerIsUpper[cy][cx] = true if corner is "path" terrain
         const cornerIsUpper = [];
