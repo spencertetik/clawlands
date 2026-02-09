@@ -241,6 +241,8 @@ class MultiplayerClient {
         // Send position updates when player moves
         this.positionSendInterval = setInterval(() => {
             if (!this.game.player) return;
+            // Don't broadcast position in spectator mode (invisible watcher)
+            if (this.game.spectateMode) return;
 
             const pos = this.game.player.position;
             const dir = this.game.player.direction;

@@ -260,6 +260,11 @@ class Game {
         // Debug mode (off by default, toggle with backtick key, or ?debug=true URL param)
         const urlParams = new URLSearchParams(window.location.search);
         this.debugMode = urlParams.get('debug') === 'true';
+        
+        // Spectator mode — ?spectate=BotName to follow a remote player
+        this.spectateTarget = urlParams.get('spectate');
+        this.spectateMode = !!this.spectateTarget;
+        this.spectatePlayer = null; // RemotePlayer we're following
         // (numbered tileset debug feature removed)
 
         // Controls help overlay
@@ -375,14 +380,99 @@ class Game {
 
     // Start the game loop
     start() {
-        // Always show the welcome screen (intro sequence plays every time).
-        // The welcome screen handles returning players by skipping character
-        // creation when PRESS START is clicked if a saved character exists.
-        this.showWelcomeScreen();
+        if (this.spectateMode) {
+            // Spectator mode — skip welcome/character creation, just watch
+            this.startSpectatorMode();
+        } else {
+            // Always show the welcome screen (intro sequence plays every time).
+            // The welcome screen handles returning players by skipping character
+            // creation when PRESS START is clicked if a saved character exists.
+            this.showWelcomeScreen();
+        }
 
         this.running = true;
         this.lastTime = performance.now();
         this.gameLoop(this.lastTime);
+    }
+
+    // Start spectator mode — skip intro, connect multiplayer, follow target bot
+    startSpectatorMode() {
+        console.log(`👁️ Spectator mode: watching "${this.spectateTarget}"`);
+        
+        // Set a dummy character name so multiplayer join works
+        this.characterName = `Spectator_${Date.now() % 10000}`;
+        this.player.name = this.characterName;
+        this.characterConfig = { species: 'lobster', hueShift: 0 };
+        
+        // Mark game as active so rendering works
+        this.gameActive = true;
+        
+        // Hide the player off-screen (spectator is invisible)
+        this.player.position.x = -1000;
+        this.player.position.y = -1000;
+        
+        // Start ambient sounds
+        if (this.sfx) {
+            this.sfx.startOceanAmbient();
+            this.sfx.startWindAmbient();
+            this.sfx.startBirdAmbient();
+        }
+        
+        // Show spectator overlay
+        this._showSpectatorOverlay();
+        
+        // Enable multiplayer and start scanning for target
+        this.enableMultiplayer();
+        setTimeout(() => {
+            this.joinMultiplayer();
+            this._startSpectatorScan();
+        }, 1500);
+    }
+
+    // Scan for the spectate target among remote players
+    _startSpectatorScan() {
+        const scanInterval = setInterval(() => {
+            if (!this.multiplayer) return;
+            
+            for (const [id, remote] of this.multiplayer.remotePlayers) {
+                if (remote.name.toLowerCase() === this.spectateTarget.toLowerCase()) {
+                    console.log(`👁️ Found spectate target: ${remote.name} at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
+                    this.spectatePlayer = remote;
+                    
+                    // Make camera follow this remote player
+                    this.camera.setTarget(remote);
+                    
+                    // Update overlay
+                    const label = document.getElementById('spectate-label');
+                    if (label) label.textContent = `Watching: ${remote.name}`;
+                    const status = document.getElementById('spectate-status');
+                    if (status) status.textContent = 'Connected';
+                    if (status) status.style.color = '#4CAF50';
+                    
+                    clearInterval(scanInterval);
+                    return;
+                }
+            }
+        }, 500);
+    }
+
+    // Show spectator UI overlay
+    _showSpectatorOverlay() {
+        const overlay = document.createElement('div');
+        overlay.id = 'spectator-overlay';
+        overlay.style.cssText = `
+            position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+            background: rgba(13, 8, 6, 0.85); border: 2px solid #c43a24;
+            border-radius: 8px; padding: 8px 20px; z-index: 1000;
+            font-family: monospace; color: #e8d5cc; text-align: center;
+            pointer-events: none;
+        `;
+        overlay.innerHTML = `
+            <div style="font-size: 11px; color: #8a7068; text-transform: uppercase; letter-spacing: 2px;">Spectator Mode</div>
+            <div id="spectate-label" style="font-size: 16px; font-weight: bold; color: #e8d5cc; margin: 4px 0;">Looking for: ${this.spectateTarget}...</div>
+            <div id="spectate-status" style="font-size: 11px; color: #c43a24;">Searching...</div>
+        `;
+        document.body.appendChild(overlay);
     }
 
     // Show welcome screen (plays every time — intro sequence, then game)
@@ -509,6 +599,22 @@ class Game {
     update(deltaTime) {
         // Map editor pauses everything except camera (editor manages its own pan)
         if (this.editorPaused) {
+            return;
+        }
+
+        // Spectator mode — only update camera + multiplayer (no player logic)
+        if (this.spectateMode) {
+            if (this.multiplayer) this.multiplayer.update(deltaTime);
+            this.camera.update(deltaTime);
+            if (this.dayNightCycle) this.dayNightCycle.update(deltaTime);
+            if (this.weatherSystem) this.weatherSystem.update(deltaTime);
+            // Update ambient sound volume based on spectated player position
+            if (this.spectatePlayer && this.sfx) {
+                const dist = this.worldMap ? this.worldMap.getDistanceToWater(
+                    this.spectatePlayer.position.x, this.spectatePlayer.position.y
+                ) : 100;
+                this.sfx.setOceanVolume(dist);
+            }
             return;
         }
 
@@ -967,8 +1073,10 @@ class Game {
             this.footstepEffects.render(this.renderer);
         }
         
-        // Render player (pass sprite renderer)
-        this.player.render(this.renderer, this.spriteRenderer);
+        // Render player (pass sprite renderer) — hide in spectator mode
+        if (!this.spectateMode) {
+            this.player.render(this.renderer, this.spriteRenderer);
+        }
 
         // Render combat system (enemies, attacks, effects, HUD)
         if (this.combatSystem) {
@@ -1015,7 +1123,8 @@ class Game {
 
         // Render player name above head (AFTER renderer.render() so it's not cleared)
         // Skip when Resolve popup is open so name doesn't draw on top of it
-        if (!(this.combatSystem && this.combatSystem.resolveUI && this.combatSystem.resolveUI.isVisible)) {
+        // Skip in spectator mode (no local player to label)
+        if (!this.spectateMode && !(this.combatSystem && this.combatSystem.resolveUI && this.combatSystem.resolveUI.isVisible)) {
             this.renderPlayerName();
         }
 
