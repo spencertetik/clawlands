@@ -269,7 +269,7 @@ class ShopSystem {
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; color: ${canAfford ? '#e8d5cc' : '#8a7068'};">
                     <span style="font-size: 13px;">${itemDef.icon} ${itemDef.name}${quantity > 1 ? ` x${quantity}` : ''}</span>
-                    <span style="color: #f5c542; font-size: 12px; font-weight: bold; white-space: nowrap; margin-left: 8px;">${price} BT</span>
+                    <span style="color: #f5c542; font-size: 12px; font-weight: bold; white-space: nowrap; margin-left: 8px;">${price} tokens</span>
                 </div>
                 <div style="font-size: 10px; color: #8a7068; margin-top: 3px; line-height: 1.3;">${itemDef.description}</div>
             `;

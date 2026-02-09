@@ -127,7 +127,7 @@ class ResolveUI {
             this.game.combatSystem.recordKill(this.enemy.typeData.id || this.enemy.name);
         }
 
-        // Drop Brine Tokens based on choice
+        // Drop tokens based on choice
         if (this.game.currencySystem && this.enemy) {
             // Base token drops by enemy type
             const enemyId = (this.enemy.typeData && this.enemy.typeData.id) || this.enemy.name || '';

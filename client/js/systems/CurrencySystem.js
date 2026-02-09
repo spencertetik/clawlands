@@ -1,18 +1,10 @@
-// CurrencySystem.js - Manages Brine Tokens in Clawlands
-// Handles storage, transactions, and display formatting
+// CurrencySystem.js - Manages Tokens in Clawlands
+// Simple single-currency system
 
 class CurrencySystem {
     constructor() {
         this.storageKey = 'clawlands_brine_tokens';
         this.tokens = this.loadTokens();
-        
-        // Token denominations for display (cosmetic only)
-        this.denominations = {
-            copper: { value: 1, name: 'Copper', color: '#8a7068' },
-            silver: { value: 5, name: 'Silver', color: '#c0c0c0' },
-            gold: { value: 20, name: 'Gold', color: '#f59e0b' },
-            pearl: { value: 50, name: 'Pearl', color: '#e8d5cc' }
-        };
     }
 
     // Set player name (updates storage key for per-player tokens)
@@ -44,9 +36,9 @@ class CurrencySystem {
         return this.tokens;
     }
 
-    // Get formatted display string
+    // Get formatted display string (just the number)
     getDisplayTokens() {
-        return this.formatTokens(this.tokens);
+        return this.tokens.toString();
     }
 
     // Check if player can afford something
@@ -54,41 +46,9 @@ class CurrencySystem {
         return this.tokens >= amount;
     }
 
-    // Format tokens for display (with denomination breakdown)
+    // Format tokens for display (just the number)
     formatTokens(amount) {
-        if (amount < 5) return `${amount}`;
-        
-        // Break down into largest denominations for display
-        const breakdown = [];
-        let remaining = amount;
-        
-        // Pearl (50s)
-        if (remaining >= 50) {
-            const pearls = Math.floor(remaining / 50);
-            breakdown.push(`${pearls}p`);
-            remaining %= 50;
-        }
-        
-        // Gold (20s) 
-        if (remaining >= 20) {
-            const gold = Math.floor(remaining / 20);
-            breakdown.push(`${gold}g`);
-            remaining %= 20;
-        }
-        
-        // Silver (5s)
-        if (remaining >= 5) {
-            const silver = Math.floor(remaining / 5);
-            breakdown.push(`${silver}s`);
-            remaining %= 5;
-        }
-        
-        // Copper (1s)
-        if (remaining > 0) {
-            breakdown.push(`${remaining}c`);
-        }
-        
-        return breakdown.join(' ');
+        return amount.toString();
     }
 
     // Load tokens from localStorage

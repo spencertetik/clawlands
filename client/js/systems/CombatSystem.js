@@ -830,18 +830,36 @@ class CombatSystem {
         ctx.fillStyle = '#8a7068';
         ctx.fillText('Shell', barX, barY + barH + 10);
 
-        // --- BRINE TOKENS ---
+        // --- TOKENS (coin icon + number) ---
         if (this.game.currencySystem) {
-            const tokens = this.game.currencySystem.getDisplayTokens();
-            ctx.fillStyle = '#8a7068';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Brine', barX, tokenY + 9);
+            const tokenCount = this.game.currencySystem.getTokens();
             
+            // Draw coin icon (small circle with T)
+            const coinX = barX + 5;
+            const coinY = tokenY + 5;
+            const coinR = 5;
+            
+            // Coin outer
+            ctx.beginPath();
+            ctx.arc(coinX, coinY, coinR, 0, Math.PI * 2);
+            ctx.fillStyle = '#f5c542';
+            ctx.fill();
+            ctx.strokeStyle = '#c49520';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            
+            // Coin inner detail
+            ctx.beginPath();
+            ctx.arc(coinX, coinY, coinR - 1.5, 0, Math.PI * 2);
+            ctx.strokeStyle = '#d4a82a';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+            
+            // Token count next to coin
             ctx.fillStyle = '#fbbf24';
             ctx.font = 'bold 10px monospace';
-            ctx.textAlign = 'right';
-            ctx.fillText(tokens, barX + barW, tokenY + 9);
+            ctx.textAlign = 'left';
+            ctx.fillText(tokenCount.toString(), coinX + coinR + 4, tokenY + 9);
         }
 
         // --- CONTINUITY ---

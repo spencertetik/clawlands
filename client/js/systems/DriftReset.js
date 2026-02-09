@@ -201,14 +201,14 @@ class DriftReset {
             }
         }
         
-        // Lose half of brine tokens
+        // Lose half of tokens on death
         if (this.game.currencySystem) {
             const current = this.game.currencySystem.tokens || 0;
             if (current > 0) {
                 const lost = Math.floor(current / 2);
                 this.game.currencySystem.tokens -= lost;
                 this.game.currencySystem.saveTokens();
-                console.log(`💰 Lost ${lost} brine tokens on death`);
+                console.log(`Lost ${lost} tokens on death`);
             }
         }
     }

@@ -3166,18 +3166,33 @@ class Game {
                     lore: decorType.lore || null
                 };
                 
-                // Mark collision tile for solid decorations
-                // Use the BASE of the decoration (bottom center) for collision, not top-left
+                // Mark collision tiles for solid decorations
+                // Use the BASE of the decoration for collision footprint
                 if (decor.solid) {
-                    // For tall objects like palms, collision at the trunk base
-                    const baseX = decor.x + decor.width / 2;
-                    const baseY = decor.y + decor.height - 4; // Bottom of sprite
-                    const collisionCol = Math.floor(baseX / tileSize);
-                    const collisionRow = Math.floor(baseY / tileSize);
-                    if (collisionRow >= 0 && collisionRow < this.worldMap.height &&
-                        collisionCol >= 0 && collisionCol < this.worldMap.width &&
-                        this.worldMap.collisionLayer[collisionRow]) {
-                        this.worldMap.collisionLayer[collisionRow][collisionCol] = 1;
+                    // Calculate footprint: how many tiles wide/tall the trunk/base is
+                    // For palms/trees: mark a 2-tile-wide footprint at the base
+                    // For small items: mark 1 tile
+                    const footprintW = Math.max(1, Math.ceil(decor.width / tileSize));
+                    const footprintH = Math.min(2, Math.max(1, Math.ceil(decor.height / tileSize / 2))); // Lower half only
+                    
+                    // Base center of the sprite
+                    const baseCenterX = decor.x + decor.width / 2;
+                    const baseBottomY = decor.y + decor.height;
+                    
+                    // Start from bottom-center and expand outward
+                    const startCol = Math.floor(baseCenterX / tileSize) - Math.floor((footprintW - 1) / 2);
+                    const startRow = Math.floor(baseBottomY / tileSize) - footprintH;
+                    
+                    for (let r = 0; r < footprintH; r++) {
+                        for (let c = 0; c < footprintW; c++) {
+                            const cr = startRow + r;
+                            const cc = startCol + c;
+                            if (cr >= 0 && cr < this.worldMap.height &&
+                                cc >= 0 && cc < this.worldMap.width &&
+                                this.worldMap.collisionLayer[cr]) {
+                                this.worldMap.collisionLayer[cr][cc] = 1;
+                            }
+                        }
                     }
                 }
                 
