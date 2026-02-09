@@ -5,7 +5,7 @@
 }
 
 body {
-    background: #0a0f14;
+    background: #0d0806;
     font-family: 'Courier New', monospace;
     overflow: hidden;
     display: flex;
@@ -385,7 +385,7 @@ body {
 
 /* Fullscreen mode */
 body.fullscreen-mode {
-    background: #000;
+    background: #0d0806;
 }
 
 body.fullscreen-mode #frame-wrapper {

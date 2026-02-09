@@ -71,119 +71,141 @@ class CombatSystem {
     }
 
     update(deltaTime) {
-        const dt = deltaTime;
-        const dtMs = dt * 1000;
-        this.totalTime += dtMs;
+        try {
+            const dt = deltaTime;
+            const dtMs = dt * 1000;
+            this.totalTime += dtMs;
 
-        // Don't update combat during resolve choice
-        if (this.resolveUI.isVisible) {
-            this.resolveUI.update(dt);
-            return;
-        }
+            // Safety: bail if player doesn't exist
+            if (!this.game || !this.game.player) return;
 
-        // Update attack cooldown
-        this.attackTimer = Math.max(0, this.attackTimer - dtMs);
-
-        // Handle player attack input
-        if (this.game.inputManager && this.game.inputManager.isAttackPressed && this.game.inputManager.isAttackPressed()) {
-            this.tryAttack();
-        }
-
-        // Update attack visual
-        if (this.isAttacking) {
-            this.attackDuration -= dtMs;
-            if (this.attackDuration <= 0) {
-                this.isAttacking = false;
-                this.attackDuration = 200;
-            }
-        }
-
-        // Update enemies
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-            const enemy = this.enemies[i];
-
-            // Skip if game is indoors
-            if (this.game.currentLocation !== 'outdoor') {
-                this.enemies.splice(i, 1);
-                continue;
+            // Don't update combat during resolve choice
+            if (this.resolveUI && this.resolveUI.isVisible) {
+                this.resolveUI.update(dt);
+                return;
             }
 
-            enemy.update(dt, this.game.player, this.game.collisionSystem);
+            // Update attack cooldown
+            this.attackTimer = Math.max(0, this.attackTimer - dtMs);
 
-            // Check if enemy just died (transition to dissolved)
-            if (enemy.state === 'dissolved' && enemy.particles.length === 0) {
-                // Don't remove if resolve UI is still showing for this enemy
-                if (this.pendingResolve === enemy && this.resolveUI.isVisible) {
-                    continue; // Keep in array until player makes their choice
+            // Handle player attack input
+            if (this.game.inputManager && this.game.inputManager.isAttackPressed && this.game.inputManager.isAttackPressed()) {
+                this.tryAttack();
+            }
+
+            // Update attack visual
+            if (this.isAttacking) {
+                this.attackDuration -= dtMs;
+                if (this.attackDuration <= 0) {
+                    this.isAttacking = false;
+                    this.attackDuration = 200;
                 }
-                this.enemies.splice(i, 1);
-                continue;
             }
 
-            // Show resolve UI when enemy starts dying
-            if (enemy.state === 'dying' && enemy.dyingTimer < 50 && !this.pendingResolve) {
-                this.pendingResolve = enemy;
-                // Show resolve after a brief moment
-                setTimeout(() => {
-                    if (this.pendingResolve === enemy) {
-                        this.resolveUI.show(enemy);
+            // Update enemies
+            for (let i = this.enemies.length - 1; i >= 0; i--) {
+                const enemy = this.enemies[i];
+                if (!enemy) { this.enemies.splice(i, 1); continue; }
+
+                // Skip if game is indoors
+                if (this.game.currentLocation !== 'outdoor') {
+                    this.enemies.splice(i, 1);
+                    continue;
+                }
+
+                try {
+                    enemy.update(dt, this.game.player, this.game.collisionSystem);
+                } catch (enemyErr) {
+                    console.warn('Enemy update error, removing:', enemyErr);
+                    this.enemies.splice(i, 1);
+                    continue;
+                }
+
+                // Check if enemy just died (transition to dissolved)
+                if (enemy.state === 'dissolved' && (!enemy.particles || enemy.particles.length === 0)) {
+                    // Don't remove if resolve UI is still showing for this enemy
+                    if (this.pendingResolve === enemy && this.resolveUI && this.resolveUI.isVisible) {
+                        continue; // Keep in array until player makes their choice
                     }
-                }, 300);
+                    this.enemies.splice(i, 1);
+                    continue;
+                }
+
+                // Show resolve UI when enemy starts dying
+                if (enemy.state === 'dying' && enemy.dyingTimer < 50 && !this.pendingResolve) {
+                    this.pendingResolve = enemy;
+                    // Show resolve after a brief moment
+                    const resolveEnemy = enemy;
+                    setTimeout(() => {
+                        try {
+                            if (this.pendingResolve === resolveEnemy && this.resolveUI) {
+                                this.resolveUI.show(resolveEnemy);
+                            }
+                        } catch (e) { console.warn('Resolve show error:', e); }
+                    }, 300);
+                }
+
+                // Enemy attacks player
+                if (enemy.state === 'attacking') {
+                    // Damage is handled in DriftFauna.updateAttacking
+                }
+
+                // Despawn far enemies
+                try {
+                    const distToPlayer = enemy.distanceTo(this.game.player);
+                    if (distToPlayer > this.despawnDistance && enemy.isAlive()) {
+                        this.enemies.splice(i, 1);
+                        continue;
+                    }
+                } catch (e) {
+                    this.enemies.splice(i, 1);
+                    continue;
+                }
             }
 
-            // Enemy attacks player
-            if (enemy.state === 'attacking') {
-                // Damage is handled in DriftFauna.updateAttacking
+            // Clear pending resolve when enemy is fully gone
+            if (this.pendingResolve && (!this.resolveUI || !this.resolveUI.isVisible) &&
+                (this.pendingResolve.state === 'dissolved' || !this.enemies.includes(this.pendingResolve))) {
+                this.pendingResolve = null;
             }
 
-            // Despawn far enemies
-            const distToPlayer = enemy.distanceTo(this.game.player);
-            if (distToPlayer > this.despawnDistance && enemy.isAlive()) {
-                this.enemies.splice(i, 1);
-                continue;
+            // Update spawn protection timer
+            if (this.spawnProtectionTimer > 0) {
+                this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dtMs);
             }
-        }
 
-        // Clear pending resolve when enemy is fully gone
-        if (this.pendingResolve && !this.resolveUI.isVisible &&
-            (this.pendingResolve.state === 'dissolved' || !this.enemies.includes(this.pendingResolve))) {
-            this.pendingResolve = null;
-        }
-
-        // Update spawn protection timer
-        if (this.spawnProtectionTimer > 0) {
-            this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dtMs);
-        }
-
-        // Spawn enemies (with initial delay and spawn protection)
-        if (this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor' && this.spawnProtectionTimer <= 0) {
-            this.spawnTimer += dtMs;
-            if (this.spawnTimer >= this.spawnInterval) {
-                this.spawnTimer = 0;
-                this.trySpawnEnemies();
+            // Spawn enemies (with initial delay and spawn protection)
+            if (this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor' && this.spawnProtectionTimer <= 0) {
+                this.spawnTimer += dtMs;
+                if (this.spawnTimer >= this.spawnInterval) {
+                    this.spawnTimer = 0;
+                    this.trySpawnEnemies();
+                }
             }
-        }
 
-        // Update combat state
-        this.updateCombatState();
+            // Update combat state
+            this.updateCombatState();
 
-        // Update screen shake
-        this.updateScreenShake(dt);
+            // Update screen shake
+            this.updateScreenShake(dt);
 
-        // Update visual effects
-        this.updateEffects(dt);
+            // Update visual effects
+            this.updateEffects(dt);
 
-        // Update damage numbers
-        this.updateDamageNumbers(dt);
+            // Update damage numbers
+            this.updateDamageNumbers(dt);
 
-        // Check player death (only trigger once)
-        if (this.game.player.isDead && this.game.player.isDead() && !this._deathTriggered) {
-            this._deathTriggered = true;
-            this.onPlayerDeath();
-        }
-        // Reset death trigger when player is alive again (after respawn)
-        if (this.game.player.shellIntegrity > 0) {
-            this._deathTriggered = false;
+            // Check player death (only trigger once)
+            if (this.game.player && this.game.player.isDead && this.game.player.isDead() && !this._deathTriggered) {
+                this._deathTriggered = true;
+                this.onPlayerDeath();
+            }
+            // Reset death trigger when player is alive again (after respawn)
+            if (this.game.player && this.game.player.shellIntegrity > 0) {
+                this._deathTriggered = false;
+            }
+        } catch (e) {
+            console.error('CombatSystem.update error:', e);
         }
     }
 
@@ -545,9 +567,13 @@ class CombatSystem {
     }
 
     render(renderer) {
+        if (!renderer) return;
+        
         // Render enemies (they add themselves to ENTITIES layer)
         for (const enemy of this.enemies) {
-            enemy.render(renderer);
+            try {
+                if (enemy) enemy.render(renderer);
+            } catch (e) { console.warn('Enemy render error:', e); }
         }
 
         const self = this;
@@ -589,9 +615,14 @@ class CombatSystem {
         if (!this._needsHUDRender) return;
         this._needsHUDRender = false;
 
-        const ctx = this.game.canvas.getContext('2d');
-        this.renderCombatHUD(ctx);
-        this.resolveUI.render(ctx);
+        try {
+            const ctx = this.game.canvas.getContext('2d');
+            if (!ctx) return;
+            this.renderCombatHUD(ctx);
+            if (this.resolveUI) this.resolveUI.render(ctx);
+        } catch (e) {
+            console.warn('CombatSystem.renderHUD error:', e);
+        }
     }
 
     renderAttackSlash(ctx) {
