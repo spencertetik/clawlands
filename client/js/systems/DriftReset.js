@@ -34,6 +34,7 @@ class DriftReset {
             z-index: 9999;
             opacity: 0;
             pointer-events: none;
+            display: none;
             transition: opacity 2s ease-in-out;
             display: flex;
             align-items: center;
@@ -106,7 +107,11 @@ class DriftReset {
         }
         
         // Start the fade to red
-        this.driftOverlay.style.opacity = '1';
+        this.driftOverlay.style.display = 'flex';
+        // Small delay so display:flex takes effect before opacity transition
+        requestAnimationFrame(() => {
+            this.driftOverlay.style.opacity = '1';
+        });
         
         // Show drift text after 1 second
         setTimeout(() => {
@@ -152,6 +157,7 @@ class DriftReset {
             this.driftOverlay.style.opacity = '0';
             
             setTimeout(() => {
+                this.driftOverlay.style.display = 'none';
                 this.isDrifting = false;
                 console.log('✅ Drift Reset complete');
             }, 2000);

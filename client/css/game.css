@@ -352,20 +352,11 @@ body {
     color: #c43a24;
 }
 
-/* Controls hint — bottom-right, above minimap */
+/* Controls hint — inside HUD panel, hidden until gameplay */
 #controls-hint {
-    position: fixed;
-    bottom: 135px;
-    right: 12px;
-    background: rgba(13, 8, 6, 0.65);
-    border: 1px solid rgba(138, 64, 48, 0.3);
-    border-radius: 3px;
-    padding: 3px 8px;
-    font-family: 'Courier New', monospace;
-    font-size: 10px;
+    text-align: center;
+    cursor: pointer;
     color: #8a7068;
-    z-index: 999;
-    pointer-events: none;
     display: none; /* shown via JS when game is active */
 }
 
