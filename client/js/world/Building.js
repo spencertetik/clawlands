@@ -10,6 +10,9 @@ class Building {
         this.width = spriteImage ? spriteImage.width : this.getDefaultWidth();
         this.height = spriteImage ? spriteImage.height : this.getDefaultHeight();
         
+        // Visual overflow: extra pixels the sprite extends ABOVE the collision box (for roofs/peaks)
+        this.spriteOverflowY = this.getSpriteOverflowY();
+        
         // Building properties
         this.name = this.getDefaultName();
         
@@ -38,12 +41,23 @@ class Building {
         return widths[this.type] || 12;
     }
     
+    // Sprite overflow above collision box (for peaked roofs that extend above the footprint)
+    getSpriteOverflowY() {
+        const overflow = {
+            'inn': 12,
+            'shop': 16,
+            'house': 10,
+            'lighthouse': 8,
+        };
+        return overflow[this.type] || 0;
+    }
+    
     // Get door X offset from building left edge (based on sprite analysis)
     getDoorOffsetX() {
         // Values measured from actual sprite pixels
         const offsets = {
             'inn': 40,        // Centered in 96px width
-            'shop': 30,       // Centered in 72px width
+            'shop': 42,       // Door is right of center in 72px width
             'house': 19,      // Centered, measured ~20px from left
             'lighthouse': 19, // Centered, measured ~19-20px from left
             'dock': 16,
@@ -215,16 +229,19 @@ class Building {
         this.renderDoormat(renderer);
         
         if (this.spriteImage) {
-            // Draw the sprite at its native size
+            // Draw sprite with overflow — extends above collision box for roofs
+            // The collision box starts at (this.x, this.y), but the sprite renders higher
+            const renderY = this.y - this.spriteOverflowY;
+            const renderH = this.height + this.spriteOverflowY;
             renderer.drawSprite(
                 this.spriteImage,
                 0, 0,
                 this.spriteImage.width,
                 this.spriteImage.height,
                 this.x,
-                this.y,
+                renderY,
                 this.width,
-                this.height,
+                renderH,
                 CONSTANTS.LAYER.BUILDING_BASE
             );
         } else {

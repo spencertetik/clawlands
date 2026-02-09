@@ -388,15 +388,21 @@ class InventoryUI {
     }
     
     onSlotHover(index) {
-        // Only update details if this isn't the selected slot (don't clobber USE button)
-        if (this.selectedSlot === -1 || this.selectedSlot !== index) {
-            this.showSlotDetails(index, false);
-        }
+        // If a slot is already selected (clicked), don't change details on hover
+        // This prevents losing the USE button while moving the mouse to click it
+        if (this.selectedSlot >= 0) return;
+        this.showSlotDetails(index, false);
     }
     
     onSlotClick(index) {
-        this.selectedSlot = index;
-        this.showSlotDetails(index, true);
+        // If clicking the already-selected slot, deselect it
+        if (this.selectedSlot === index) {
+            this.selectedSlot = -1;
+            this.showSlotDetails(index, false);
+        } else {
+            this.selectedSlot = index;
+            this.showSlotDetails(index, true);
+        }
         this.refresh();
     }
     
