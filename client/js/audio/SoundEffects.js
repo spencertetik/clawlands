@@ -119,8 +119,8 @@ class SoundEffects {
         const t = this.audioCtx.currentTime;
         const dur = 0.22;
         
-        // Swoosh layer — loud filtered noise sweep
-        const g = this.createGain(1.0);
+        // Swoosh layer — filtered noise sweep
+        const g = this.createGain(0.25);
         const buf = this.noiseBuffer(dur, (i, len) => {
             const pos = i / len;
             const env = pos < 0.1 ? pos / 0.1 : Math.pow(1 - (pos - 0.1) / 0.9, 1.5);
@@ -138,18 +138,18 @@ class SoundEffects {
         bp.frequency.exponentialRampToValueAtTime(600, t + dur);
         bp.Q.value = 1.2;
         src.connect(hp); hp.connect(bp); bp.connect(g);
-        g.gain.setValueAtTime(1.0, t);
+        g.gain.setValueAtTime(0.25, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         src.start(t); src.stop(t + dur);
         
         // Tonal whoosh layer — descending tone for sword-cut feel
-        const g2 = this.createGain(0.5);
+        const g2 = this.createGain(0.12);
         const osc = this.audioCtx.createOscillator();
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(500, t);
         osc.frequency.exponentialRampToValueAtTime(120, t + 0.15);
         osc.connect(g2);
-        g2.gain.setValueAtTime(0.5, t);
+        g2.gain.setValueAtTime(0.12, t);
         g2.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
         osc.start(t); osc.stop(t + 0.15);
     }

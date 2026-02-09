@@ -223,7 +223,9 @@ function broadcast(message, excludeId = null) {
 }
 
 // Spatial partitioning: only send to players within AOI_RANGE pixels
-const AOI_RANGE = 300;
+// World is 120 tiles × 16px = 1920px. Use full world for now (no culling)
+// until player counts actually justify it — premature optimization was hiding players
+const AOI_RANGE = 2000;
 
 function broadcastNearby(message, sourceId, sourceX, sourceY) {
     const data = JSON.stringify(message);
