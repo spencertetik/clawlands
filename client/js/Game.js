@@ -3003,11 +3003,12 @@ class Game {
         
         // Decoration types with sizes matching our clean extracted sprites
         // Common decorations (high spawn weight)
+        // solid: true marks the tile as impassable for collision
         const commonDecorTypes = [
-            // Palm trees
-            { type: 'palm', width: 37, height: 48 },
-            { type: 'palm2', width: 33, height: 48 },
-            // Bushes & plants
+            // Palm trees — solid trunks
+            { type: 'palm', width: 37, height: 48, solid: true },
+            { type: 'palm2', width: 33, height: 48, solid: true },
+            // Bushes & plants — walkable
             { type: 'bush', width: 24, height: 23 },
             { type: 'bush_flower', width: 24, height: 24 },
             { type: 'bush_flower2', width: 24, height: 21 },
@@ -3015,16 +3016,16 @@ class Game {
             { type: 'fern2', width: 24, height: 22 },
             { type: 'seagrass', width: 15, height: 24 },
             { type: 'tropical_plant', width: 24, height: 23 },
-            // Shells
+            // Shells — walkable
             { type: 'shell_pink', width: 20, height: 17 },
             { type: 'shell_fan', width: 20, height: 17 },
             { type: 'shell_spiral', width: 14, height: 20 },
             { type: 'shell_white', width: 20, height: 15 },
-            // Rocks
-            { type: 'rock', width: 20, height: 20 },
-            { type: 'rock2', width: 20, height: 20 },
+            // Rocks — solid
+            { type: 'rock', width: 20, height: 20, solid: true },
+            { type: 'rock2', width: 20, height: 20, solid: true },
             { type: 'rock_small', width: 20, height: 13 },
-            // Beach items
+            // Beach items — walkable
             { type: 'starfish', width: 17, height: 20 },
             { type: 'starfish2', width: 17, height: 20 },
             { type: 'coral', width: 20, height: 18 },
@@ -3111,10 +3112,16 @@ class Game {
                 };
                 
                 // Mark collision tile for solid decorations
+                // Use the BASE of the decoration (bottom center) for collision, not top-left
                 if (decor.solid) {
-                    const collisionCol = Math.floor(decor.x / tileSize);
-                    const collisionRow = Math.floor(decor.y / tileSize);
-                    if (this.worldMap.collisionLayer[collisionRow]) {
+                    // For tall objects like palms, collision at the trunk base
+                    const baseX = decor.x + decor.width / 2;
+                    const baseY = decor.y + decor.height - 4; // Bottom of sprite
+                    const collisionCol = Math.floor(baseX / tileSize);
+                    const collisionRow = Math.floor(baseY / tileSize);
+                    if (collisionRow >= 0 && collisionRow < this.worldMap.height &&
+                        collisionCol >= 0 && collisionCol < this.worldMap.width &&
+                        this.worldMap.collisionLayer[collisionRow]) {
                         this.worldMap.collisionLayer[collisionRow][collisionCol] = 1;
                     }
                 }
@@ -4820,42 +4827,53 @@ class Game {
             }
         }
         
-        // Create Stability Engine on another island (Iron Reef theme)
-        // Place on EDGE of island, away from buildings
-        if (remoteIslands.length > 1 && typeof StabilityEngine !== 'undefined') {
-            // Pick a different island than the Waygate
-            const engineIsland = remoteIslands.find(i => 
-                !this.waygates.some(w => {
-                    const wCol = Math.floor(w.x / tileSize);
-                    const wRow = Math.floor(w.y / tileSize);
-                    const dist = Math.sqrt((wCol - i.x) ** 2 + (wRow - i.y) ** 2);
-                    return dist < i.size + 5;
-                })
-            ) || remoteIslands[remoteIslands.length - 1];
+        // Create Stability Engine on Iron Reef (island index 2)
+        // FIXED position — deterministic, same every session
+        if (typeof StabilityEngine !== 'undefined' && islands.length > 2) {
+            const engineIsland = islands[2]; // Iron Reef
             
-            // Place on EDGE of island (away from town center)
-            for (let attempt = 0; attempt < 50; attempt++) {
-                const angle = this.seededRandom() * Math.PI * 2;
-                // Place at 60-85% of island radius (edge, not center)
-                const radius = engineIsland.size * 0.6 + this.seededRandom() * engineIsland.size * 0.25;
+            // Fixed offset from island center (north-east edge)
+            // Using deterministic position so it never moves between sessions
+            const fixedAngle = Math.PI * 0.3; // ~54 degrees (NE)
+            const fixedRadius = engineIsland.size * 0.65;
+            const col = Math.floor(engineIsland.x + Math.cos(fixedAngle) * fixedRadius);
+            const row = Math.floor(engineIsland.y - Math.sin(fixedAngle) * fixedRadius);
+            
+            const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
+            if (isLand) {
+                const worldX = col * tileSize;
+                const worldY = row * tileSize;
                 
-                const col = Math.floor(engineIsland.x + Math.cos(angle) * radius);
-                const row = Math.floor(engineIsland.y + Math.sin(angle) * radius);
+                clearDecorationsAt(worldX, worldY, 64);
+                // Mark collision tiles for the engine body (4x5 tiles)
+                for (let dr = 0; dr < 5; dr++) {
+                    for (let dc = 0; dc < 4; dc++) {
+                        const cr = row + dr;
+                        const cc = col + dc;
+                        if (cr < this.worldMap.height && cc < this.worldMap.width) {
+                            this.worldMap.setTile(this.worldMap.collisionLayer, cc, cr, 1);
+                        }
+                    }
+                }
+                // Clear the tile directly in front (south) so player can approach
+                if (row + 5 < this.worldMap.height) {
+                    this.worldMap.setTile(this.worldMap.collisionLayer, col + 1, row + 5, 0);
+                    this.worldMap.setTile(this.worldMap.collisionLayer, col + 2, row + 5, 0);
+                }
                 
-                // Only check terrain for land
-                const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
-                
-                if (isLand) {
-                    const worldX = col * tileSize;
-                    const worldY = row * tileSize;
-                    
-                    // Check not inside or near a building (larger margin)
-                    if (!isNearBuilding(worldX, worldY, 48)) {
+                this.stabilityEngine = new StabilityEngine(worldX, worldY);
+                console.log(`  ⚙️ Placed Stability Engine at (${col}, ${row}) - Iron Reef (fixed)`);
+            } else {
+                // Fallback: try a few nearby positions
+                for (let attempt = 0; attempt < 20; attempt++) {
+                    const testCol = col + Math.floor((attempt % 5) - 2);
+                    const testRow = row + Math.floor(attempt / 5) - 2;
+                    if (this.worldMap.terrainMap?.[testRow]?.[testCol] === 0) {
+                        const worldX = testCol * tileSize;
+                        const worldY = testRow * tileSize;
                         clearDecorationsAt(worldX, worldY, 64);
-                        this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
-                        
                         this.stabilityEngine = new StabilityEngine(worldX, worldY);
-                        console.log(`  ⚙️ Placed Stability Engine at (${col}, ${row}) - edge of island`);
+                        console.log(`  ⚙️ Placed Stability Engine at (${testCol}, ${testRow}) - Iron Reef (fallback)`);
                         break;
                     }
                 }

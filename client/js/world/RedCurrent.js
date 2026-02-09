@@ -259,6 +259,16 @@ class RedCurrent {
         }
     }
     
+    // Check if a tile is water (both collision and terrain)
+    isWaterTile(col, row) {
+        if (!this.worldMap) return false;
+        if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return true; // OOB = ocean
+        // Must be water on BOTH collision and terrain layers to avoid shore bleed
+        const collision = this.worldMap.collisionLayer?.[row]?.[col];
+        const terrain = this.worldMap.terrainMap?.[row]?.[col];
+        return collision === 1 && terrain === 1;
+    }
+    
     // Render expanding ripples on water surface
     renderSurfaceRipples(renderer, camera, pulse) {
         if (!this.worldMap) return;
@@ -268,51 +278,56 @@ class RedCurrent {
         for (const r of this.surfaceRipples) {
             if (!this.isVisible(r.x, r.y, camera)) continue;
             
-            // Check if this ripple is on water
+            // Check if this ripple CENTER is on water
             const col = Math.floor(r.x / tileSize);
             const row = Math.floor(r.y / tileSize);
             
-            // Out of bounds or on water tile
-            const isWater = col < 0 || col >= this.worldMap.width ||
-                           row < 0 || row >= this.worldMap.height ||
-                           this.worldMap.collisionLayer?.[row]?.[col] === 1;
+            if (!this.isWaterTile(col, row)) continue;
             
-            if (isWater) {
-                const alpha = r.life * r.alpha * pulse * 0.6;
-                const halfSize = r.size / 2;
-                
-                // Draw expanding ring (hollow square for pixel art feel)
-                const ringThickness = 2;
-                
-                // Top edge
-                renderer.drawRect(
-                    r.x - halfSize, r.y - halfSize,
-                    r.size, ringThickness,
-                    `rgba(255, 100, 80, ${alpha})`,
-                    CONSTANTS.LAYER.GROUND_DECORATION
-                );
-                // Bottom edge
-                renderer.drawRect(
-                    r.x - halfSize, r.y + halfSize - ringThickness,
-                    r.size, ringThickness,
-                    `rgba(255, 100, 80, ${alpha})`,
-                    CONSTANTS.LAYER.GROUND_DECORATION
-                );
-                // Left edge
-                renderer.drawRect(
-                    r.x - halfSize, r.y - halfSize,
-                    ringThickness, r.size,
-                    `rgba(255, 100, 80, ${alpha})`,
-                    CONSTANTS.LAYER.GROUND_DECORATION
-                );
-                // Right edge
-                renderer.drawRect(
-                    r.x + halfSize - ringThickness, r.y - halfSize,
-                    ringThickness, r.size,
-                    `rgba(255, 100, 80, ${alpha})`,
-                    CONSTANTS.LAYER.GROUND_DECORATION
-                );
-            }
+            // Also check that surrounding tiles are water — prevent ripple edges bleeding onto land
+            const halfSize = r.size / 2;
+            const leftCol = Math.floor((r.x - halfSize) / tileSize);
+            const rightCol = Math.floor((r.x + halfSize) / tileSize);
+            const topRow = Math.floor((r.y - halfSize) / tileSize);
+            const botRow = Math.floor((r.y + halfSize) / tileSize);
+            
+            // If any corner of the ripple would land on non-water, shrink or skip
+            const allWater = this.isWaterTile(leftCol, topRow) && this.isWaterTile(rightCol, topRow) &&
+                            this.isWaterTile(leftCol, botRow) && this.isWaterTile(rightCol, botRow);
+            if (!allWater) continue;
+            
+            const alpha = r.life * r.alpha * pulse * 0.6;
+            const ringThickness = 2;
+            
+            // Draw expanding ring (hollow square for pixel art feel)
+            // Top edge
+            renderer.drawRect(
+                r.x - halfSize, r.y - halfSize,
+                r.size, ringThickness,
+                `rgba(255, 100, 80, ${alpha})`,
+                CONSTANTS.LAYER.GROUND_DECORATION
+            );
+            // Bottom edge
+            renderer.drawRect(
+                r.x - halfSize, r.y + halfSize - ringThickness,
+                r.size, ringThickness,
+                `rgba(255, 100, 80, ${alpha})`,
+                CONSTANTS.LAYER.GROUND_DECORATION
+            );
+            // Left edge
+            renderer.drawRect(
+                r.x - halfSize, r.y - halfSize,
+                ringThickness, r.size,
+                `rgba(255, 100, 80, ${alpha})`,
+                CONSTANTS.LAYER.GROUND_DECORATION
+            );
+            // Right edge
+            renderer.drawRect(
+                r.x + halfSize - ringThickness, r.y - halfSize,
+                ringThickness, r.size,
+                `rgba(255, 100, 80, ${alpha})`,
+                CONSTANTS.LAYER.GROUND_DECORATION
+            );
         }
     }
     
@@ -355,12 +370,12 @@ class RedCurrent {
                     continue;
                 }
                 
-                // Check if this is a water tile (collision = 1 means solid/water)
+                // Check if this is a water tile — require BOTH collision=1 AND terrain=1
+                // This prevents red tint from bleeding onto shore/transition tiles
                 const collision = this.worldMap.collisionLayer[row]?.[col];
                 const terrain = this.worldMap.terrainMap?.[row]?.[col];
                 
-                // Water tiles: collision = 1 (solid) AND terrain = 1 (water) OR out of land area
-                const isWater = collision === 1 || terrain === 1;
+                const isWater = collision === 1 && terrain === 1;
                 
                 if (isWater) {
                     const x = col * tileSize;

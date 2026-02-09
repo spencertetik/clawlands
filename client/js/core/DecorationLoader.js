@@ -121,7 +121,7 @@ class DecorationLoader {
         rock_small: {
             path: 'assets/sprites/decorations/beach_19.png',
             width: 20, height: 13,
-            collision: null
+            collision: null  // Small rocks are walkable — only large rocks block
         },
         
         // === STARFISH ===
@@ -216,11 +216,7 @@ class DecorationLoader {
             width: 12, height: 16,
             collision: null
         },
-        potion_bottle: {
-            path: 'assets/sprites/decorations/decor_7.png',
-            width: 9, height: 9,
-            collision: null
-        },
+        // potion_bottle removed — decor_7.png is a mismatched sprite (dress, not potion)
         scroll: {
             path: 'assets/sprites/decorations/decor_19.png',
             width: 20, height: 28,

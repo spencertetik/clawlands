@@ -90,11 +90,62 @@ class ChronicleStone {
         }
     }
 
+    // Sanitize user input — strip HTML, limit length, filter prompt injection patterns
+    static sanitizeText(text, maxLength = 140) {
+        if (!text || typeof text !== 'string') return '';
+        
+        // Strip HTML tags
+        let clean = text.replace(/<[^>]*>/g, '');
+        
+        // Strip common prompt injection patterns
+        // Remove anything that looks like system instructions, role assignments, etc.
+        const injectionPatterns = [
+            /\b(system|assistant|user)\s*:/gi,
+            /\b(ignore|disregard|forget)\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|rules?)/gi,
+            /\byou\s+are\s+(now|a)\b/gi,
+            /\bact\s+as\b/gi,
+            /\bpretend\s+(to\s+be|you're)\b/gi,
+            /\bnew\s+(instructions?|rules?|prompt)\b/gi,
+            /\[INST\]/gi,
+            /<<SYS>>/gi,
+            /\bDAN\b/g,
+            /```[\s\S]*```/g,  // Code blocks
+        ];
+        for (const pattern of injectionPatterns) {
+            clean = clean.replace(pattern, '[...]');
+        }
+        
+        // Collapse whitespace
+        clean = clean.replace(/\s+/g, ' ').trim();
+        
+        // Enforce character limit
+        if (clean.length > maxLength) {
+            clean = clean.slice(0, maxLength - 3) + '...';
+        }
+        
+        return clean;
+    }
+    
+    // Sanitize author name
+    static sanitizeAuthor(author, maxLength = 24) {
+        if (!author || typeof author !== 'string') return 'Anonymous';
+        let clean = author.replace(/<[^>]*>/g, '').replace(/[^\w\s-]/g, '').trim();
+        if (clean.length === 0) return 'Anonymous';
+        if (clean.length > maxLength) clean = clean.slice(0, maxLength);
+        return clean;
+    }
+
     // Add a new message
     addMessage(author, text) {
+        // Sanitize inputs
+        const cleanAuthor = ChronicleStone.sanitizeAuthor(author);
+        const cleanText = ChronicleStone.sanitizeText(text, 140);
+        
+        if (cleanText.length === 0) return null; // Reject empty messages
+        
         const message = {
-            author,
-            text,
+            author: cleanAuthor,
+            text: cleanText,
             timestamp: Date.now(),
             cycle: this.getCurrentCycle()
         };
@@ -241,10 +292,24 @@ class ChronicleStone {
     }
 
     // Get formatted rumor dialog for NPC
+    // Clearly framed as player-written content — never mistaken for system speech
     static getRumorDialog() {
         const rumor = ChronicleStone.getRandomRumor();
         if (!rumor) return null;
-        return `I heard a traveler once wrote: "${rumor.text}"`;
+        
+        // Re-sanitize on read (defense in depth — old stored messages may be unsanitized)
+        const safeText = ChronicleStone.sanitizeText(rumor.text, 140);
+        if (!safeText) return null;
+        
+        const intros = [
+            'Someone scratched this on a Chronicle Stone:',
+            'A traveler wrote on the stones:',
+            'I read this carved into a Chronicle Stone:',
+            'There\'s writing on the stones near the shore:',
+            'An inscription on the Chronicle Stones reads:'
+        ];
+        const intro = intros[Math.floor(Math.random() * intros.length)];
+        return `${intro} "${safeText}"`;
     }
 }
 
