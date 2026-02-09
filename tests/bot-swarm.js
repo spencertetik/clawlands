@@ -186,11 +186,16 @@ class SwarmBot {
 
     async reconnect() {
         if (this._shuttingDown) return;
-        const ok = await this.connect();
-        if (!ok) {
-            // Retry again after delay
-            setTimeout(() => this.reconnect(), 10000);
+        // Retry up to 10 times with increasing delays (handles Railway's ~30s deploy)
+        for (let attempt = 1; attempt <= 10; attempt++) {
+            if (this._shuttingDown) return;
+            const ok = await this.connect();
+            if (ok) return;
+            const delay = Math.min(5000 * attempt, 30000);
+            console.log(`  ⏳ ${this.config.name}: retry ${attempt}/10 in ${(delay/1000).toFixed(0)}s`);
+            await new Promise(r => setTimeout(r, delay));
         }
+        console.log(`  ❌ ${this.config.name}: gave up reconnecting after 10 attempts`);
     }
 
     connect() {
