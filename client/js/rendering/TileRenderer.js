@@ -32,6 +32,11 @@ class TileRenderer {
         // Render ground layer
         this.renderLayer(this.worldMap.groundLayer, bounds, tileSize, CONSTANTS.LAYER.GROUND);
 
+        // Render path layer (if exists) — between ground and decorations
+        if (this.worldMap.pathLayer) {
+            this.renderLayer(this.worldMap.pathLayer, bounds, tileSize, CONSTANTS.LAYER.GROUND);
+        }
+
         // Render decoration layer (if exists)
         if (this.worldMap.decorationLayer) {
             this.renderLayer(this.worldMap.decorationLayer, bounds, tileSize, CONSTANTS.LAYER.GROUND_DECORATION);

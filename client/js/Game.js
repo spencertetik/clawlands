@@ -3661,6 +3661,7 @@ class Game {
         this.assetLoader
             .loadImage('tileset_sand_water', 'assets/sprites/tiles/sand_water_tileset.png')
             .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
+            .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_path.png')
             .loadImageOptional('building_inn_base', 'assets/sprites/buildings/inn_base.png')
             .loadImageOptional('building_inn_roof', 'assets/sprites/buildings/inn_roof.png')
             .loadImageOptional('building_shop_base', 'assets/sprites/buildings/shop_base.png')
@@ -3738,6 +3739,13 @@ class Game {
                         this.tileRenderer.addTileset('main', tilesetImage, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 8);
                         console.log('✅ Loaded placeholder tileset');
                     }
+                }
+
+                // Load sand→path transition tileset
+                const sandPathTileset = this.assetLoader.getImage('tileset_sand_path');
+                if (sandPathTileset) {
+                    this.tileRenderer.addTileset('path', sandPathTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
+                    console.log('✅ Loaded PixelLab sand/path tileset');
                 }
 
                 // Always create a simple beach decoration tileset (can be replaced later)
@@ -4204,6 +4212,9 @@ class Game {
         // Apply editor map data (Spencer's hand-placed roads & decorations)
         this.applyEditorMapData();
 
+        // Build auto-tiled path layer from dirt_path decoration positions
+        this.buildPathTileLayer();
+
         this.outdoorBuildings = [...this.buildings];
         this.outdoorSigns = [...this.signs];
         
@@ -4438,6 +4449,45 @@ class Game {
         }
     }
     
+    // Build auto-tiled path layer from dirt_path decoration positions
+    buildPathTileLayer() {
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const tilesWide = this.worldMap.width;
+        const tilesHigh = this.worldMap.height;
+
+        // Collect all path positions from decorations
+        const pathPositions = new Set();
+        for (const decor of this.decorations) {
+            if (decor.type === 'dirt_path') {
+                const col = Math.floor(decor.x / tileSize);
+                const row = Math.floor(decor.y / tileSize);
+                pathPositions.add(`${col},${row}`);
+            }
+        }
+
+        if (pathPositions.size === 0) {
+            console.log('No path tiles found, skipping path layer');
+            return;
+        }
+
+        // Check if the path tileset was loaded
+        if (!this.tileRenderer.tilesets.has('path')) {
+            console.log('Path tileset not loaded, keeping sprite paths');
+            return;
+        }
+
+        // Build the auto-tiled path layer
+        const pathAutoTiler = new PathAutoTiler();
+        this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(pathPositions, tilesWide, tilesHigh);
+
+        // Remove dirt_path decorations since they're now rendered as tiles
+        const beforeCount = this.decorations.length;
+        this.decorations = this.decorations.filter(d => d.type !== 'dirt_path');
+        const removed = beforeCount - this.decorations.length;
+
+        console.log(`🛤️ Built path tile layer: ${pathPositions.size} path positions, removed ${removed} sprite decorations`);
+    }
+
     // Create a path segment between two points
     createPathSegment(x1, y1, x2, y2) {
         const dx = Math.sign(x2 - x1);
