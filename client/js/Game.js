@@ -1069,6 +1069,9 @@ class Game {
         if (!this.decorations || this.decorations.length === 0) return;
         
         for (const decor of this.decorations) {
+            // Skip path tiles that are rendered via the auto-tiled path layer
+            if (decor.useSprite === false) continue;
+            
             // Check if in view
             if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) {
                 // Debug: log editor-placed items that are off-screen (once)
@@ -3800,6 +3803,7 @@ class Game {
             .loadImageOptional('tileset_sand_water_numbered', 'assets/sprites/tiles/numbered_sand_water_tileset.png')
             .loadImageOptional('tileset_sand_path', 'assets/sprites/tiles/pixellab_sand_cobblestone.png')
             .loadImageOptional('tileset_dark_cobble', 'assets/sprites/tiles/dark_cobblestone_tileset.png')
+            .loadImageOptional('tileset_dirt_cobble', 'assets/sprites/tiles/pixellab_dirt_cobblestone.png')
             .loadImageOptional('building_inn_base', 'assets/sprites/buildings/inn_base.png')
             .loadImageOptional('building_inn_roof', 'assets/sprites/buildings/inn_roof.png')
             .loadImageOptional('building_shop_base', 'assets/sprites/buildings/shop_base.png')
@@ -3891,6 +3895,13 @@ class Game {
                 if (darkCobbleTileset) {
                     this.tileRenderer.addTileset('dark_path', darkCobbleTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
                     console.log('Loaded dark cobblestone tileset');
+                }
+                
+                // Load dirt→cobblestone transition tileset
+                const dirtCobbleTileset = this.assetLoader.getImage('tileset_dirt_cobble');
+                if (dirtCobbleTileset) {
+                    this.tileRenderer.addTileset('dirt_cobble', dirtCobbleTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
+                    console.log('Loaded dirt→cobblestone transition tileset');
                 }
 
                 // Always create a simple beach decoration tileset (can be replaced later)
@@ -4656,14 +4667,21 @@ class Game {
     }
     
     // Build auto-tiled path layer from dirt_path and cobblestone_path decoration positions
-    buildPathTileLayer() {
+    // @param {boolean} keepDecorations - If true, don't remove path decorations (used by editor for live rebuilds)
+    buildPathTileLayer(keepDecorations = false) {
         const tileSize = CONSTANTS.TILE_SIZE;
         const tilesWide = this.worldMap.width;
         const tilesHigh = this.worldMap.height;
 
-        // Collect path positions by type
-        const lightPathPositions = new Set();
-        const darkPathPositions = new Set();
+        // Initialize persistent path position sets on first call
+        if (!this._pathPositions) {
+            this._pathPositions = { light: new Set(), dark: new Set() };
+        }
+
+        // Collect path positions by type from current decorations
+        // and merge with persistent positions
+        const lightPathPositions = new Set(this._pathPositions.light);
+        const darkPathPositions = new Set(this._pathPositions.dark);
         for (const decor of this.decorations) {
             if (decor.type === 'dirt_path') {
                 const col = Math.floor(decor.x / tileSize);
@@ -4675,10 +4693,16 @@ class Game {
                 darkPathPositions.add(`${col},${row}`);
             }
         }
+        
+        // Save the merged positions for future rebuilds
+        this._pathPositions.light = new Set(lightPathPositions);
+        this._pathPositions.dark = new Set(darkPathPositions);
 
         const totalPaths = lightPathPositions.size + darkPathPositions.size;
         if (totalPaths === 0) {
-            console.log('No path tiles found, skipping path layer');
+            // Clear path layer if no paths remain
+            this.worldMap.pathLayer = null;
+            console.log('No path tiles found, cleared path layer');
             return;
         }
 
@@ -4688,6 +4712,8 @@ class Game {
         if (lightPathPositions.size > 0 && this.tileRenderer.tilesets.has('path')) {
             this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(lightPathPositions, tilesWide, tilesHigh);
             console.log(`Built light path layer: ${lightPathPositions.size} positions`);
+        } else {
+            this.worldMap.pathLayer = null;
         }
         
         // Build dark cobblestone path layer (from cobblestone_path)
@@ -4709,12 +4735,67 @@ class Game {
             console.log(`Built dark cobblestone path layer: ${darkPathPositions.size} positions`);
         }
 
-        // Remove path decorations since they're now rendered as tiles
-        const beforeCount = this.decorations.length;
-        this.decorations = this.decorations.filter(d => d.type !== 'dirt_path' && d.type !== 'cobblestone_path');
-        const removed = beforeCount - this.decorations.length;
+        // Build dirt→cobblestone transition layer (where light meets dark paths)
+        if (lightPathPositions.size > 0 && darkPathPositions.size > 0 && this.tileRenderer.tilesets.has('dirt_cobble')) {
+            // Wang auto-tile cobblestone positions against a background of dirt
+            // The "lower" terrain is dirt, "upper" is cobblestone
+            // We only care about tiles in the dirt→cobble border zone
+            const transitionAutoTiler = new PathAutoTiler();
+            const transitionLayer = transitionAutoTiler.buildPathLayer(darkPathPositions, tilesWide, tilesHigh, 'dirt_cobble');
+            
+            if (transitionLayer && this.worldMap.pathLayer) {
+                for (let row = 0; row < tilesHigh; row++) {
+                    for (let col = 0; col < tilesWide; col++) {
+                        const trans = transitionLayer[row]?.[col];
+                        if (!trans) continue;
+                        
+                        // Only apply transition at the boundary between dirt and cobblestone
+                        // Check if this tile or its neighbors include BOTH dirt and cobblestone
+                        const isDirt = lightPathPositions.has(`${col},${row}`);
+                        const isCobble = darkPathPositions.has(`${col},${row}`);
+                        const neighborsDirt = this.tileNeighborsDirt(col, row, lightPathPositions);
+                        
+                        // Apply where: cobblestone tile borders dirt, OR dirt tile borders cobblestone
+                        if ((isCobble && neighborsDirt) || (isDirt && this.tileNeighborsDirt(col, row, darkPathPositions))) {
+                            this.worldMap.pathLayer[row][col] = trans;
+                        }
+                    }
+                }
+                console.log(`Built dirt→cobblestone transition layer`);
+            }
+        }
 
-        console.log(`Built path tile layers: ${totalPaths} total path positions, removed ${removed} sprite decorations`);
+        if (!keepDecorations) {
+            // Remove path decorations since they're now rendered as tiles
+            const beforeCount = this.decorations.length;
+            this.decorations = this.decorations.filter(d => d.type !== 'dirt_path' && d.type !== 'cobblestone_path');
+            const removed = beforeCount - this.decorations.length;
+            console.log(`Built path tile layers: ${totalPaths} total path positions, removed ${removed} sprite decorations`);
+        } else {
+            console.log(`Rebuilt path tile layers: ${totalPaths} total path positions (decorations kept for editor)`);
+        }
+    }
+    
+    // Remove a path position from the persistent tracking (used by editor delete)
+    removePathPosition(col, row, pathType) {
+        if (!this._pathPositions) return;
+        const key = `${col},${row}`;
+        if (pathType === 'dirt_path') {
+            this._pathPositions.light.delete(key);
+        } else if (pathType === 'cobblestone_path') {
+            this._pathPositions.dark.delete(key);
+        }
+    }
+    
+    // Check if a tile position neighbors any dirt path tiles
+    tileNeighborsDirt(col, row, dirtPositions) {
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                if (dirtPositions.has(`${col + dc},${row + dr}`)) return true;
+            }
+        }
+        return false;
     }
 
     // Create a path segment between two points

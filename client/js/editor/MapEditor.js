@@ -45,6 +45,10 @@ class MapEditor {
         this.currentAction = null; // Current batch of operations (for drag/rect)
         this.maxUndoSteps = 50;
         
+        // Path auto-tiling: track which asset types are path tiles
+        this.pathTileTypes = new Set(['dirt_path', 'cobblestone_path', 'brick_path']);
+        this.pathRebuildPending = false; // Debounce path rebuilds during drag painting
+        
         // Asset categories with their sources
         this.categories = {
             ground: {
@@ -616,6 +620,13 @@ class MapEditor {
         this.selectedAsset = assetKey;
         this.currentTool = 'place';
         
+        // Auto-select ground layer for path tiles
+        if (this.pathTileTypes.has(assetKey)) {
+            this.selectedLayer = 'ground';
+            const layerSelect = document.getElementById('editor-layer');
+            if (layerSelect) layerSelect.value = 'ground';
+        }
+        
         // Update UI
         this.container.querySelectorAll('.asset-item').forEach(item => {
             item.classList.toggle('selected', item.dataset.asset === assetKey);
@@ -892,7 +903,31 @@ class MapEditor {
             return;
         }
         
-        console.log(`🗺️ Placing ${this.selectedAsset} at (${x}, ${y})`);
+        const isPathTile = this.pathTileTypes.has(this.selectedAsset);
+        
+        // For path tiles, snap to grid and check for duplicates
+        if (isPathTile) {
+            const tileSize = CONSTANTS.TILE_SIZE;
+            x = Math.floor(x / tileSize) * tileSize;
+            y = Math.floor(y / tileSize) * tileSize;
+            
+            // Don't place duplicate path tiles at same position
+            const exists = this.game.decorations.some(d => 
+                d.type === this.selectedAsset && d.x === x && d.y === y
+            );
+            if (exists) return;
+            
+            // Remove any other path type at this position (replace dirt with cobble, etc.)
+            const otherPathIdx = this.game.decorations.findIndex(d =>
+                this.pathTileTypes.has(d.type) && d.x === x && d.y === y && d.type !== this.selectedAsset
+            );
+            if (otherPathIdx !== -1) {
+                const removed = this.game.decorations.splice(otherPathIdx, 1)[0];
+                this.placedItems = this.placedItems.filter(p =>
+                    !(p.x === removed.x && p.y === removed.y && p.type === removed.type)
+                );
+            }
+        }
         
         // Get asset definition and sprite path
         let def = null;
@@ -913,10 +948,15 @@ class MapEditor {
         
         // Determine layer constant
         let layer;
-        switch (this.selectedLayer) {
-            case 'ground': layer = CONSTANTS.LAYER.GROUND; break;
-            case 'above': layer = CONSTANTS.LAYER.ENTITIES + 1; break;
-            default: layer = CONSTANTS.LAYER.GROUND_DECORATION;
+        if (isPathTile) {
+            // Path tiles always go on ground layer
+            layer = CONSTANTS.LAYER.GROUND;
+        } else {
+            switch (this.selectedLayer) {
+                case 'ground': layer = CONSTANTS.LAYER.GROUND; break;
+                case 'above': layer = CONSTANTS.LAYER.ENTITIES + 1; break;
+                default: layer = CONSTANTS.LAYER.GROUND_DECORATION;
+            }
         }
         
         // Get the sprite from the decoration loader
@@ -926,7 +966,6 @@ class MapEditor {
         if (!sprite && spritePath) {
             sprite = new Image();
             sprite.src = spritePath;
-            console.log(`🗺️ Loading sprite from ${spritePath}`);
         }
         
         // Create decoration object
@@ -940,11 +979,9 @@ class MapEditor {
             layer: layer,
             ground: def.ground || false,
             editorPlaced: true,
-            useSprite: true,
-            rotation: this.rotation // Store rotation angle
+            useSprite: !isPathTile, // Path tiles render via TileRenderer, not as sprites
+            rotation: this.rotation
         };
-        
-        console.log(`🗺️ Created decoration:`, newDecor);
         
         // Add to game decorations
         if (!this.game.decorations) {
@@ -968,7 +1005,10 @@ class MapEditor {
         // Track for undo
         this.recordAction('place', newDecor);
         
-        console.log(`📍 Placed ${this.selectedAsset} at (${x}, ${y}) - total decorations: ${this.game.decorations.length}`);
+        // If path tile, schedule a path layer rebuild (debounced for drag painting)
+        if (isPathTile) {
+            this.schedulePathRebuild();
+        }
     }
     
     deleteAtPosition(x, y) {
@@ -995,6 +1035,15 @@ class MapEditor {
             
             // Track for undo
             this.recordAction('delete', removed);
+            
+            // If deleted a path tile, remove from persistent tracking and rebuild
+            if (this.pathTileTypes.has(removed.type)) {
+                const tileSize = CONSTANTS.TILE_SIZE;
+                const col = Math.floor(removed.x / tileSize);
+                const row = Math.floor(removed.y / tileSize);
+                this.game.removePathPosition(col, row, removed.type);
+                this.schedulePathRebuild();
+            }
         }
     }
     
@@ -1085,6 +1134,25 @@ class MapEditor {
                 this.deletedItems.delete(`${item.type}_${item.x}_${item.y}`);
                 undoCount++;
             }
+        }
+        
+        // Check if any undone items were path tiles — update persistent positions and rebuild
+        const hadPathUndo = action.items.some(item => this.pathTileTypes.has(item.type));
+        if (hadPathUndo) {
+            // Sync persistent path positions: undone placements need removal, undone deletions need re-add
+            const tileSize = CONSTANTS.TILE_SIZE;
+            for (const item of action.items) {
+                if (!this.pathTileTypes.has(item.type)) continue;
+                const col = Math.floor(item.x / tileSize);
+                const row = Math.floor(item.y / tileSize);
+                if (item.actionType === 'place') {
+                    // Undoing a placement — remove from persistent
+                    this.game.removePathPosition(col, row, item.type);
+                }
+                // Undoing a deletion — the decoration is re-added to game.decorations,
+                // buildPathTileLayer will pick it up automatically
+            }
+            this.schedulePathRebuild();
         }
         
         console.log(`↩️ Undid ${undoCount} item(s) - ${this.undoStack.length} undo steps remaining`);
@@ -1354,6 +1422,32 @@ class MapEditor {
             reader.readAsText(file);
         };
         input.click();
+    }
+    
+    // === PATH AUTO-TILING ===
+    
+    // Schedule a path tile layer rebuild (debounced for drag painting performance)
+    schedulePathRebuild() {
+        if (this.pathRebuildPending) return;
+        this.pathRebuildPending = true;
+        
+        // Use requestAnimationFrame for instant visual feedback, but batch multiple calls
+        requestAnimationFrame(() => {
+            this.rebuildPathLayer();
+            this.pathRebuildPending = false;
+        });
+    }
+    
+    // Rebuild the auto-tiled path layer from current decorations
+    rebuildPathLayer() {
+        if (!this.game.buildPathTileLayer) {
+            console.warn('🗺️ Game.buildPathTileLayer not available');
+            return;
+        }
+        
+        // Rebuild with keepDecorations=true so the editor can still track/undo them
+        this.game.buildPathTileLayer(true);
+        console.log('🗺️ Path layer rebuilt for editor');
     }
     
     // Test: place decoration at player's feet (call from console with mapEditor.testPlace())
