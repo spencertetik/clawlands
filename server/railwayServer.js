@@ -123,6 +123,21 @@ async function initDatabase() {
         CREATE INDEX IF NOT EXISTS bot_keys_hash_idx ON bot_api_keys(api_key_hash);
         `);
 
+        // Feedback table for beta testers
+        await db.query(`
+        CREATE TABLE IF NOT EXISTS feedback (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            player_name TEXT NOT NULL,
+            message TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
+            game_state JSONB,
+            resolved BOOLEAN DEFAULT false,
+            response TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS feedback_time_idx ON feedback(created_at DESC);
+        `);
+
         console.log('✅ Database tables ready');
     } catch (err) {
         console.error('⚠️ Table creation failed:', err.message);
@@ -405,6 +420,135 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ totalBots: 0, activeBots: 0 }));
         }
+
+    } else {
+    // ========== FEEDBACK API ==========
+
+    } else if (url.pathname === '/api/feedback' && req.method === 'POST') {
+        // Submit feedback from in-game
+        const corsHeaders = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        };
+
+        if (!db) {
+            res.writeHead(503, corsHeaders);
+            res.end(JSON.stringify({ error: 'Feedback unavailable — no database' }));
+            return;
+        }
+
+        try {
+            const body = await parseBody(req);
+            const playerName = body.playerName?.trim()?.slice(0, 50);
+            const message = body.message?.trim()?.slice(0, 2000);
+            const category = (body.category || 'general').slice(0, 30);
+            const gameState = body.gameState || null;
+
+            if (!message) {
+                res.writeHead(400, corsHeaders);
+                res.end(JSON.stringify({ error: 'Message is required' }));
+                return;
+            }
+
+            await db.query(
+                'INSERT INTO feedback (player_name, message, category, game_state) VALUES ($1, $2, $3, $4)',
+                [playerName || 'Anonymous', message, category, gameState ? JSON.stringify(gameState) : null]
+            );
+
+            console.log(`📝 Feedback from ${playerName || 'Anonymous'}: ${message.slice(0, 80)}...`);
+
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ success: true, message: 'Feedback received! Thank you.' }));
+
+        } catch (err) {
+            console.error('❌ Feedback error:', err.message);
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ error: 'Failed to save feedback' }));
+        }
+
+    } else if (url.pathname === '/api/feedback' && req.method === 'GET') {
+        // Read feedback (admin only — requires admin key)
+        const corsHeaders = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        };
+
+        const authKey = url.searchParams.get('key') || req.headers['authorization']?.replace('Bearer ', '');
+        if (!authKey || !BOT_API_KEYS.includes(authKey)) {
+            res.writeHead(401, corsHeaders);
+            res.end(JSON.stringify({ error: 'Admin key required' }));
+            return;
+        }
+
+        if (!db) {
+            res.writeHead(503, corsHeaders);
+            res.end(JSON.stringify({ error: 'No database' }));
+            return;
+        }
+
+        try {
+            const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 200);
+            const unresolvedOnly = url.searchParams.get('unresolved') === 'true';
+            
+            let query = 'SELECT * FROM feedback';
+            if (unresolvedOnly) query += ' WHERE resolved = false';
+            query += ' ORDER BY created_at DESC LIMIT $1';
+
+            const result = await db.query(query, [limit]);
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ feedback: result.rows, count: result.rows.length }));
+        } catch (err) {
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ error: 'Failed to fetch feedback' }));
+        }
+
+    } else if (url.pathname === '/api/feedback/resolve' && req.method === 'POST') {
+        // Mark feedback as resolved (admin only)
+        const corsHeaders = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        };
+
+        const authKey = req.headers['authorization']?.replace('Bearer ', '');
+        if (!authKey || !BOT_API_KEYS.includes(authKey)) {
+            res.writeHead(401, corsHeaders);
+            res.end(JSON.stringify({ error: 'Admin key required' }));
+            return;
+        }
+
+        if (!db) {
+            res.writeHead(503, corsHeaders);
+            res.end(JSON.stringify({ error: 'No database' }));
+            return;
+        }
+
+        try {
+            const body = await parseBody(req);
+            const feedbackId = body.id;
+            const response = body.response?.trim()?.slice(0, 1000) || null;
+
+            await db.query(
+                'UPDATE feedback SET resolved = true, response = $1 WHERE id = $2',
+                [response, feedbackId]
+            );
+
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ error: 'Failed to resolve feedback' }));
+        }
+
+    } else if (req.method === 'OPTIONS') {
+        // CORS preflight
+        res.writeHead(200, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        });
+        res.end();
 
     } else {
         res.writeHead(404);

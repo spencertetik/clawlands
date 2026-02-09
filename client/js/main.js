@@ -184,6 +184,17 @@ window.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             game.toggleDebug();
         }
+        // Feedback form (F key)
+        else if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            if (game && game.feedbackSystem) {
+                if (game.feedbackSystem.isOpen) {
+                    game.feedbackSystem.close();
+                } else {
+                    game.feedbackSystem.open();
+                }
+            }
+        }
         // Debug: Hold Shift+R to reset character (clear localStorage)
         else if (e.key === 'R' && e.shiftKey) {
             e.preventDefault();

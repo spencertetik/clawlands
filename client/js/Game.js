@@ -174,6 +174,7 @@ class Game {
         // Shop system
         this.shopSystem = typeof ShopSystem !== 'undefined' ? new ShopSystem(this) : null;
         this.innSystem = typeof InnSystem !== 'undefined' ? new InnSystem(this) : null;
+        this.feedbackSystem = typeof FeedbackSystem !== 'undefined' ? new FeedbackSystem(this) : null;
         if (this.shopSystem) {
             console.log('🏪 Shop system initialized');
         }
@@ -519,7 +520,8 @@ class Game {
         const inventoryOpen = this.inventoryUI && this.inventoryUI.isOpen();
         const questLogOpen = this.questLogUI && this.questLogUI.isOpen();
         const innBusy = this.innSystem && (this.innSystem.isOpen || this.innSystem.isSleeping);
-        if (!dialogOpen && !inventoryOpen && !questLogOpen && !innBusy) {
+        const feedbackOpen = this.feedbackSystem && this.feedbackSystem.isOpen;
+        if (!dialogOpen && !inventoryOpen && !questLogOpen && !innBusy && !feedbackOpen) {
             this.player.update(deltaTime, this.inputManager, this.collisionSystem);
         }
 
@@ -1446,6 +1448,7 @@ class Game {
         if (this.questLogUI && this.questLogUI.isOpen()) return;
         if (this.innSystem && this.innSystem.isOpen) return;
         if (this.innSystem && this.innSystem.isSleeping) return;
+        if (this.feedbackSystem && this.feedbackSystem.isOpen) return;
 
         // Advance dialog if open
         if (this.dialogSystem && this.dialogSystem.isOpen()) {
