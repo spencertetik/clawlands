@@ -163,17 +163,16 @@ class TouchControls {
             margin-bottom: 10px;
         `;
 
-        // INV (like SELECT)
-        const inv = this._makePillButton('INV', () => {
-            this.pressKey('i');
-            setTimeout(() => this.releaseKey('i'), 100);
-        });
-        center.appendChild(inv);
-
-        // MENU (like START) — could be quest log or help
+        // MAP — toggle minimap expanded view
         const menu = this._makePillButton('MAP', () => {
-            this.pressKey('n');
-            setTimeout(() => this.releaseKey('n'), 100);
+            if (this.game && this.game.minimap) {
+                // Show minimap on mobile and toggle expanded
+                if (!this.game.minimap.visible) {
+                    this.game.minimap.visible = true;
+                    this.game.minimap.isShown = true;
+                }
+                this.game.minimap.toggleExpanded();
+            }
         });
         center.appendChild(menu);
 
@@ -227,12 +226,12 @@ class TouchControls {
         `;
 
         // Button configs: SNES diamond layout
-        // X = top, A = right, B = bottom, Y = left
+        // X = top (Attack), A = right (Interact), B = bottom (Quest Log), Y = left (Inventory)
         const buttons = [
-            { label: 'ATK', pos: 'top: 0; left: 50%; transform: translateX(-50%);',    color: '#6b5b8a', action: 'attack' },   // X (top) — purple
-            { label: 'ACT', pos: 'right: 0; top: 50%; transform: translateY(-50%);',   color: '#8a3a3a', action: 'interact' },  // A (right) — red
-            { label: 'B',   pos: 'bottom: 0; left: 50%; transform: translateX(-50%);', color: '#3a6a3a', action: 'cancel' },    // B (bottom) — green (no action yet)
-            { label: 'Y',   pos: 'left: 0; top: 50%; transform: translateY(-50%);',    color: '#3a5a8a', action: 'secondary' }, // Y (left) — blue (no action yet)
+            { label: 'ATK', pos: 'top: 0; left: 50%; transform: translateX(-50%);',    color: '#6b5b8a', action: 'attack' },    // X (top) — purple
+            { label: 'ACT', pos: 'right: 0; top: 50%; transform: translateY(-50%);',   color: '#8a3a3a', action: 'interact' },   // A (right) — red
+            { label: 'LOG', pos: 'bottom: 0; left: 50%; transform: translateX(-50%);', color: '#3a6a3a', action: 'questlog' },   // B (bottom) — green
+            { label: 'INV', pos: 'left: 0; top: 50%; transform: translateY(-50%);',    color: '#3a5a8a', action: 'inventory' },  // Y (left) — blue
         ];
 
         for (const b of buttons) {
@@ -291,18 +290,18 @@ class TouchControls {
             case 'interact':
                 if (pressed) this.pressInteract(); else this.releaseInteract();
                 break;
-            case 'cancel':
-                // B — close dialog/menu (ESC)
+            case 'questlog':
+                // Quest log (L key)
                 if (pressed) {
-                    this.pressKey('Escape');
-                    setTimeout(() => this.releaseKey('Escape'), 100);
+                    this.pressKey('l');
+                    setTimeout(() => this.releaseKey('l'), 100);
                 }
                 break;
-            case 'secondary':
-                // Y — quest log
+            case 'inventory':
+                // Inventory (I key)
                 if (pressed) {
-                    this.pressKey('q');
-                    setTimeout(() => this.releaseKey('q'), 100);
+                    this.pressKey('i');
+                    setTimeout(() => this.releaseKey('i'), 100);
                 }
                 break;
         }

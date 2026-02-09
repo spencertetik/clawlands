@@ -3266,6 +3266,66 @@ class Game {
         return JSON.stringify(payload);
     }
 
+    // Quick respawn (R key) — dev shortcut, no drift animation, just teleport to safe spot
+    quickRespawn() {
+        if (!this.player) return;
+        console.log('🔄 Quick respawn triggered (R key)');
+
+        // Cancel any active drift
+        if (this.driftReset && this.driftReset.isDrifting) {
+            this.driftReset.isDrifting = false;
+            if (this.driftReset.driftOverlay) {
+                this.driftReset.driftOverlay.style.opacity = '0';
+                this.driftReset.driftOverlay.style.display = 'none';
+            }
+            if (this.driftReset.driftTextElement) {
+                this.driftReset.driftTextElement.style.opacity = '0';
+            }
+        }
+
+        // Restore shell integrity
+        if (this.player.shellIntegrityMax) {
+            this.player.shellIntegrity = this.player.shellIntegrityMax;
+        }
+
+        // Clear nearby enemies
+        if (this.combatSystem) {
+            this.combatSystem.enemies = [];
+        }
+
+        // Find a safe spawn on a random island
+        const islands = this.worldMap ? this.worldMap.islands : (this.pendingIslands || []);
+        if (islands && islands.length > 0) {
+            const randomIsland = islands[Math.floor(Math.random() * islands.length)];
+            const tileSize = CONSTANTS.TILE_SIZE;
+            let spawned = false;
+
+            for (let radius = 2; radius < 12 && !spawned; radius++) {
+                for (let angle = 0; angle < 16 && !spawned; angle++) {
+                    const angleRad = (angle / 16) * 2 * Math.PI;
+                    const testCol = randomIsland.x + Math.floor(Math.cos(angleRad) * radius);
+                    const testRow = randomIsland.y + Math.floor(Math.sin(angleRad) * radius);
+                    const worldX = (testCol * tileSize) + (tileSize / 2);
+                    const worldY = (testRow * tileSize) + (tileSize / 2);
+
+                    if (this.isPositionSafe(worldX, worldY)) {
+                        this.player.position.x = worldX - this.player.width / 2;
+                        this.player.position.y = worldY - this.player.height / 2;
+                        spawned = true;
+                    }
+                }
+            }
+        }
+
+        // Push away from NPCs and update camera
+        this.pushPlayerAwayFromNPCs();
+        this.camera.setTarget(this.player);
+
+        if (typeof gameNotifications !== 'undefined' && gameNotifications) {
+            gameNotifications.info('Respawned');
+        }
+    }
+
     // Setup controls help overlay (H key to toggle) + canvas HUD click handler
     _setupControlsHelp() {
         window.addEventListener('keydown', (e) => {
@@ -3274,6 +3334,11 @@ class Game {
             if (key === 'h') {
                 e.preventDefault();
                 this.controlsVisible = !this.controlsVisible;
+            }
+            // R = quick respawn (dev shortcut — skip the drift animation)
+            if (key === 'r' && this.gameActive) {
+                e.preventDefault();
+                this.quickRespawn();
             }
             // Also backtick for debug (existing behavior)
             if (e.key === '`') {

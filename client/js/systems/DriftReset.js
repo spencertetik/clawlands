@@ -6,7 +6,7 @@ class DriftReset {
         this.driftThreshold = 5; // Trigger drift when Continuity drops below 5%
         this.isDrifting = false;
         this.driftOverlay = null;
-        this.lastContinuityCheck = 100; // Track last continuity to detect drops
+        this.lastContinuityCheck = null; // null = not yet initialized, set on first update
         
         this.createDriftOverlay();
         
@@ -67,18 +67,23 @@ class DriftReset {
     update() {
         if (this.isDrifting) return; // Already drifting
         
-        // Grace period — don't auto-trigger drift in the first 10 seconds of play
-        // (new characters start at 0 continuity, which is below threshold)
+        // Grace period — don't auto-trigger drift in the first 15 seconds of play
         if (!this.playTimeElapsed) this.playTimeElapsed = 0;
         this.playTimeElapsed += 1/60; // rough frame estimate
-        if (this.playTimeElapsed < 10) return;
+        if (this.playTimeElapsed < 15) return;
         
         const continuity = this.game.continuitySystem ? this.game.continuitySystem.value : 100;
         
-        // Only trigger from continuity drop if it was PREVIOUSLY above threshold
-        // (prevents triggering on brand new characters who start at 0)
+        // First check after grace period — just record the value, don't trigger
+        if (this.lastContinuityCheck === null) {
+            this.lastContinuityCheck = continuity;
+            return;
+        }
+        
+        // Only trigger if continuity ACTIVELY DROPPED from above threshold to below
+        // (prevents false triggers on characters that start low)
         if (continuity <= this.driftThreshold && this.lastContinuityCheck > this.driftThreshold) {
-            console.log(`💨 Continuity critically low (${continuity.toFixed(1)}%) - triggering Drift Reset`);
+            console.log(`💨 Continuity dropped from ${this.lastContinuityCheck.toFixed(1)} to ${continuity.toFixed(1)}% - triggering Drift Reset`);
             this.triggerDriftReset();
         }
         

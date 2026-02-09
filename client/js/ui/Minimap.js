@@ -48,46 +48,19 @@ class Minimap {
                         (navigator.maxTouchPoints > 0) || 
                         (navigator.msMaxTouchPoints > 0);
         
-        // Hide minimap on mobile - screen too crowded with touch controls
+        // Hidden by default on mobile (MAP button toggles it)
         if (this.isMobile) {
             this.visible = false;
-            return;
         }
-        
-        // Create container - bottom-right on desktop
-        // Starts hidden until game is fully loaded and player enters world
-        this.container = document.createElement('div');
-        this.container.id = 'minimap-container';
-        this.container.style.cssText = `
-            position: fixed;
-            bottom: ${this.margin}px;
-            right: ${this.margin}px;
-            z-index: 1000;
-            pointer-events: auto;
-            cursor: pointer;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
-            display: none;
-        `;
         
         this.isShown = false;
         
-        // Create canvas
+        // Create offscreen canvas for rendering (used by Game.js to draw onto game canvas)
         this.canvas = document.createElement('canvas');
         this.canvas.width = this.size;
         this.canvas.height = this.size;
         this.ctx = this.canvas.getContext('2d');
         this.ctx.imageSmoothingEnabled = false;
-        this.container.appendChild(this.canvas);
-        
-        // Click to expand/collapse
-        this.container.addEventListener('click', () => {
-            this.toggleExpanded();
-        });
-        
-        document.body.appendChild(this.container);
         
         // Pre-render the map texture
         this.prerenderMap();
