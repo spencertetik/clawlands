@@ -275,6 +275,7 @@ class QuestLogUI {
         if (this.visible) return;
         this.visible = true;
         this.overlay.style.display = 'flex';
+        if (window.game && window.game.sfx) window.game.sfx.play('menu_open');
         
         // Fade in animation
         this.overlay.style.animation = 'questLogFadeIn 0.2s ease-out forwards';
@@ -286,6 +287,7 @@ class QuestLogUI {
     hide() {
         if (!this.visible) return;
         this.visible = false;
+        if (window.game && window.game.sfx) window.game.sfx.play('menu_close');
         
         // Fade out animation
         this.overlay.style.animation = 'questLogFadeOut 0.2s ease-in forwards';

@@ -117,6 +117,8 @@ class DialogSystem {
         this.inputContainer.style.display = 'none';
         this.updateText();
         this.container.style.display = 'block';
+        // Play dialog open sound
+        if (window.game && window.game.sfx) window.game.sfx.play('dialog_open');
         
         // Hide touch controls on mobile (tap dialog to advance)
         if (window.touchControls) {
@@ -180,6 +182,8 @@ class DialogSystem {
         if (this.index < this.lines.length - 1) {
             this.index += 1;
             this.updateText();
+            // Play text advance blip
+            if (window.game && window.game.sfx) window.game.sfx.play('npc_talk');
             return true;
         }
         this.hide();

@@ -179,6 +179,7 @@ class ShopSystem {
         this.isOpen = true;
         this.overlay.style.display = 'flex';
         this.switchTab('buy');
+        if (window.game && window.game.sfx) window.game.sfx.play('menu_open');
         
         // Pause game if needed
         if (this.game && this.game.inputManager) {
@@ -190,6 +191,7 @@ class ShopSystem {
         if (!this.isOpen) return;
         this.isOpen = false;
         this.overlay.style.display = 'none';
+        if (window.game && window.game.sfx) window.game.sfx.play('menu_close');
         
         // Resume game
         if (this.game && this.game.inputManager) {

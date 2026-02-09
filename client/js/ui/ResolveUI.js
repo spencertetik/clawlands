@@ -67,11 +67,17 @@ class ResolveUI {
         switch (e.key) {
             case 'ArrowLeft':
             case 'a':
-                this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+                if (this.selectedIndex > 0) {
+                    this.selectedIndex--;
+                    if (this.game.sfx) this.game.sfx.play('ui_click');
+                }
                 break;
             case 'ArrowRight':
             case 'd':
-                this.selectedIndex = Math.min(2, this.selectedIndex + 1);
+                if (this.selectedIndex < 2) {
+                    this.selectedIndex++;
+                    if (this.game.sfx) this.game.sfx.play('ui_click');
+                }
                 break;
             case ' ':
             case 'Enter':
@@ -146,6 +152,9 @@ class ResolveUI {
             this.game.questSystem.onKill(this.enemy.typeData.id || this.enemy.name);
             this.game.questSystem.onResolveChoice(choice);
         }
+
+        // Play UI confirm sound
+        if (this.game.sfx) this.game.sfx.play('ui_confirm');
 
         // Apply effects
         switch (choice) {

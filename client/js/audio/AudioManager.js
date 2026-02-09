@@ -6,7 +6,7 @@ class AudioManager {
         this.tracks = {};
         this.currentTrack = null;
         this.currentAudio = null;
-        this.volume = 0.2; // Music volume (lowered so SFX can be heard)
+        this.volume = 0.08; // Music volume — background atmosphere, sits under everything
         this.fadeDuration = 1000; // ms
         this.muted = false;
         this.preloaded = false;

@@ -448,9 +448,10 @@ class Game {
             // Mark game as active — item pickups, interactions etc. now enabled
             this.gameActive = true;
             
-            // Start ambient sounds (ocean waves + occasional birds)
+            // Start ambient sounds (ocean waves, wind, birds/insects)
             if (this.sfx) {
                 this.sfx.startOceanAmbient();
+                this.sfx.startWindAmbient();
                 this.sfx.startBirdAmbient();
             }
             
@@ -740,7 +741,16 @@ class Game {
             this.footstepEffects.update(deltaTime, this.player, this.worldMap);
         }
         
-        // Update ocean ambient volume based on proximity to water
+        // Update enemy proximity sounds (footsteps, growls approaching)
+        if (this.sfx && this.combatSystem && this.player && this.gameActive) {
+            this.sfx.updateEnemyProximity(
+                this.combatSystem.enemies,
+                this.player.position.x,
+                this.player.position.y
+            );
+        }
+        
+        // Update ambient volumes based on player position
         if (this.sfx && this.sfx._oceanRunning && this.worldMap && this.player) {
             this._oceanCheckTimer = (this._oceanCheckTimer || 0) + deltaTime;
             if (this._oceanCheckTimer > 0.5) { // Check every 0.5s, not every frame
@@ -765,10 +775,15 @@ class Game {
                 }
                 
                 // Map distance to volume (closer = louder, max at edge, silent far inland)
-                const vol = minWaterDist < 3 ? 1.0 :
-                           minWaterDist < 8 ? 0.6 :
-                           minWaterDist < 15 ? 0.3 : 0.1;
-                this.sfx.setOceanVolume(this.currentLocation === 'outdoor' ? vol : 0.05);
+                const isOutdoor = this.currentLocation === 'outdoor';
+                const oceanVol = minWaterDist < 3 ? 1.0 :
+                                minWaterDist < 8 ? 0.6 :
+                                minWaterDist < 15 ? 0.3 : 0.08;
+                this.sfx.setOceanVolume(isOutdoor ? oceanVol : 0.03);
+                
+                // Wind is always present outdoors (subtle), louder near edges/shore
+                const windVol = isOutdoor ? (minWaterDist < 5 ? 0.8 : 0.4) : 0.05;
+                this.sfx.setWindVolume(windVol);
             }
         }
     }
@@ -1899,6 +1914,8 @@ class Game {
                     if (text && text.trim()) {
                         const author = this.characterName || 'Unknown Agent';
                         stone.addMessage(author, text.trim());
+                        // Play carving sound
+                        if (this.sfx) this.sfx.play('chronicle_write');
                         this.dialogSystem.show([
                             'Your words have been carved into the stone.',
                             'The Chronicle remembers.',

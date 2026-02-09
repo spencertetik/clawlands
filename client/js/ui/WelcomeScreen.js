@@ -1525,6 +1525,9 @@ class WelcomeScreen {
      * Finalize and close
      */
     finalize(config, name) {
+        // Play confirmation sound
+        if (window.game && window.game.sfx) window.game.sfx.play('ui_confirm');
+        
         // Save character for returning players
         localStorage.setItem('clawlands_character', JSON.stringify({
             species: config.species,

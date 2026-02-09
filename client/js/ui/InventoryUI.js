@@ -227,6 +227,8 @@ class InventoryUI {
         this.visible = true;
         this.selectedSlot = -1;
         this.overlay.style.display = 'flex';
+        // Play menu open sound
+        if (window.game && window.game.sfx) window.game.sfx.play('menu_open');
         
         // Fade in animation
         this.overlay.style.animation = 'inventoryFadeIn 0.2s ease-out forwards';
@@ -239,6 +241,8 @@ class InventoryUI {
         if (!this.visible) return;
         this.visible = false;
         this.selectedSlot = -1;
+        // Play menu close sound
+        if (window.game && window.game.sfx) window.game.sfx.play('menu_close');
         
         // Fade out animation
         this.overlay.style.animation = 'inventoryFadeOut 0.2s ease-in forwards';
