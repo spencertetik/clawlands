@@ -143,7 +143,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 const muted = audioManager.toggleMute();
                 musicHint.innerHTML = muted 
                     ? '<kbd>M</kbd> Music OFF' 
-                    : '<kbd>M</kbd> Toggle Music';
+                    : '<kbd>M</kbd> Music';
             }
         });
     }

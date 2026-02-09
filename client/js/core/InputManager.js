@@ -8,6 +8,9 @@ class InputManager {
             d: false,
             ' ': false, // space (interact)
             x: false,   // attack
+            j: false,   // attack (IJKL layout)
+            k: false,   // interact (IJKL layout)
+            l: false,   // quest log (IJKL layout)
             ArrowUp: false,
             ArrowLeft: false,
             ArrowDown: false,
@@ -16,7 +19,10 @@ class InputManager {
 
         this.justPressed = {
             ' ': false,
-            x: false
+            x: false,
+            j: false,
+            k: false,
+            l: false
         };
 
         this.prevKeys = { ...this.keys };
@@ -79,6 +85,10 @@ class InputManager {
         this.justPressed[' '] = this.keys[' '] && !this.prevKeys[' '];
         // Check for X key "just pressed" (for attacks)
         this.justPressed['x'] = this.keys['x'] && !this.prevKeys['x'];
+        // IJKL layout: J = attack, K = interact, L = quest log
+        this.justPressed['j'] = this.keys['j'] && !this.prevKeys['j'];
+        this.justPressed['k'] = this.keys['k'] && !this.prevKeys['k'];
+        this.justPressed['l'] = this.keys['l'] && !this.prevKeys['l'];
 
         // Copy current state to previous
         this.prevKeys = { ...this.keys };
@@ -109,14 +119,14 @@ class InputManager {
                this.keys.ArrowLeft || this.keys.ArrowRight;
     }
 
-    // Check if space was just pressed (interact)
+    // Check if space or K was just pressed (interact)
     isInteractPressed() {
-        return this.justPressed[' '];
+        return this.justPressed[' '] || this.justPressed['k'];
     }
 
-    // Check if X was just pressed (attack)
+    // Check if X or J was just pressed (attack)
     isAttackPressed() {
-        return this.justPressed['x'];
+        return this.justPressed['x'] || this.justPressed['j'];
     }
 
     // Get movement direction name for animations

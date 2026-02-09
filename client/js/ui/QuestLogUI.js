@@ -242,7 +242,7 @@ class QuestLogUI {
             
             const key = e.key.toLowerCase();
             
-            if (key === 'q') {
+            if (key === 'q' || key === 'l') {
                 // Don't toggle if dialog is open
                 const dialogBox = document.getElementById('dialog-box');
                 const dialogOpen = dialogBox && dialogBox.style.display !== 'none' && dialogBox.style.display !== '';

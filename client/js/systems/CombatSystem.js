@@ -640,6 +640,27 @@ class CombatSystem {
             ctx.fill();
         }
 
+        // Pixel sword along the sweep arc
+        ctx.globalAlpha = fadeOut;
+        const swordAngle = currentA;
+        const swordBaseR = radius * 0.45;
+        const pixelSize = 1;
+        const swordPixels = [
+            { offset: 0, color: '#999999' },  // handle
+            { offset: 1, color: '#aaaaaa' },
+            { offset: 2, color: '#cccccc' },  // blade body
+            { offset: 3, color: '#cccccc' },
+            { offset: 4, color: '#dddddd' },
+            { offset: 5, color: '#ffffff' },  // tip
+        ];
+        for (const sp of swordPixels) {
+            const r = swordBaseR + sp.offset * pixelSize;
+            const px = cx + Math.cos(swordAngle) * r;
+            const py = cy + Math.sin(swordAngle) * r;
+            ctx.fillStyle = sp.color;
+            ctx.fillRect(Math.floor(px), Math.floor(py), pixelSize, pixelSize);
+        }
+
         ctx.restore();
     }
 
@@ -680,74 +701,128 @@ class CombatSystem {
 
         ctx.save();
 
-        // --- ALWAYS-VISIBLE HEALTH BAR (Zelda-style, top-left) ---
-        const barX = 8;
-        const barY = 8;
-        const barWidth = 140;
-        const barHeight = 18;
-        const healthPct = player.shellIntegrity / player.shellIntegrityMax;
+        // --- UNIFIED HUD BOX (top-left) ---
+        const boxX = 6;
+        const boxY = 6;
+        const boxWidth = 150;
+        const pad = 4;
+        const lineH = 14;
 
-        // Background with slight transparency
-        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
-        ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 22);
+        // Calculate box height based on content
+        let contentH = pad; // top padding
+        const healthBarY = boxY + contentH;
+        contentH += 16; // health bar
+        contentH += 2;  // gap
+        const weaponY = boxY + contentH;
+        contentH += lineH; // weapon line
+        const tokenY = boxY + contentH;
+        contentH += lineH; // token line
 
-        // Health fill — color changes based on health
-        let barColor = '#cc5533';
-        if (healthPct > 0.6) barColor = '#44aa44';
-        if (healthPct > 0.3 && healthPct <= 0.6) barColor = '#cc8833';
-        if (healthPct <= 0.3) barColor = '#cc2222';
-
-        // Flash when recently damaged
-        if (player.isInvulnerable && !player.spawnProtectionActive) {
-            barColor = Math.floor(Date.now() / 80) % 2 === 0 ? '#ff6666' : barColor;
+        // Continuity section
+        let contValue = 0;
+        let contTier = 'unmoored';
+        if (this.game.continuitySystem) {
+            contValue = this.game.continuitySystem.value || 0;
+            contTier = this.game.continuitySystem.getTier ? this.game.continuitySystem.getTier() : 'unmoored';
         }
+        const contY = boxY + contentH;
+        contentH += lineH; // continuity line
+        contentH += pad; // bottom padding
+        const boxHeight = contentH;
 
-        // Bar background
-        ctx.fillStyle = '#2a1510';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Health fill
-        ctx.fillStyle = barColor;
-        ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * healthPct, barHeight - 2);
+        // Dark background
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
         // Border
         ctx.strokeStyle = '#8a4030';
         ctx.lineWidth = 1.5;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        // --- Health Bar ---
+        const barX = boxX + pad;
+        const barY = healthBarY;
+        const barWidth = boxWidth - pad * 2;
+        const barHeight = 14;
+        const healthPct = player.shellIntegrity / player.shellIntegrityMax;
+
+        let barColor = '#cc5533';
+        if (healthPct > 0.6) barColor = '#44aa44';
+        else if (healthPct > 0.3) barColor = '#cc8833';
+        else barColor = '#cc2222';
+
+        if (player.isInvulnerable && !player.spawnProtectionActive) {
+            barColor = Math.floor(Date.now() / 80) % 2 === 0 ? '#ff6666' : barColor;
+        }
+
+        ctx.fillStyle = '#2a1510';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        ctx.fillStyle = barColor;
+        ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * healthPct, barHeight - 2);
+        ctx.strokeStyle = '#8a4030';
+        ctx.lineWidth = 1;
         ctx.strokeRect(barX, barY, barWidth, barHeight);
 
-        // Health text
+        // Shield icon + health text
+        this.drawShieldIcon(ctx, barX + 3, barY + 3);
         ctx.fillStyle = '#e8d5cc';
-        // Draw pixel shield icon
-        this.drawShieldIcon(ctx, barX + 4, barY + barHeight - 12);
-        
-        ctx.font = 'bold 11px monospace';
+        ctx.font = 'bold 10px monospace';
         ctx.textAlign = 'center';
         ctx.fillText(
             `${Math.ceil(player.shellIntegrity)} / ${player.shellIntegrityMax}`,
-            barX + barWidth / 2 + 6,
-            barY + barHeight - 4
+            boxX + boxWidth / 2 + 4,
+            barY + barHeight - 3
         );
 
-        // Weapon name with pixel sword icon
-        this.drawSwordIcon(ctx, barX, barY + barHeight + 8);
-        
+        // --- Weapon ---
+        this.drawSwordIcon(ctx, boxX + pad, weaponY + 2);
         ctx.fillStyle = '#8a7068';
         ctx.font = '9px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(this.equippedWeapon.name, barX + 12, barY + barHeight + 12);
+        ctx.fillText(this.equippedWeapon.name, boxX + pad + 12, weaponY + 10);
 
-        // Brine Tokens (below weapon name, left side)
+        // --- Brine Tokens ---
         if (this.game.currencySystem) {
             const tokens = this.game.currencySystem.getDisplayTokens();
-            
-            // Draw pixel coin icon
-            this.drawCoinIcon(ctx, barX, barY + barHeight + 20);
-            
-            ctx.fillStyle = '#f5c542';
+            this.drawCoinIcon(ctx, boxX + pad, tokenY + 2);
+            ctx.fillStyle = '#fbbf24';
             ctx.font = 'bold 10px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(tokens, barX + 12, barY + barHeight + 24);
+            ctx.fillText(tokens, boxX + pad + 12, tokenY + 10);
         }
+
+        // --- Continuity Meter ---
+        const contBarX = boxX + pad;
+        const contBarW = boxWidth - pad * 2;
+        const contBarH = 6;
+        const contBarY = contY + 4;
+
+        // Tier colors
+        const tierColors = {
+            unmoored: '#888888',
+            drifting: '#4a9eff',
+            settling: '#4ade80',
+            established: '#f59e0b',
+            anchored: '#c43a24'
+        };
+        const contColor = tierColors[contTier] || '#888888';
+
+        // Label
+        ctx.fillStyle = '#8a7068';
+        ctx.font = '7px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('~' + contTier.toUpperCase(), contBarX, contBarY - 1);
+
+        // Bar bg
+        ctx.fillStyle = '#2a1510';
+        ctx.fillRect(contBarX, contBarY, contBarW, contBarH);
+        // Bar fill
+        ctx.fillStyle = contColor;
+        ctx.fillRect(contBarX + 1, contBarY + 1, (contBarW - 2) * (contValue / 100), contBarH - 2);
+        // Bar border
+        ctx.strokeStyle = '#8a4030';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(contBarX, contBarY, contBarW, contBarH);
 
         ctx.restore();
     }

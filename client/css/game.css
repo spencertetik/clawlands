@@ -282,44 +282,86 @@ body {
     margin-bottom: 5px;
 }
 
-/* Music control hint overlay */
-.music-hint {
+/* ─── Top-right HUD panel (music + online status) ─── */
+#hud-panel {
     position: fixed;
-    top: 12px;
-    right: 12px;
-    background: rgba(0, 0, 0, 0.7);
-    color: #fbbf24;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
     z-index: 9999;
     pointer-events: auto;
+    min-width: 120px;
+}
+
+#hud-panel > * {
+    background: rgba(13, 8, 6, 0.85);
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #e8d5cc;
+    padding: 6px 10px;
+    border: 1px solid rgba(196, 58, 36, 0.4);
+    letter-spacing: 0.5px;
+}
+
+/* First child gets rounded top corners */
+#hud-panel > *:first-child {
+    border-radius: 4px 4px 0 0;
+}
+/* Last child gets rounded bottom corners */
+#hud-panel > *:last-child {
+    border-radius: 0 0 4px 4px;
+}
+/* Only child gets all corners */
+#hud-panel > *:only-child {
+    border-radius: 4px;
+}
+/* Collapse shared borders */
+#hud-panel > * + * {
+    border-top: none;
+}
+
+/* Music toggle button */
+.music-hint {
     cursor: pointer;
-    border: 1px solid rgba(251, 191, 36, 0.4);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-    opacity: 0.9;
-    transition: opacity 0.3s, transform 0.1s;
+    text-align: center;
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+    color: #c43a24;
 }
 
 .music-hint:active {
-    transform: scale(0.95);
+    background: rgba(196, 58, 36, 0.15);
 }
 
 .music-hint:hover {
-    opacity: 1;
+    background: rgba(196, 58, 36, 0.1);
 }
 
 .music-hint kbd {
-    background: rgba(251, 191, 36, 0.2);
-    border: 1px solid rgba(251, 191, 36, 0.5);
-    border-radius: 3px;
-    padding: 2px 6px;
+    background: rgba(196, 58, 36, 0.15);
+    border: 1px solid rgba(196, 58, 36, 0.4);
+    border-radius: 2px;
+    padding: 1px 5px;
     margin-right: 4px;
     font-weight: bold;
+    font-size: 10px;
+    color: #c43a24;
+}
+
+/* Player count row(s) — hidden until populated */
+#player-count {
+    text-align: center;
+    pointer-events: none;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+#player-count:empty {
+    display: none;
 }
 
 /* Fullscreen mode */
@@ -355,9 +397,9 @@ body.fullscreen-mode #frame-screen {
     border-radius: 0;
 }
 
-body.fullscreen-mode .music-hint {
-    top: 12px;
-    right: 12px;
+body.fullscreen-mode #hud-panel {
+    top: 10px;
+    right: 10px;
 }
 
 /* ─── Mobile overrides (portrait phones) ─── */
@@ -380,17 +422,22 @@ body.fullscreen-mode .music-hint {
         aspect-ratio: 5 / 4;
     }
 
-    /* Shrink music hint for mobile */
-    .music-hint {
-        font-size: 11px;
-        padding: 5px 10px;
+    /* Shrink HUD panel for mobile */
+    #hud-panel {
         top: 6px;
         right: 6px;
+        min-width: 90px;
+    }
+
+    #hud-panel > * {
+        font-size: 9px;
+        padding: 4px 8px;
     }
 
     .music-hint kbd {
-        padding: 1px 4px;
+        padding: 1px 3px;
         margin-right: 2px;
+        font-size: 8px;
     }
 
     /* Character builder — fit on small screens */

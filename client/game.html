@@ -32,12 +32,15 @@
     <meta name="twitter:description" content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
     <meta name="twitter:image" content="https://claw-world.netlify.app/og-image.png">
 
-    <link rel="stylesheet" href="css/game.css?v=9">
+    <link rel="stylesheet" href="css/game.css?v=10">
     <link rel="stylesheet" href="css/editor.css?v=4">
 </head>
 <body>
-    <!-- Music control hint -->
-    <div class="music-hint"><kbd>M</kbd> Toggle Music</div>
+    <!-- Top-right HUD panel: music + online status -->
+    <div id="hud-panel">
+        <div class="music-hint"><kbd>M</kbd> Music</div>
+        <div id="player-count" class="hud-panel-item"></div>
+    </div>
     <div id="frame-wrapper">
         <div id="frame-scene">
             <img id="frame-art" src="assets/ui/retro_frame.png" alt="Retro lobster workstation">

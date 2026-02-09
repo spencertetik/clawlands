@@ -202,8 +202,9 @@ class Game {
             console.log(`🌅 Day/Night cycle initialized (${this.dayNightCycle.getTimePeriodName()})`);
         }
         
-        // Continuity UI meter
-        this.continuityMeter = typeof ContinuityMeter !== 'undefined' ? new ContinuityMeter() : null;
+        // Continuity UI meter — DISABLED: now rendered on canvas in unified HUD
+        // this.continuityMeter = typeof ContinuityMeter !== 'undefined' ? new ContinuityMeter() : null;
+        this.continuityMeter = null;
         
         // Weather system
         this.weatherSystem = typeof WeatherSystem !== 'undefined' ? 
@@ -1710,27 +1711,11 @@ class Game {
         console.log(`🎁 Created ${itemCount} world item spawns across ${islands.length} islands`);
     }
 
-    // Create and update player count overlay
+    // Update player count in the HUD panel (element lives in game.html)
     updatePlayerCount() {
         if (!this.playerCountEl) {
-            this.playerCountEl = document.createElement('div');
-            this.playerCountEl.id = 'player-count';
-            this.playerCountEl.style.cssText = `
-                position: fixed;
-                top: 50px;
-                right: 8px;
-                background: rgba(13, 8, 6, 0.75);
-                border: 1px solid rgba(196, 58, 36, 0.4);
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-family: 'Courier New', monospace;
-                font-size: 11px;
-                color: #e8d5cc;
-                z-index: 100;
-                pointer-events: none;
-                letter-spacing: 0.5px;
-            `;
-            document.body.appendChild(this.playerCountEl);
+            this.playerCountEl = document.getElementById('player-count');
+            if (!this.playerCountEl) return; // not in DOM yet
         }
         
         let humans = 1; // count self
@@ -1744,7 +1729,12 @@ class Game {
         }
         
         const total = humans + bots;
-        this.playerCountEl.innerHTML = `Players: ${humans} &nbsp;Bots: ${bots} &nbsp;<span style="color:#8a7068">•</span>&nbsp; <span style="color:#8a7068">${total} online</span>`;
+        // Stacked vertically: online count on top, players/bots breakdown below
+        this.playerCountEl.innerHTML = 
+            `<span style="color:#8a7068">${total} online</span><br>` +
+            `<span style="color:#e8d5cc">Players ${humans}</span> ` +
+            `<span style="color:#8a7068">/</span> ` +
+            `<span style="color:#e8d5cc">Bots ${bots}</span>`;
     }
 
     // Find nearby remote player for interaction
@@ -3265,42 +3255,60 @@ class Game {
         });
     }
 
-    // Render controls help overlay (screen-space)
+    // Render controls help overlay (screen-space, compact bottom-right box)
     renderControlsHelp() {
         if (!this.controlsVisible) return;
         const ctx = this.canvas.getContext('2d');
         const cw = this.canvas.width;
         const ch = this.canvas.height;
-        const scale = CONSTANTS.DISPLAY_SCALE;
 
         ctx.save();
 
-        // Darken background
-        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
-        ctx.fillRect(0, 0, cw, ch);
-
-        // Title
-        ctx.fillStyle = '#c43a24';
-        ctx.font = `bold ${16 * scale}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText('CONTROLS', cw / 2, 30 * scale);
-
-        // Controls list
+        // Controls list (IJKL two-hand layout)
         const controls = [
-            ['Arrow Keys / WASD', 'Move'],
-            ['SPACE', 'Talk / Interact'],
-            ['X', 'Attack'],
+            ['WASD', 'Move'],
+            ['J', 'Attack'],
+            ['K', 'Talk / Interact'],
             ['I', 'Inventory'],
-            ['Q', 'Quest Log'],
+            ['L', 'Quest Log'],
             ['M', 'Toggle Music'],
             ['H', 'This Help'],
         ];
 
-        ctx.font = `${10 * scale}px monospace`;
-        const startY = 55 * scale;
-        const lineH = 14 * scale;
-        const keyX = cw / 2 - 60 * scale;
-        const valX = cw / 2 + 20 * scale;
+        const lineH = 16;
+        const boxPadX = 10;
+        const boxPadY = 8;
+        const titleH = 20;
+        const footerH = 14;
+        const boxWidth = 180;
+        const boxHeight = titleH + controls.length * lineH + footerH + boxPadY * 2;
+        const boxX = cw - boxWidth - 10;
+        const boxY = ch - boxHeight - 10;
+
+        // Semi-transparent scrim behind box only
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.fillRect(boxX - 4, boxY - 4, boxWidth + 8, boxHeight + 8);
+
+        // Dark background box
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.92)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Border
+        ctx.strokeStyle = '#8a4030';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        // Title
+        ctx.fillStyle = '#c43a24';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('CONTROLS', boxX + boxWidth / 2, boxY + boxPadY + 12);
+
+        // Controls
+        ctx.font = '11px monospace';
+        const startY = boxY + boxPadY + titleH + 4;
+        const keyX = boxX + boxPadX + 50;
+        const valX = boxX + boxPadX + 60;
 
         for (let i = 0; i < controls.length; i++) {
             const y = startY + i * lineH;
@@ -3316,9 +3324,9 @@ class Game {
 
         // Footer
         ctx.fillStyle = '#8a7068';
-        ctx.font = `${8 * scale}px monospace`;
+        ctx.font = '9px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('Press H to close', cw / 2, ch - 10 * scale);
+        ctx.fillText('Press H to close', boxX + boxWidth / 2, boxY + boxHeight - 5);
 
         ctx.restore();
     }
