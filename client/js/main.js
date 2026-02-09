@@ -291,8 +291,8 @@ window.addEventListener('DOMContentLoaded', () => {
         }, 500);
     }
 
-    // Auto-connect to multiplayer when player enters world
-    if (window.CONFIG?.MULTIPLAYER_ENABLED !== false) {
+    // Auto-connect to multiplayer when player enters world (skip if spectator handles it)
+    if (window.CONFIG?.MULTIPLAYER_ENABLED !== false && !game.spectateMode) {
         console.log('🌐 Multiplayer auto-connect enabled');
         const checkMultiplayerReady = setInterval(() => {
             // Wait for characterName to be set (means player finished character creation)

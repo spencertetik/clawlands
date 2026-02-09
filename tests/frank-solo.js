@@ -16,9 +16,9 @@ console.log(`🗺️  Terrain loaded: ${islands.length} islands`);
 
 // Island centers for navigation (from world gen, seed 12345)
 const ISLAND_TARGETS = islands.map(isl => ({
-    x: isl.center.x * TILE_SIZE + TILE_SIZE / 2,
-    y: isl.center.y * TILE_SIZE + TILE_SIZE / 2,
-    name: `Island ${isl.center.x},${isl.center.y}`
+    x: isl.x * TILE_SIZE + TILE_SIZE / 2,
+    y: isl.y * TILE_SIZE + TILE_SIZE / 2,
+    name: `Island ${isl.x},${isl.y}`
 }));
 
 const DIRECTIONS = ['north', 'south', 'east', 'west'];
@@ -138,8 +138,8 @@ class FrankBot {
     join() {
         // Spawn on a random land tile
         const spawnIsland = islands[Math.floor(Math.random() * islands.length)];
-        const cx = spawnIsland.center.x * TILE_SIZE;
-        const cy = spawnIsland.center.y * TILE_SIZE;
+        const cx = spawnIsland.x * TILE_SIZE;
+        const cy = spawnIsland.y * TILE_SIZE;
         
         // Find walkable spot near island center
         for (let r = 0; r < 10; r++) {

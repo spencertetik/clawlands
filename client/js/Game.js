@@ -431,8 +431,18 @@ class Game {
 
     // Scan for the spectate target among remote players
     _startSpectatorScan() {
+        let scanCount = 0;
         const scanInterval = setInterval(() => {
             if (!this.multiplayer) return;
+            scanCount++;
+            
+            const playerCount = this.multiplayer.remotePlayers.size;
+            if (scanCount % 4 === 0) { // Log every 2 seconds
+                console.log(`👁️ Scanning... ${playerCount} remote players found`);
+                for (const [id, remote] of this.multiplayer.remotePlayers) {
+                    console.log(`   - "${remote.name}" at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
+                }
+            }
             
             for (const [id, remote] of this.multiplayer.remotePlayers) {
                 if (remote.name.toLowerCase() === this.spectateTarget.toLowerCase()) {
