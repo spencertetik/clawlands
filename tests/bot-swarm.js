@@ -184,6 +184,15 @@ class SwarmBot {
         return { x: island.x * TILE_SIZE, y: island.y * TILE_SIZE };
     }
 
+    async reconnect() {
+        if (this._shuttingDown) return;
+        const ok = await this.connect();
+        if (!ok) {
+            // Retry again after delay
+            setTimeout(() => this.reconnect(), 10000);
+        }
+    }
+
     connect() {
         return new Promise((resolve) => {
             const url = `${SERVER_URL}/bot?key=${BOT_KEY}`;
@@ -218,9 +227,16 @@ class SwarmBot {
             });
 
             this.ws.on('close', () => {
+                const wasConnected = this.connected;
                 this.connected = false;
                 this.joined = false;
                 this.stop();
+                // Auto-reconnect after server restart (unless intentionally shutting down)
+                if (wasConnected && !this._shuttingDown) {
+                    const delay = 5000 + Math.random() * 5000;
+                    console.log(`  ⚡ ${this.config.name} disconnected — reconnecting in ${(delay/1000).toFixed(0)}s`);
+                    setTimeout(() => this.reconnect(), delay);
+                }
             });
 
             this.ws.on('error', (err) => {
@@ -473,6 +489,7 @@ class SwarmBot {
     }
 
     disconnect() {
+        this._shuttingDown = true;
         this.stop();
         if (this.ws) this.ws.close(1000, 'Swarm shutting down');
     }
