@@ -144,10 +144,6 @@ class Minimap {
         this.canvas.width = size;
         this.canvas.height = size;
         this.ctx.imageSmoothingEnabled = false;
-        
-        this.container.style.boxShadow = this.expanded ? 
-            '0 4px 20px rgba(0, 0, 0, 0.5)' : 
-            '0 2px 10px rgba(0, 0, 0, 0.3)';
     }
     
     // Show the minimap (only if not on mobile)
@@ -155,14 +151,15 @@ class Minimap {
         if (this.isMobile) return; // Stay hidden on mobile
         this.visible = true;
         this.isShown = true;
-        this.container.style.display = 'block';
+        // DOM container no longer used — minimap renders on game canvas
+        if (this.container) this.container.style.display = 'none';
     }
     
     // Hide the minimap
     hide() {
         this.visible = false;
         this.isShown = false;
-        this.container.style.display = 'none';
+        if (this.container) this.container.style.display = 'none';
     }
     
     // Update minimap

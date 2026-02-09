@@ -944,15 +944,35 @@ class Game {
         }
 
         // Render player name above head (AFTER renderer.render() so it's not cleared)
-        this.renderPlayerName();
+        // Skip when Resolve popup is open so name doesn't draw on top of it
+        if (!(this.combatSystem && this.combatSystem.resolveUI && this.combatSystem.resolveUI.isVisible)) {
+            this.renderPlayerName();
+        }
 
-        // Render controls help overlay (on top of everything)
+        // Render minimap on canvas (integrated into game screen, not a DOM overlay)
+        if (this.minimap && this.minimap.visible) {
+            this.minimap.render();
+            // Draw minimap canvas onto game canvas (bottom-right corner)
+            const ctx = this.canvas.getContext('2d');
+            const mapSize = this.minimap.expanded ? this.minimap.expandedSize : this.minimap.size;
+            const margin = 8;
+            const destX = this.canvas.width - mapSize - margin;
+            const destY = this.canvas.height - mapSize - margin;
+            ctx.save();
+            // Semi-transparent border/bg
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.fillRect(destX - 2, destY - 2, mapSize + 4, mapSize + 4);
+            ctx.drawImage(this.minimap.canvas, destX, destY, mapSize, mapSize);
+            ctx.restore();
+        }
+
+        // Render controls help overlay (on top of everything, centered)
         this.renderControlsHelp();
         
-        // Toggle DOM controls hint visibility when help overlay is open
+        // Toggle DOM controls hint visibility — always show when game is active
         const controlsHintEl = document.getElementById('controls-hint');
         if (controlsHintEl) {
-            controlsHintEl.style.display = (this.gameActive && !this.controlsVisible) ? 'block' : 'none';
+            controlsHintEl.style.display = this.gameActive ? 'block' : 'none';
         }
     }
 
@@ -3274,6 +3294,10 @@ class Game {
 
         ctx.save();
 
+        // Dim background scrim
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(0, 0, cw, ch);
+
         // Controls list (IJKL two-hand layout)
         const controls = [
             ['WASD', 'Move'],
@@ -3292,8 +3316,8 @@ class Game {
         const footerH = 14;
         const boxWidth = 180;
         const boxHeight = titleH + controls.length * lineH + footerH + boxPadY * 2;
-        const boxX = cw - boxWidth - 10;
-        const boxY = Math.max(10, ch - boxHeight - 100); // above minimap
+        const boxX = (cw - boxWidth) / 2;  // Dead center horizontally
+        const boxY = (ch - boxHeight) / 2; // Dead center vertically
 
         // Semi-transparent scrim behind box only
         ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
