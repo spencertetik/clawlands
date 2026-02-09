@@ -618,13 +618,6 @@ class Game {
             this.camera.update(deltaTime);
             if (this.dayNightCycle) this.dayNightCycle.update(deltaTime);
             if (this.weatherSystem) this.weatherSystem.update(deltaTime);
-            // Update ambient sound volume based on spectated player position
-            if (this.spectatePlayer && this.sfx) {
-                const dist = this.worldMap ? this.worldMap.getDistanceToWater(
-                    this.spectatePlayer.position.x, this.spectatePlayer.position.y
-                ) : 100;
-                this.sfx.setOceanVolume(dist);
-            }
             return;
         }
 

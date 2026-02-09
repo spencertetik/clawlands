@@ -136,24 +136,12 @@ class FrankBot {
     }
 
     join() {
-        // Spawn on a random land tile
-        const spawnIsland = islands[Math.floor(Math.random() * islands.length)];
+        // Spawn on island 3 (center of map, big island at 71,51)
+        const spawnIsland = islands[3] || islands[0];
         const cx = spawnIsland.x * TILE_SIZE;
         const cy = spawnIsland.y * TILE_SIZE;
-        
-        // Find walkable spot near island center
-        for (let r = 0; r < 10; r++) {
-            for (let angle = 0; angle < Math.PI * 2; angle += 0.5) {
-                const tx = cx + Math.cos(angle) * r * TILE_SIZE;
-                const ty = cy + Math.sin(angle) * r * TILE_SIZE;
-                if (isBoxWalkable(terrainMap, tx, ty)) {
-                    this.x = tx;
-                    this.y = ty;
-                    break;
-                }
-            }
-            if (isBoxWalkable(terrainMap, this.x, this.y)) break;
-        }
+        this.x = cx;
+        this.y = cy;
         
         this.send({
             command: 'join',
@@ -247,20 +235,35 @@ class FrankBot {
             return;
         }
         
-        // Check if stuck
-        if (Math.abs(this.x - this.lastX) < 0.1 && Math.abs(this.y - this.lastY) < 0.1) {
+        // Check if stuck (position barely changed over recent steps)
+        const movedDist = Math.sqrt((this.x - this.lastX) ** 2 + (this.y - this.lastY) ** 2);
+        if (movedDist < 0.5) {
             this.stuckCounter++;
-            if (this.stuckCounter > 40) { // Stuck for 2 seconds
-                console.log('🔄 Stuck! Picking new direction...');
-                // Try a perpendicular direction
-                const angle = Math.atan2(dy, dx) + (Math.random() > 0.5 ? Math.PI / 2 : -Math.PI / 2);
-                this.targetX = this.x + Math.cos(angle) * TILE_SIZE * 8;
-                this.targetY = this.y + Math.sin(angle) * TILE_SIZE * 8;
+            if (this.stuckCounter > 20) { // Stuck for 1 second
+                console.log('🔄 Stuck! Retreating toward island center...');
+                // Head back toward the nearest island center
+                let nearest = ISLAND_TARGETS[0];
+                let nearestDist = Infinity;
+                for (const isl of ISLAND_TARGETS) {
+                    const d = Math.sqrt((isl.x - this.x) ** 2 + (isl.y - this.y) ** 2);
+                    if (d < nearestDist) { nearestDist = d; nearest = isl; }
+                }
+                this.targetX = nearest.x;
+                this.targetY = nearest.y;
                 this.stuckCounter = 0;
+                this.stuckRetries = (this.stuckRetries || 0) + 1;
+                // If stuck too many times, just teleport to island center
+                if (this.stuckRetries > 3) {
+                    console.log('⚡ Teleporting to island center');
+                    this.x = nearest.x;
+                    this.y = nearest.y;
+                    this.stuckRetries = 0;
+                }
                 return;
             }
         } else {
             this.stuckCounter = 0;
+            this.stuckRetries = 0;
         }
         this.lastX = this.x;
         this.lastY = this.y;
@@ -296,17 +299,15 @@ class FrankBot {
             this.y += moveY;
             moved = true;
         }
-        // Try sliding along walls
+        // Try perpendicular sliding (helps navigate around obstacles)
         else {
-            for (const alt of [
-                { x: this.moveSpeed, y: 0 },
-                { x: -this.moveSpeed, y: 0 },
-                { x: 0, y: this.moveSpeed },
-                { x: 0, y: -this.moveSpeed },
-            ]) {
-                if (isBoxWalkable(terrainMap, this.x + alt.x, this.y + alt.y)) {
-                    this.x += alt.x;
-                    this.y += alt.y;
+            const perpAngles = [angle + Math.PI/4, angle - Math.PI/4, angle + Math.PI/2, angle - Math.PI/2];
+            for (const pa of perpAngles) {
+                const ax = Math.cos(pa) * this.moveSpeed;
+                const ay = Math.sin(pa) * this.moveSpeed;
+                if (isBoxWalkable(terrainMap, this.x + ax, this.y + ay)) {
+                    this.x += ax;
+                    this.y += ay;
                     moved = true;
                     break;
                 }
