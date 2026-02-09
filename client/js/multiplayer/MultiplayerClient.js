@@ -391,21 +391,70 @@ class RemotePlayer {
         const basePath = `assets/sprites/characters/${this.species}`;
         const directions = ['south', 'north', 'east', 'west'];
         let loadedCount = 0;
+        const totalToLoad = directions.length * 2; // idle + walk for each direction
+        
+        // Walk sprite strips (3 frames of 24x24 in a 72x24 image)
+        this.walkSprites = {};
         
         directions.forEach(dir => {
+            // Load idle sprite
             const img = new Image();
             img.onload = () => {
-                loadedCount++;
-                // Apply hue shift when sprite loads
                 this.sprites[dir] = this.applyHueShift(img);
-                if (loadedCount === directions.length) {
+                loadedCount++;
+                if (loadedCount >= totalToLoad) {
+                    this.spritesReady = true;
+                    this.currentSprite = this.sprites['south'];
+                }
+            };
+            img.onerror = () => {
+                loadedCount++;
+                if (loadedCount >= totalToLoad) {
                     this.spritesReady = true;
                     this.currentSprite = this.sprites['south'];
                 }
             };
             img.src = `${basePath}/${dir}.png`;
             this.rawSprites[dir] = img;
+            
+            // Load walk sprite strip (3 frames)
+            const walkImg = new Image();
+            walkImg.onload = () => {
+                this.walkSprites[dir] = this.splitWalkFrames(walkImg);
+                loadedCount++;
+                if (loadedCount >= totalToLoad) {
+                    this.spritesReady = true;
+                    this.currentSprite = this.sprites['south'];
+                }
+            };
+            walkImg.onerror = () => {
+                loadedCount++;
+                if (loadedCount >= totalToLoad) {
+                    this.spritesReady = true;
+                    this.currentSprite = this.sprites['south'];
+                }
+            };
+            walkImg.src = `${basePath}/${dir}_walk.png`;
         });
+    }
+
+    splitWalkFrames(stripImage) {
+        // Walk strip is 72x24 = 3 frames of 24x24
+        const frameW = 24;
+        const frameH = stripImage.height;
+        const numFrames = Math.floor(stripImage.width / frameW);
+        const frames = [];
+        
+        for (let i = 0; i < numFrames; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = frameW;
+            canvas.height = frameH;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(stripImage, i * frameW, 0, frameW, frameH, 0, 0, frameW, frameH);
+            frames.push(this.applyHueShift(canvas));
+        }
+        
+        return frames;
     }
 
     applyHueShift(image) {
@@ -527,7 +576,15 @@ class RemotePlayer {
         // Get correct sprite for direction
         const dirMap = { 'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east' };
         const spriteDir = dirMap[this.direction] || this.direction || 'south';
-        const sprite = this.sprites[spriteDir] || this.sprites['south'];
+        
+        // Use walk frame if moving and walk sprites loaded, otherwise idle sprite
+        let sprite;
+        if (this.isMoving && this.walkSprites[spriteDir] && this.walkSprites[spriteDir].length > 0) {
+            const frames = this.walkSprites[spriteDir];
+            sprite = frames[this.animFrame % frames.length];
+        } else {
+            sprite = this.sprites[spriteDir] || this.sprites['south'];
+        }
         
         // Sprite dimensions (24x24 pixels, scaled)
         const spriteW = 24 * scale;

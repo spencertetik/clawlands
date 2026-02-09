@@ -1,6 +1,13 @@
 /**
- * Frank Solo Bot — Single bot for spectator mode testing
- * Explores the world intelligently, visits islands, walks paths, enters buildings
+ * Frank Solo Bot — AI bot that "plays" Clawlands
+ * 
+ * Behaviors:
+ * - Explores islands with purpose (not random wandering)
+ * - Enters building areas, pauses at landmarks
+ * - "Fights" enemies with combat movement patterns
+ * - Narrates journey via chat bubbles
+ * - Responds to player talk requests
+ * - Follows quest-like exploration patterns
  */
 
 const WebSocket = require('ws');
@@ -10,19 +17,183 @@ const { generateTerrain, isBoxWalkable, TILE_SIZE } = require(path.join(__dirnam
 const SERVER_URL = process.env.SERVER_URL || 'wss://claw-world-production.up.railway.app';
 const BOT_KEY = process.env.BOT_KEY || 'ffabec20bd46be6666b614807d839ed7';
 
-// Generate terrain for collision
+// Generate terrain for collision + pathfinding
 const { terrainMap, islands } = generateTerrain();
 console.log(`🗺️  Terrain loaded: ${islands.length} islands`);
 
-// Island centers for navigation (from world gen, seed 12345)
-const ISLAND_TARGETS = islands.map(isl => ({
-    x: isl.x * TILE_SIZE + TILE_SIZE / 2,
-    y: isl.y * TILE_SIZE + TILE_SIZE / 2,
-    name: `Island ${isl.x},${isl.y}`
-}));
+// Island info with names (sorted by size like the client does)
+const sortedIslands = [...islands].sort((a, b) => b.size - a.size);
+const ISLAND_NAMES = [
+    'Port Clawson',      // largest - main island
+    'Molthaven',         // 2nd largest
+    'Iron Reef',         // 3rd
+    'Deepcoil Isle',     // 4th
+    'The Shallows',      // 5th
+    'Driftwood Keys',    // 6th
+    'Coral Garden',      // 7th
+    'Hermit Rock',       // 8th
+    'Tide Pool',         // 9th
+    'Razor Point'        // 10th
+];
 
-const DIRECTIONS = ['north', 'south', 'east', 'west'];
-const DIR_OFFSETS = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+// Build navigable points of interest for each island
+const ISLAND_DATA = sortedIslands.map((isl, i) => {
+    const cx = isl.x * TILE_SIZE;
+    const cy = isl.y * TILE_SIZE;
+    const radius = isl.size * TILE_SIZE * 0.4;
+    
+    // Generate patrol points around the island (circle + center)
+    const points = [];
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+        const px = cx + Math.cos(angle) * radius * 0.6;
+        const py = cy + Math.sin(angle) * radius * 0.6;
+        points.push({ x: px, y: py });
+    }
+    
+    return {
+        name: ISLAND_NAMES[i] || `Island ${i + 1}`,
+        cx, cy,
+        radius,
+        size: isl.size,
+        patrolPoints: points,
+        // Building search zone - center of island where buildings get placed
+        buildingZone: { x: cx, y: cy, radius: radius * 0.5 }
+    };
+});
+
+// ============================================
+// Bot Behavior States
+// ============================================
+
+const STATES = {
+    IDLE: 'idle',
+    TRAVELING: 'traveling',       // Moving between islands
+    EXPLORING: 'exploring',       // Patrol around an island
+    INVESTIGATING: 'investigating', // Moving toward a specific POI
+    COMBAT: 'combat',             // Simulated combat pattern
+    RESTING: 'resting',           // Pausing at a location
+    TALKING: 'talking'            // In conversation
+};
+
+// ============================================
+// Quest-like behaviors
+// ============================================
+
+const ACTIVITIES = [
+    {
+        name: 'explore_island',
+        description: 'Patrol around the island perimeter',
+        duration: 20000, // ms exploring before moving on
+    },
+    {
+        name: 'search_buildings',
+        description: 'Check out the building area',
+        duration: 15000,
+    },
+    {
+        name: 'combat_patrol',
+        description: 'Hunt drift fauna',
+        duration: 12000,
+    },
+    {
+        name: 'scenic_rest',
+        description: 'Rest and take in the view',
+        duration: 5000,
+    }
+];
+
+// ============================================
+// Chat lines organized by context
+// ============================================
+
+const CHAT = {
+    arriving: [
+        (island) => `Made it to ${island}!`,
+        (island) => `${island}... let's see what's here.`,
+        (island) => `Alright, ${island}. Show me what you got.`,
+        (island) => `Finally reached ${island}.`,
+    ],
+    exploring: [
+        "These paths are well-worn... someone walks this way often.",
+        "Hmm, interesting spot.",
+        "I should mark this on my map.",
+        "Never noticed this before...",
+        "The architecture here is fascinating.",
+        "Wonder what's inside that building.",
+        "This cobblestone path leads somewhere...",
+    ],
+    combat_start: [
+        "Drift fauna spotted! Here we go.",
+        "Something's moving... getting my claws ready.",
+        "Got a Skitter! Stay still...",
+        "Haze Drifter! Watch out for the fog.",
+        "Loopling incoming — predictable but dangerous.",
+        "There! Time to fight!",
+    ],
+    combat_victory: [
+        "Got it! Shell fragment dropped.",
+        "Another one down. The Current won't take me.",
+        "Victory! ...that one was tough.",
+        "Drift Fauna cleared from this area.",
+        "Three down. My shell's holding up.",
+        "Red Essence? Don't mind if I do.",
+    ],
+    combat_hurt: [
+        "Ow! That one got me...",
+        "Shell integrity dropping... need to be careful.",
+        "They're tougher than they look!",
+    ],
+    resting: [
+        "Good spot to catch my breath.",
+        "Let me check my inventory real quick...",
+        "The ocean sounds nice from here.",
+        "Shell's looking a bit rough... should rest.",
+        "Beautiful view of the water.",
+        "I can see the next island from here.",
+    ],
+    traveling: [
+        "Time to move on to the next island.",
+        "Wonder what I'll find over there...",
+        "Heading out!",
+        "Long swim ahead... here goes.",
+    ],
+    item_found: [
+        "Oh nice, found something!",
+        "What's this? ...could be useful.",
+        "Loot! My favorite part.",
+        "Adding that to the collection.",
+    ],
+    building_enter: [
+        "Let me check inside...",
+        "Door's open. Going in.",
+        "Wonder who's home...",
+    ],
+    npc_chat: [
+        "Hey there! Got any quests for me?",
+        "Heard anything interesting lately?",
+        "What do you know about the Red Current?",
+        "Nice place you've got here.",
+    ],
+    general: [
+        "This world just keeps getting more interesting.",
+        "The Clawlands are beautiful today.",
+        "Still so much to explore.",
+        "Wish I had a bigger inventory...",
+        "Need to find the inn soon, my shell's seen better days.",
+        "The Current's been quiet today. Almost too quiet.",
+    ]
+};
+
+function pickChat(category, ...args) {
+    const lines = CHAT[category];
+    if (!lines || lines.length === 0) return null;
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    return typeof line === 'function' ? line(...args) : line;
+}
+
+// ============================================
+// Frank Bot Class
+// ============================================
 
 class FrankBot {
     constructor() {
@@ -34,42 +205,87 @@ class FrankBot {
         this.connected = false;
         this.joined = false;
         
+        // State machine
+        this.state = STATES.IDLE;
+        this.stateTimer = 0;
+        this.activityIndex = 0;
+        
         // Navigation
         this.targetX = 0;
         this.targetY = 0;
-        this.currentIsland = 0;
-        this.exploring = false;
+        this.currentIslandIndex = 0; // Start at Port Clawson (largest)
+        this.visitedIslands = new Set();
+        this.patrolPointIndex = 0;
+        this.waypointQueue = []; // Queue of {x,y} to visit in sequence
+        
+        // Movement
+        this.moveSpeed = 1.8; // Slightly slower than max for natural feel
+        this.moveInterval = null;
         this.stuckCounter = 0;
+        this.stuckRetries = 0;
         this.lastX = 0;
         this.lastY = 0;
+        this.isMoving = false;
         
-        // Behavior
-        this.moveSpeed = 2; // pixels per step
-        this.moveInterval = null;
-        this.idleTimer = null;
-        this.chatTimer = null;
-        this.state = 'idle'; // idle, walking, exploring, pausing
-        this.pauseUntil = 0;
+        // Combat simulation
+        this.combatTimer = 0;
+        this.combatPhase = 0; // 0=approach, 1=attack, 2=dodge, 3=finish
+        this.combatTarget = { x: 0, y: 0 };
+        this.attackCooldown = 0;
+        this.shellIntegrity = 100;
         
-        // Idle chatter
-        this.thoughts = [
-            "The water looks beautiful from here...",
-            "I wonder what's on the next island.",
-            "These cobblestone paths are nice to walk on.",
-            "I should check out that lighthouse sometime.",
-            "The sand feels warm under my claws.",
-            "This archipelago is bigger than I thought!",
-            "I love exploring new places.",
-            "Pretty peaceful out here today.",
-            "The inn looked cozy... maybe I'll rest later.",
-            "I can see another island from here!",
-            "Something about this place feels... different.",
-            "The shop had some interesting items.",
-            "These paths connect all the islands... clever.",
-            "I heard there are drift fauna around here somewhere.",
-            "What a view from up here!",
+        // Chat
+        this.chatCooldown = 0;
+        this.lastChatCategory = '';
+        
+        // Activity scheduling
+        this.nextActivityTime = 0;
+        this.explorationPlan = this.generateExplorationPlan();
+        this.planIndex = 0;
+        
+        // Talk responses
+        this.talkResponses = [
+            (name) => `Hey ${name}! Just exploring the islands. Want to come along?`,
+            (name) => `${name}! Watch out for Drift Fauna near the shore.`,
+            (name) => `Nice to meet you ${name}! Have you been to Deepcoil Isle yet?`,
+            (name) => `*waves claws* What's up ${name}? Found any good loot?`,
+            (name) => `${name}! I just cleared some Skitters over there. The path should be safe now.`,
+            (name) => `Hey! You should check out the inn — they can patch up your shell.`,
+            (name) => `Careful around here ${name}, I've seen Looplings nearby.`,
+            (name) => `${name}! Perfect timing. I could use some backup.`,
         ];
-        this.lastThoughtIndex = -1;
+    }
+
+    generateExplorationPlan() {
+        // Create a planned route through the islands with activities
+        const plan = [];
+        
+        // Start at Port Clawson — do initial exploration
+        plan.push({ island: 0, activity: 'explore_island' });
+        plan.push({ island: 0, activity: 'search_buildings' });
+        plan.push({ island: 0, activity: 'combat_patrol' });
+        
+        // Visit other islands in a logical order
+        const visitOrder = [1, 2, 3, 4]; // Molthaven, Iron Reef, Deepcoil, Shallows
+        for (const idx of visitOrder) {
+            if (idx < ISLAND_DATA.length) {
+                plan.push({ island: idx, activity: 'explore_island' });
+                plan.push({ island: idx, activity: 'combat_patrol' });
+                if (Math.random() > 0.3) {
+                    plan.push({ island: idx, activity: 'search_buildings' });
+                }
+            }
+        }
+        
+        // Visit remaining islands
+        for (let i = 5; i < Math.min(ISLAND_DATA.length, 8); i++) {
+            plan.push({ island: i, activity: 'explore_island' });
+        }
+        
+        // End with scenic rest back at Port Clawson
+        plan.push({ island: 0, activity: 'scenic_rest' });
+        
+        return plan;
     }
 
     connect() {
@@ -87,9 +303,7 @@ class FrankBot {
             try {
                 const msg = JSON.parse(data.toString());
                 this.handleMessage(msg);
-            } catch (e) {
-                // Ignore parse errors
-            }
+            } catch (e) {}
         });
         
         this.ws.on('close', () => {
@@ -97,7 +311,6 @@ class FrankBot {
             this.connected = false;
             this.joined = false;
             this.stopMoving();
-            // Reconnect
             setTimeout(() => this.connect(), 5000);
         });
         
@@ -119,7 +332,7 @@ class FrankBot {
                 this.joined = true;
                 this.x = msg.x || this.x;
                 this.y = msg.y || this.y;
-                this.startExploring();
+                this.startGameLoop();
                 break;
                 
             case 'talk_request':
@@ -136,12 +349,10 @@ class FrankBot {
     }
 
     join() {
-        // Spawn on island 3 (center of map, big island at 71,51)
-        const spawnIsland = islands[3] || islands[0];
-        const cx = spawnIsland.x * TILE_SIZE;
-        const cy = spawnIsland.y * TILE_SIZE;
-        this.x = cx;
-        this.y = cy;
+        // Spawn on Port Clawson (largest island)
+        const spawn = ISLAND_DATA[0];
+        this.x = spawn.cx;
+        this.y = spawn.cy;
         
         this.send({
             command: 'join',
@@ -152,7 +363,6 @@ class FrankBot {
             }
         });
         
-        // Set initial position
         this.send({
             command: 'move',
             data: { x: this.x, y: this.y, direction: 'south', isMoving: false }
@@ -165,51 +375,33 @@ class FrankBot {
         }
     }
 
-    startExploring() {
-        console.log('🗺️  Starting exploration!');
-        this.pickNewTarget();
-        this.startMoving();
-        this.startIdleChatter();
+    say(text) {
+        if (!text) return;
+        console.log(`💬 Frank: ${text}`);
+        this.send({ command: 'chat', data: { message: text } });
+        this.chatCooldown = 8000; // Don't spam chat
     }
 
-    pickNewTarget() {
-        // Pick a different island to visit
-        let nextIsland;
-        do {
-            nextIsland = Math.floor(Math.random() * ISLAND_TARGETS.length);
-        } while (nextIsland === this.currentIsland && ISLAND_TARGETS.length > 1);
-        
-        this.currentIsland = nextIsland;
-        const target = ISLAND_TARGETS[nextIsland];
-        
-        // Add some randomness to target (don't always go to exact center)
-        const offset = TILE_SIZE * 3;
-        this.targetX = target.x + (Math.random() - 0.5) * offset;
-        this.targetY = target.y + (Math.random() - 0.5) * offset;
-        
-        this.state = 'walking';
-        this.stuckCounter = 0;
-        console.log(`🧭 Heading to ${target.name} (${Math.round(this.targetX)}, ${Math.round(this.targetY)})`);
-    }
+    // ============================================
+    // Main Game Loop (50ms ticks = 20Hz)
+    // ============================================
 
-    startMoving() {
-        if (this.moveInterval) return;
+    startGameLoop() {
+        console.log('🎮 Starting game loop!');
+        this.nextActivityTime = Date.now() + 2000; // Brief pause before starting
+        this.state = STATES.RESTING;
+        this.say("Just arrived at Port Clawson. Time to explore!");
         
         this.moveInterval = setInterval(() => {
             if (!this.joined) return;
             
             const now = Date.now();
-            if (now < this.pauseUntil) {
-                // Pausing — send idle
-                this.send({
-                    command: 'move',
-                    data: { x: this.x, y: this.y, direction: this.direction, isMoving: false }
-                });
-                return;
-            }
+            this.chatCooldown = Math.max(0, this.chatCooldown - 50);
             
+            this.updateState(now);
             this.moveStep();
-        }, 50); // 20 steps per second
+            
+        }, 50);
     }
 
     stopMoving() {
@@ -217,48 +409,298 @@ class FrankBot {
             clearInterval(this.moveInterval);
             this.moveInterval = null;
         }
-        if (this.chatTimer) {
-            clearInterval(this.chatTimer);
-            this.chatTimer = null;
+    }
+
+    // ============================================
+    // State Machine
+    // ============================================
+
+    updateState(now) {
+        switch (this.state) {
+            case STATES.RESTING:
+                this.isMoving = false;
+                if (now >= this.nextActivityTime) {
+                    this.advancePlan();
+                }
+                break;
+                
+            case STATES.TRAVELING:
+                // Moving between islands — just keep walking toward target
+                if (this.reachedTarget()) {
+                    const island = ISLAND_DATA[this.currentIslandIndex];
+                    if (this.chatCooldown <= 0) {
+                        this.say(pickChat('arriving', island.name));
+                    }
+                    this.visitedIslands.add(this.currentIslandIndex);
+                    this.startActivity();
+                }
+                break;
+                
+            case STATES.EXPLORING:
+                // Patrol around island points
+                if (this.reachedTarget()) {
+                    this.patrolPointIndex++;
+                    const island = ISLAND_DATA[this.currentIslandIndex];
+                    
+                    if (this.patrolPointIndex >= island.patrolPoints.length || 
+                        now >= this.nextActivityTime) {
+                        // Done exploring — move on
+                        if (this.chatCooldown <= 0 && Math.random() > 0.5) {
+                            this.say(pickChat('exploring'));
+                        }
+                        this.rest(2000 + Math.random() * 3000);
+                    } else {
+                        const point = island.patrolPoints[this.patrolPointIndex];
+                        this.setTarget(point.x, point.y);
+                        if (this.chatCooldown <= 0 && Math.random() > 0.7) {
+                            this.say(pickChat('exploring'));
+                        }
+                    }
+                }
+                break;
+                
+            case STATES.INVESTIGATING:
+                if (this.reachedTarget()) {
+                    if (this.chatCooldown <= 0) {
+                        this.say(pickChat(Math.random() > 0.5 ? 'building_enter' : 'npc_chat'));
+                    }
+                    this.rest(3000 + Math.random() * 4000);
+                }
+                break;
+                
+            case STATES.COMBAT:
+                this.updateCombat(now);
+                break;
+                
+            case STATES.TALKING:
+                // Handled by talk response timer
+                break;
         }
     }
 
+    advancePlan() {
+        if (this.planIndex >= this.explorationPlan.length) {
+            // Completed the plan — generate a new one
+            console.log('📋 Exploration plan complete! Generating new route...');
+            this.explorationPlan = this.generateExplorationPlan();
+            this.planIndex = 0;
+        }
+        
+        const step = this.explorationPlan[this.planIndex];
+        this.planIndex++;
+        
+        // If we need to travel to a different island
+        if (step.island !== this.currentIslandIndex) {
+            const targetIsland = ISLAND_DATA[step.island];
+            this.currentIslandIndex = step.island;
+            this.state = STATES.TRAVELING;
+            this.setTarget(targetIsland.cx, targetIsland.cy);
+            
+            if (this.chatCooldown <= 0) {
+                this.say(pickChat('traveling'));
+            }
+            console.log(`🧭 Traveling to ${targetIsland.name}`);
+            
+            // Store the pending activity for when we arrive
+            this.pendingActivity = step.activity;
+        } else {
+            this.pendingActivity = step.activity;
+            this.startActivity();
+        }
+    }
+
+    startActivity() {
+        const activity = this.pendingActivity || 'explore_island';
+        const island = ISLAND_DATA[this.currentIslandIndex];
+        
+        console.log(`🎯 Starting activity: ${activity} on ${island.name}`);
+        
+        switch (activity) {
+            case 'explore_island':
+                this.state = STATES.EXPLORING;
+                this.patrolPointIndex = 0;
+                this.nextActivityTime = Date.now() + 20000 + Math.random() * 10000;
+                const firstPoint = island.patrolPoints[0];
+                this.setTarget(firstPoint.x, firstPoint.y);
+                break;
+                
+            case 'search_buildings':
+                this.state = STATES.INVESTIGATING;
+                this.nextActivityTime = Date.now() + 15000;
+                // Navigate toward building zone (center of island)
+                const bz = island.buildingZone;
+                const offsetX = (Math.random() - 0.5) * bz.radius;
+                const offsetY = (Math.random() - 0.5) * bz.radius;
+                this.setTarget(bz.x + offsetX, bz.y + offsetY);
+                if (this.chatCooldown <= 0) {
+                    this.say("Let me check out these buildings...");
+                }
+                break;
+                
+            case 'combat_patrol':
+                this.startCombat();
+                break;
+                
+            case 'scenic_rest':
+                this.state = STATES.RESTING;
+                this.nextActivityTime = Date.now() + 5000 + Math.random() * 5000;
+                if (this.chatCooldown <= 0) {
+                    this.say(pickChat('resting'));
+                }
+                break;
+        }
+        
+        this.pendingActivity = null;
+    }
+
+    // ============================================
+    // Combat Simulation
+    // ============================================
+
+    startCombat() {
+        this.state = STATES.COMBAT;
+        this.combatPhase = 0;
+        this.combatTimer = Date.now();
+        this.attackCooldown = 0;
+        
+        // Pick a combat location near current position (slightly offset)
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 20 + Math.random() * 30;
+        this.combatTarget = {
+            x: this.x + Math.cos(angle) * dist,
+            y: this.y + Math.sin(angle) * dist
+        };
+        
+        if (this.chatCooldown <= 0) {
+            this.say(pickChat('combat_start'));
+        }
+        
+        console.log('⚔️ Entering combat!');
+    }
+
+    updateCombat(now) {
+        const elapsed = now - this.combatTimer;
+        
+        // Combat has phases — approach, attack, dodge, repeat, finish
+        if (elapsed < 2000) {
+            // Phase: Approach enemy
+            this.setTarget(this.combatTarget.x, this.combatTarget.y);
+        } else if (elapsed < 3500) {
+            // Phase: Attack! Quick direction changes
+            if (this.attackCooldown <= 0) {
+                // Lunge toward target
+                const angle = Math.atan2(
+                    this.combatTarget.y - this.y,
+                    this.combatTarget.x - this.x
+                );
+                this.setTarget(
+                    this.combatTarget.x + Math.cos(angle) * 5,
+                    this.combatTarget.y + Math.sin(angle) * 5
+                );
+                this.attackCooldown = 400;
+                
+                // Simulate taking damage sometimes
+                if (Math.random() > 0.6 && this.chatCooldown <= 0) {
+                    this.shellIntegrity = Math.max(20, this.shellIntegrity - 10);
+                    this.say(pickChat('combat_hurt'));
+                }
+            }
+            this.attackCooldown = Math.max(0, this.attackCooldown - 50);
+        } else if (elapsed < 5000) {
+            // Phase: Dodge — move away from combat target
+            const angle = Math.atan2(this.y - this.combatTarget.y, this.x - this.combatTarget.x);
+            const dodgeDist = 25;
+            this.setTarget(
+                this.x + Math.cos(angle) * dodgeDist,
+                this.y + Math.sin(angle) * dodgeDist
+            );
+        } else if (elapsed < 7000) {
+            // Phase: Second attack pass
+            const angle = Math.random() * Math.PI * 2;
+            this.combatTarget = {
+                x: this.x + Math.cos(angle) * 15,
+                y: this.y + Math.sin(angle) * 15
+            };
+            this.setTarget(this.combatTarget.x, this.combatTarget.y);
+        } else if (elapsed < 8500) {
+            // Phase: Finish — one more lunge
+            this.setTarget(this.combatTarget.x, this.combatTarget.y);
+        } else {
+            // Combat over!
+            if (this.chatCooldown <= 0) {
+                if (Math.random() > 0.3) {
+                    this.say(pickChat('combat_victory'));
+                }
+                if (Math.random() > 0.5) {
+                    setTimeout(() => {
+                        if (this.chatCooldown <= 0) this.say(pickChat('item_found'));
+                    }, 2000);
+                }
+            }
+            this.shellIntegrity = Math.min(100, this.shellIntegrity + 20); // "Heal" after combat
+            
+            // Chance for another combat encounter or move on
+            if (Math.random() > 0.5 && elapsed < 20000) {
+                // Another encounter nearby
+                this.startCombat();
+            } else {
+                this.rest(3000 + Math.random() * 3000);
+            }
+        }
+    }
+
+    // ============================================
+    // Movement
+    // ============================================
+
+    setTarget(x, y) {
+        this.targetX = x;
+        this.targetY = y;
+        this.stuckCounter = 0;
+    }
+
+    reachedTarget() {
+        const dx = this.targetX - this.x;
+        const dy = this.targetY - this.y;
+        return Math.sqrt(dx * dx + dy * dy) < TILE_SIZE * 1.5;
+    }
+
+    rest(durationMs) {
+        this.state = STATES.RESTING;
+        this.nextActivityTime = Date.now() + durationMs;
+        this.isMoving = false;
+        // Send idle position
+        this.send({
+            command: 'move',
+            data: { x: this.x, y: this.y, direction: this.direction, isMoving: false }
+        });
+    }
+
     moveStep() {
+        if (this.state === STATES.RESTING || this.state === STATES.IDLE || this.state === STATES.TALKING) {
+            return; // Don't move while resting/idle/talking
+        }
+        
         const dx = this.targetX - this.x;
         const dy = this.targetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // Reached target — pause and pick new one
-        if (dist < TILE_SIZE * 2) {
-            this.pause(2000 + Math.random() * 4000);
-            this.pickNewTarget();
+        if (dist < 2) {
+            // At target
+            this.isMoving = false;
+            this.send({
+                command: 'move',
+                data: { x: this.x, y: this.y, direction: this.direction, isMoving: false }
+            });
             return;
         }
         
-        // Check if stuck (position barely changed over recent steps)
+        // Stuck detection
         const movedDist = Math.sqrt((this.x - this.lastX) ** 2 + (this.y - this.lastY) ** 2);
-        if (movedDist < 0.5) {
+        if (movedDist < 0.3) {
             this.stuckCounter++;
-            if (this.stuckCounter > 20) { // Stuck for 1 second
-                console.log('🔄 Stuck! Retreating toward island center...');
-                // Head back toward the nearest island center
-                let nearest = ISLAND_TARGETS[0];
-                let nearestDist = Infinity;
-                for (const isl of ISLAND_TARGETS) {
-                    const d = Math.sqrt((isl.x - this.x) ** 2 + (isl.y - this.y) ** 2);
-                    if (d < nearestDist) { nearestDist = d; nearest = isl; }
-                }
-                this.targetX = nearest.x;
-                this.targetY = nearest.y;
-                this.stuckCounter = 0;
-                this.stuckRetries = (this.stuckRetries || 0) + 1;
-                // If stuck too many times, just teleport to island center
-                if (this.stuckRetries > 3) {
-                    console.log('⚡ Teleporting to island center');
-                    this.x = nearest.x;
-                    this.y = nearest.y;
-                    this.stuckRetries = 0;
-                }
+            if (this.stuckCounter > 30) { // 1.5 seconds stuck
+                this.handleStuck();
                 return;
             }
         } else {
@@ -270,41 +712,36 @@ class FrankBot {
         
         // Move toward target
         const angle = Math.atan2(dy, dx);
-        let moveX = Math.cos(angle) * this.moveSpeed;
-        let moveY = Math.sin(angle) * this.moveSpeed;
+        const speed = this.state === STATES.COMBAT ? 2.5 : this.moveSpeed;
+        let moveX = Math.cos(angle) * speed;
+        let moveY = Math.sin(angle) * speed;
         
-        // Determine primary direction for animation
+        // Direction for animation
         if (Math.abs(dx) > Math.abs(dy)) {
             this.direction = dx > 0 ? 'east' : 'west';
         } else {
             this.direction = dy > 0 ? 'south' : 'north';
         }
         
-        // Try to move — check collision
+        // Try to move with collision
         let moved = false;
         
-        // Try full diagonal move
         if (isBoxWalkable(terrainMap, this.x + moveX, this.y + moveY)) {
             this.x += moveX;
             this.y += moveY;
             moved = true;
-        }
-        // Try X only
-        else if (isBoxWalkable(terrainMap, this.x + moveX, this.y)) {
+        } else if (isBoxWalkable(terrainMap, this.x + moveX, this.y)) {
             this.x += moveX;
             moved = true;
-        }
-        // Try Y only
-        else if (isBoxWalkable(terrainMap, this.x, this.y + moveY)) {
+        } else if (isBoxWalkable(terrainMap, this.x, this.y + moveY)) {
             this.y += moveY;
             moved = true;
-        }
-        // Try perpendicular sliding (helps navigate around obstacles)
-        else {
+        } else {
+            // Try perpendicular sliding
             const perpAngles = [angle + Math.PI/4, angle - Math.PI/4, angle + Math.PI/2, angle - Math.PI/2];
             for (const pa of perpAngles) {
-                const ax = Math.cos(pa) * this.moveSpeed;
-                const ay = Math.sin(pa) * this.moveSpeed;
+                const ax = Math.cos(pa) * speed;
+                const ay = Math.sin(pa) * speed;
                 if (isBoxWalkable(terrainMap, this.x + ax, this.y + ay)) {
                     this.x += ax;
                     this.y += ay;
@@ -314,101 +751,97 @@ class FrankBot {
             }
         }
         
-        // Send position
+        this.isMoving = moved;
+        
+        // Send position update
         this.send({
             command: 'move',
             data: {
                 x: this.x,
                 y: this.y,
                 direction: this.direction,
-                isMoving: moved
+                isMoving: this.isMoving
             }
         });
     }
 
-    pause(durationMs) {
-        this.pauseUntil = Date.now() + durationMs;
-        this.state = 'pausing';
-        console.log(`⏸️  Pausing for ${Math.round(durationMs / 1000)}s`);
-    }
-
-    startIdleChatter() {
-        // Random thoughts every 15-40 seconds
-        const scheduleNext = () => {
-            const delay = 15000 + Math.random() * 25000;
-            this.chatTimer = setTimeout(() => {
-                if (this.joined) {
-                    this.sayThought();
-                }
-                scheduleNext();
-            }, delay);
-        };
-        scheduleNext();
-    }
-
-    sayThought() {
-        let idx;
-        do {
-            idx = Math.floor(Math.random() * this.thoughts.length);
-        } while (idx === this.lastThoughtIndex);
-        this.lastThoughtIndex = idx;
+    handleStuck() {
+        this.stuckRetries++;
         
-        const thought = this.thoughts[idx];
-        console.log(`💭 ${thought}`);
-        this.send({
-            command: 'chat',
-            data: { text: thought }
-        });
+        if (this.stuckRetries > 3) {
+            // Teleport to current island center
+            const island = ISLAND_DATA[this.currentIslandIndex];
+            console.log(`⚡ Teleporting to ${island.name} center`);
+            this.x = island.cx;
+            this.y = island.cy;
+            this.stuckCounter = 0;
+            this.stuckRetries = 0;
+            return;
+        }
+        
+        // Try a different angle
+        const escapeAngle = Math.random() * Math.PI * 2;
+        const escapeDist = TILE_SIZE * 3;
+        this.setTarget(
+            this.x + Math.cos(escapeAngle) * escapeDist,
+            this.y + Math.sin(escapeAngle) * escapeDist
+        );
+        console.log('🔄 Stuck! Trying escape route...');
     }
+
+    // ============================================
+    // Talk Responses
+    // ============================================
 
     respondToTalk(fromName, fromId) {
-        const responses = [
-            `Hey ${fromName}! Just out exploring the islands.`,
-            `Oh hi! I was just admiring the view from here.`,
-            `${fromName}! Want to explore together? I'm heading to the next island.`,
-            `Nice to see you, ${fromName}! This place is amazing.`,
-            `Hey! Have you found any good items around here?`,
-            `*waves claws* What's up ${fromName}?`,
-            `I love these cobblestone paths. So well maintained!`,
-            `${fromName}! Perfect timing — I was just about to head out.`,
-        ];
+        this.state = STATES.TALKING;
         
-        const response = responses[Math.floor(Math.random() * responses.length)];
+        const response = this.talkResponses[Math.floor(Math.random() * this.talkResponses.length)](fromName);
         
-        // Brief pause before responding (natural feeling)
         setTimeout(() => {
             this.send({
                 command: 'talk_response',
-                data: {
-                    targetId: fromId,
-                    text: response
-                }
+                data: { targetId: fromId, text: response }
             });
             console.log(`💬 → ${fromName}: ${response}`);
+            
+            // Resume previous activity after talking
+            setTimeout(() => {
+                if (this.state === STATES.TALKING) {
+                    this.rest(1000);
+                }
+            }, 2000);
         }, 500 + Math.random() * 1500);
     }
 }
 
-// --- Start ---
+// ============================================
+// Start
+// ============================================
+
 const frank = new FrankBot();
 frank.connect();
 
-// Status logging
+// Status log every 30s
 setInterval(() => {
     if (frank.joined) {
+        const island = ISLAND_DATA[frank.currentIslandIndex];
         const dist = Math.sqrt(
             (frank.targetX - frank.x) ** 2 + 
             (frank.targetY - frank.y) ** 2
         );
-        console.log(`📍 (${Math.round(frank.x)}, ${Math.round(frank.y)}) → target ${Math.round(dist)}px away [${frank.state}]`);
+        console.log(`📍 ${island.name} (${Math.round(frank.x)},${Math.round(frank.y)}) → ${Math.round(dist)}px [${frank.state}] Shell: ${frank.shellIntegrity}% Plan: ${frank.planIndex}/${frank.explorationPlan.length}`);
     }
 }, 30000);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\n👋 Frank signing off!');
-    if (frank.ws) frank.ws.close();
-    process.exit(0);
+    frank.say("Heading out! See you all later.");
+    setTimeout(() => {
+        if (frank.ws) frank.ws.close();
+        process.exit(0);
+    }, 500);
 });
 
 process.on('SIGTERM', () => {
