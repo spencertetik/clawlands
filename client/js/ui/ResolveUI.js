@@ -41,6 +41,7 @@ class ResolveUI {
         this.fadeIn = 0;
         this.selectedIndex = 0;
         this.buttons = [];
+        this._confirming = false;
 
         // Add listeners
         document.addEventListener('click', this.handleClick);
@@ -105,7 +106,8 @@ class ResolveUI {
     }
 
     confirmChoice() {
-        if (!this.enemy) return;
+        if (!this.enemy || this._confirming) return;
+        this._confirming = true; // Prevent double-fire
 
         const choiceNames = ['disperse', 'stabilize', 'release'];
         const choice = choiceNames[this.selectedIndex];
@@ -172,12 +174,17 @@ class ResolveUI {
                     const y = this.enemy.position.y + offsetY;
 
                     // Create world item if game supports it
+                    // WorldItem constructor: (itemId, x, y, respawnTime)
                     if (this.game.worldItems && typeof WorldItem !== 'undefined') {
                         const itemDef = (typeof COMBAT_ITEM_DEFS !== 'undefined' && COMBAT_ITEM_DEFS[drop.itemId]) ||
                                        (typeof ItemData !== 'undefined' && ItemData[drop.itemId]);
                         if (itemDef) {
-                            const worldItem = new WorldItem(x, y, drop.itemId, 1);
-                            this.game.worldItems.push(worldItem);
+                            try {
+                                const worldItem = new WorldItem(drop.itemId, x, y, 60000);
+                                this.game.worldItems.push(worldItem);
+                            } catch (e) {
+                                console.warn('Failed to create loot drop:', e);
+                            }
                         }
                     }
                 }

@@ -112,9 +112,9 @@ class CombatSystem {
 
             // Check if enemy just died (transition to dissolved)
             if (enemy.state === 'dissolved' && enemy.particles.length === 0) {
-                // Check if this enemy needs resolve choice
-                if (this.pendingResolve === enemy) {
-                    // Already shown
+                // Don't remove if resolve UI is still showing for this enemy
+                if (this.pendingResolve === enemy && this.resolveUI.isVisible) {
+                    continue; // Keep in array until player makes their choice
                 }
                 this.enemies.splice(i, 1);
                 continue;
@@ -612,46 +612,62 @@ class CombatSystem {
         const startA = sd.baseAngle - sd.arcSpread / 2;
         const currentA = startA + sd.arcSpread * sweepProgress;
 
-        // Outer glow arc
-        ctx.globalAlpha = fadeOut * 0.3;
+        // Wide outer glow arc
+        ctx.globalAlpha = fadeOut * 0.4;
         ctx.strokeStyle = '#88ccff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(cx, cy, radius * 0.9, startA, currentA);
         ctx.stroke();
 
-        // Main slash arc
-        ctx.globalAlpha = fadeOut * 0.8;
+        // Main slash arc (thicker)
+        ctx.globalAlpha = fadeOut * 0.9;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(cx, cy, radius * 0.85, startA, currentA);
         ctx.stroke();
 
-        // Leading edge
+        // Inner bright arc for extra pop
+        ctx.globalAlpha = fadeOut * 0.5;
+        ctx.strokeStyle = '#ccddff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.78, startA, currentA);
+        ctx.stroke();
+
+        // Leading edge (bigger)
         if (sweepProgress < 1) {
             const tipX = cx + Math.cos(currentA) * radius * 0.85;
             const tipY = cy + Math.sin(currentA) * radius * 0.85;
+            // Glow behind tip
+            ctx.globalAlpha = fadeOut * 0.4;
+            ctx.fillStyle = '#88ccff';
+            ctx.beginPath();
+            ctx.arc(tipX, tipY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            // Bright tip
             ctx.globalAlpha = fadeOut;
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.arc(tipX, tipY, 1.5, 0, Math.PI * 2);
+            ctx.arc(tipX, tipY, 2.5, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Pixel sword along the sweep arc
+        // Pixel sword along the sweep arc (2px wide pixels)
         ctx.globalAlpha = fadeOut;
         const swordAngle = currentA;
-        const swordBaseR = radius * 0.45;
-        const pixelSize = 1;
+        const swordBaseR = radius * 0.35;
+        const pixelSize = 2;
         const swordPixels = [
-            { offset: 0, color: '#999999' },  // handle
-            { offset: 1, color: '#aaaaaa' },
-            { offset: 2, color: '#cccccc' },  // blade body
+            { offset: 0, color: '#665544' },  // handle (brown)
+            { offset: 1, color: '#887766' },
+            { offset: 2, color: '#aaaaaa' },  // blade body
             { offset: 3, color: '#cccccc' },
             { offset: 4, color: '#dddddd' },
-            { offset: 5, color: '#ffffff' },  // tip
+            { offset: 5, color: '#eeeeff' },
+            { offset: 6, color: '#ffffff' },  // tip (bright white)
         ];
         for (const sp of swordPixels) {
             const r = swordBaseR + sp.offset * pixelSize;
