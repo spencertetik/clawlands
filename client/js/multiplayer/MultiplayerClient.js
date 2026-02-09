@@ -43,6 +43,11 @@ class MultiplayerClient {
             this.ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
+                    // Handle compressed batched positions: { t: 'p', p: [...] }
+                    if (msg.t === 'p') {
+                        this.handleBatchedPositions(msg.p);
+                        return;
+                    }
                     this.handleMessage(msg);
                 } catch (e) {
                     console.error('Multiplayer parse error:', e);
@@ -171,6 +176,18 @@ class MultiplayerClient {
             case 'pong':
                 // Latency check response
                 break;
+        }
+    }
+
+    handleBatchedPositions(players) {
+        // Decode compressed format: [{i, x, y, d, m}, ...]
+        for (const p of players) {
+            this.updateRemotePlayer(p.i, {
+                x: p.x,
+                y: p.y,
+                direction: p.d,
+                isMoving: !!p.m
+            });
         }
     }
 

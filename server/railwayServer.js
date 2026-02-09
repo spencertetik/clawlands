@@ -31,7 +31,7 @@ const RATE_LIMIT = {
     windowMs: 60000,
     maxRequests: 1200,      // ~20/sec for smooth movement
     botMaxRequests: 600,    // ~10/sec for bots
-    maxConnections: 50
+    maxConnections: 200
 };
 
 // ============================================
@@ -218,6 +218,23 @@ function broadcast(message, excludeId = null) {
     players.forEach((player, id) => {
         if (id !== excludeId && player.ws.readyState === WebSocket.OPEN) {
             player.ws.send(data);
+        }
+    });
+}
+
+// Spatial partitioning: only send to players within AOI_RANGE pixels
+const AOI_RANGE = 300;
+
+function broadcastNearby(message, sourceId, sourceX, sourceY) {
+    const data = JSON.stringify(message);
+    players.forEach((player, id) => {
+        if (id !== sourceId && player.ws.readyState === WebSocket.OPEN) {
+            const dx = player.x - sourceX;
+            const dy = player.y - sourceY;
+            // Use squared distance to avoid sqrt
+            if (dx * dx + dy * dy <= AOI_RANGE * AOI_RANGE) {
+                player.ws.send(data);
+            }
         }
     });
 }
@@ -530,6 +547,53 @@ setInterval(() => {
 }, KEEPALIVE_INTERVAL);
 
 // ============================================
+// Server Tick — Batched Position Broadcasting (20 Hz)
+// ============================================
+
+const TICK_RATE_MS = 50; // 20 Hz
+
+setInterval(() => {
+    // Collect all dirty (moved) players
+    const movedPlayers = [];
+    for (const [id, p] of players) {
+        if (p._dirty && p.name) {
+            movedPlayers.push({ id, x: p.x, y: p.y, direction: p.direction, isMoving: p.isMoving });
+            p._dirty = false;
+        }
+    }
+
+    if (movedPlayers.length === 0) return;
+
+    // For each connected player, build a compressed payload of nearby movers
+    for (const [recipientId, recipient] of players) {
+        if (recipient.ws.readyState !== WebSocket.OPEN || !recipient.name) continue;
+
+        // Filter to only nearby movers (spatial partitioning)
+        const nearby = [];
+        for (const mp of movedPlayers) {
+            if (mp.id === recipientId) continue;
+            const dx = (players.get(mp.id)?.x || mp.x) - recipient.x;
+            const dy = (players.get(mp.id)?.y || mp.y) - recipient.y;
+            if (dx * dx + dy * dy <= AOI_RANGE * AOI_RANGE) {
+                // Compressed format: short keys
+                nearby.push({
+                    i: mp.id,
+                    x: mp.x,
+                    y: mp.y,
+                    d: mp.direction,
+                    m: mp.isMoving ? 1 : 0
+                });
+            }
+        }
+
+        if (nearby.length === 0) continue;
+
+        // Send compressed batched positions: { t: 'p', p: [...] }
+        recipient.ws.send(JSON.stringify({ t: 'p', p: nearby }));
+    }
+}, TICK_RATE_MS);
+
+// ============================================
 // Message Handler
 // ============================================
 
@@ -618,14 +682,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
             playerData.direction = msg.direction || playerData.direction;
             playerData.isMoving = msg.isMoving || false;
 
-            broadcast({
-                type: 'player_moved',
-                playerId: playerId,
-                x: msg.x,
-                y: msg.y,
-                direction: msg.direction,
-                isMoving: msg.isMoving
-            }, playerId);
+            // Mark player as dirty for the batched tick system
+            playerData._dirty = true;
             break;
         }
 
@@ -744,13 +802,8 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 else if (dir === 'west' || dir === 'left' || dir === 'w') playerData.x -= step;
             }
 
-            broadcast({
-                type: 'player_moved',
-                id: playerId,
-                x: playerData.x,
-                y: playerData.y,
-                facing: playerData.facing
-            }, playerId);
+            // Mark dirty for batched tick; don't broadcast immediately
+            playerData._dirty = true;
 
             ws.send(JSON.stringify({
                 type: 'moved',

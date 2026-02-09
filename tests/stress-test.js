@@ -43,7 +43,9 @@ const metrics = {
     messagesReceived: 0,
     
     movesSent: 0,
-    movesReceived: 0, // broadcast moves from other bots
+    movesReceived: 0, // broadcast moves from other bots (individual)
+    batchedPositionsReceived: 0, // batched tick messages received
+    batchedPlayersReceived: 0, // total player updates via batched ticks
     
     chatsSent: 0,
     chatsReceived: 0,
@@ -156,6 +158,13 @@ class StressBot {
     }
 
     handleMessage(msg) {
+        // Handle compressed batched positions: { t: 'p', p: [...] }
+        if (msg.t === 'p') {
+            metrics.batchedPositionsReceived++;
+            metrics.batchedPlayersReceived += (msg.p ? msg.p.length : 0);
+            return;
+        }
+
         switch (msg.type) {
             case 'welcome':
                 this.playerId = msg.playerId;
@@ -361,9 +370,11 @@ async function runStressTest() {
 
     // Calculate expected broadcast messages
     // Each move from 1 bot should broadcast to (N-1) other bots
+    // With batching, individual player_moved are replaced by batched position ticks
+    const totalMoveUpdatesReceived = metrics.movesReceived + metrics.batchedPlayersReceived;
     const expectedMovesBroadcast = metrics.movesSent * (connectedBots - 1);
     const moveDeliveryRate = expectedMovesBroadcast > 0 
-        ? ((metrics.movesReceived / expectedMovesBroadcast) * 100).toFixed(1) 
+        ? ((totalMoveUpdatesReceived / expectedMovesBroadcast) * 100).toFixed(1) 
         : 'N/A';
 
     console.log(`
@@ -390,7 +401,10 @@ async function runStressTest() {
 ╠══════════════════════════════════════════════════════════╣
 ║  MOVEMENT                                                 ║
 ║  Moves sent:        ${String(metrics.movesSent).padEnd(38)}║
-║  Moves received:    ${String(metrics.movesReceived).padEnd(38)}║
+║  Moves (individual):${String(metrics.movesReceived).padEnd(38)}║
+║  Batched ticks:     ${String(metrics.batchedPositionsReceived).padEnd(38)}║
+║  Batched updates:   ${String(metrics.batchedPlayersReceived).padEnd(38)}║
+║  Total received:    ${String(totalMoveUpdatesReceived).padEnd(38)}║
 ║  Expected bcast:    ${String(expectedMovesBroadcast).padEnd(38)}║
 ║  Delivery rate:     ${(moveDeliveryRate + '%').padEnd(38)}║
 ╠══════════════════════════════════════════════════════════╣
