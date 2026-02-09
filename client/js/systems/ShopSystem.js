@@ -29,38 +29,62 @@ class ShopSystem {
     }
     
     createUI() {
-        // Main container (hidden by default) — inside game container
+        const isMobile = 'ontouchstart' in window || window.innerWidth < 600;
+        this.isMobile = isMobile;
+        
+        // Overlay background — covers game container
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'shop-overlay';
+        this.overlay.style.cssText = `
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 3000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        `;
+        this.overlay.addEventListener('click', (e) => {
+            if (e.target === this.overlay) this.close();
+        });
+        
+        // Main container — centered panel instead of full-screen
         this.container = document.createElement('div');
         this.container.id = 'shop-container';
         this.container.style.cssText = `
-            position: absolute;
-            inset: 0;
+            width: ${isMobile ? '80%' : '90%'};
+            max-width: ${isMobile ? '340px' : '520px'};
+            max-height: ${isMobile ? '80%' : '85%'};
             background: rgba(13, 8, 6, 0.95);
+            border: 2px solid #c43a24;
+            border-radius: 8px;
             color: #e8d5cc;
-            z-index: 3000;
-            display: none;
+            display: flex;
             flex-direction: column;
             font-family: 'Courier New', monospace;
+            box-shadow: 0 0 30px rgba(196, 58, 36, 0.3);
+            overflow: hidden;
         `;
         
         // Header
         const header = document.createElement('div');
         header.style.cssText = `
-            padding: 20px;
+            padding: ${isMobile ? '10px 12px' : '16px 20px'};
             border-bottom: 2px solid #c43a24;
             background: rgba(196, 58, 36, 0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         `;
         
         const title = document.createElement('div');
         title.style.cssText = `
-            font-size: 24px;
+            font-size: ${isMobile ? '16px' : '24px'};
             font-weight: bold;
             color: #c43a24;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: ${isMobile ? '1px' : '2px'};
         `;
         title.textContent = 'BRINE MARKET';
         
@@ -69,12 +93,12 @@ class ShopSystem {
             background: transparent;
             border: 1px solid #c43a24;
             color: #c43a24;
-            padding: 8px 16px;
+            padding: ${isMobile ? '4px 10px' : '8px 16px'};
             cursor: pointer;
             font-family: inherit;
-            font-size: 14px;
+            font-size: ${isMobile ? '11px' : '14px'};
         `;
-        closeBtn.textContent = '[ESC] CLOSE';
+        closeBtn.textContent = isMobile ? 'CLOSE' : '[ESC] CLOSE';
         closeBtn.onclick = () => this.close();
         
         header.appendChild(title);
@@ -85,19 +109,20 @@ class ShopSystem {
         tabBar.style.cssText = `
             display: flex;
             background: rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
         `;
         
         const buyTab = document.createElement('button');
         buyTab.style.cssText = `
             flex: 1;
-            padding: 15px;
+            padding: ${isMobile ? '10px' : '15px'};
             background: transparent;
             border: none;
             border-bottom: 2px solid transparent;
             color: #8a7068;
             cursor: pointer;
             font-family: inherit;
-            font-size: 16px;
+            font-size: ${isMobile ? '13px' : '16px'};
             font-weight: bold;
         `;
         buyTab.textContent = 'BUY';
@@ -111,25 +136,27 @@ class ShopSystem {
         tabBar.appendChild(buyTab);
         tabBar.appendChild(sellTab);
         
-        // Content area
+        // Content area — scrollable list
         const content = document.createElement('div');
         content.id = 'shop-content';
         content.style.cssText = `
             flex: 1;
-            padding: 20px;
+            padding: ${isMobile ? '8px' : '15px'};
             overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+            gap: ${isMobile ? '6px' : '10px'};
         `;
         
         this.container.appendChild(header);
         this.container.appendChild(tabBar);
         this.container.appendChild(content);
         
-        // Mount inside game container so it's part of the game screen
+        // Mount overlay (with container inside) in game container
+        this.overlay.appendChild(this.container);
         const gameContainer = document.getElementById('game-container') || document.body;
-        gameContainer.appendChild(this.container);
+        gameContainer.appendChild(this.overlay);
         
         // Store references
         this.buyTabBtn = buyTab;
@@ -150,7 +177,7 @@ class ShopSystem {
     open() {
         if (this.isOpen) return;
         this.isOpen = true;
-        this.container.style.display = 'flex';
+        this.overlay.style.display = 'flex';
         this.switchTab('buy');
         
         // Pause game if needed
@@ -162,7 +189,7 @@ class ShopSystem {
     close() {
         if (!this.isOpen) return;
         this.isOpen = false;
-        this.container.style.display = 'none';
+        this.overlay.style.display = 'none';
         
         // Resume game
         if (this.game && this.game.inputManager) {
@@ -220,33 +247,46 @@ class ShopSystem {
     }
     
     createItemCard(itemDef, mode, quantity = 1) {
+        const isMobile = this.isMobile;
         const card = document.createElement('div');
         card.style.cssText = `
             border: 1px solid #8a7068;
             background: rgba(196, 58, 36, 0.05);
-            padding: 15px;
+            padding: ${isMobile ? '8px 10px' : '15px'};
             cursor: pointer;
             transition: all 0.2s ease;
+            flex-shrink: 0;
         `;
         
         const price = mode === 'buy' ? itemDef.buyPrice : itemDef.sellPrice;
         const canAfford = mode === 'buy' ? 
             (this.game.currencySystem && this.game.currencySystem.canAfford(price)) : true;
         
-        card.innerHTML = `
-            <div style="font-size: 18px; margin-bottom: 8px; color: ${canAfford ? '#e8d5cc' : '#8a7068'};">
-                ${itemDef.icon} ${itemDef.name}
-            </div>
-            <div style="font-size: 12px; color: #8a7068; margin-bottom: 10px; line-height: 1.4;">
-                ${itemDef.description}
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #f5c542; font-weight: bold;">
-                    ${price} tokens
-                </span>
-                ${quantity > 1 ? `<span style="color: #8a7068;">x${quantity}</span>` : ''}
-            </div>
-        `;
+        if (isMobile) {
+            // Compact row layout for mobile
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; color: ${canAfford ? '#e8d5cc' : '#8a7068'};">
+                    <span style="font-size: 13px;">${itemDef.icon} ${itemDef.name}${quantity > 1 ? ` x${quantity}` : ''}</span>
+                    <span style="color: #f5c542; font-size: 12px; font-weight: bold; white-space: nowrap; margin-left: 8px;">${price} BT</span>
+                </div>
+                <div style="font-size: 10px; color: #8a7068; margin-top: 3px; line-height: 1.3;">${itemDef.description}</div>
+            `;
+        } else {
+            card.innerHTML = `
+                <div style="font-size: 18px; margin-bottom: 8px; color: ${canAfford ? '#e8d5cc' : '#8a7068'};">
+                    ${itemDef.icon} ${itemDef.name}
+                </div>
+                <div style="font-size: 12px; color: #8a7068; margin-bottom: 10px; line-height: 1.4;">
+                    ${itemDef.description}
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #f5c542; font-weight: bold;">
+                        ${price} tokens
+                    </span>
+                    ${quantity > 1 ? `<span style="color: #8a7068;">x${quantity}</span>` : ''}
+                </div>
+            `;
+        }
         
         if (canAfford) {
             card.addEventListener('mouseenter', () => {

@@ -68,16 +68,19 @@ class InventoryUI {
             if (e.target === this.overlay) this.hide();
         });
         
-        // Main panel — wider horizontal layout
+        // Main panel — responsive sizing
+        const isMobile = 'ontouchstart' in window || window.innerWidth < 600;
         this.panel = document.createElement('div');
         this.panel.id = 'inventory-panel';
         this.panel.style.cssText = `
-            width: 90%;
-            max-width: 520px;
+            width: ${isMobile ? '75%' : '90%'};
+            max-width: ${isMobile ? '320px' : '520px'};
+            max-height: ${isMobile ? '80%' : '90%'};
+            overflow-y: auto;
             background: rgba(13, 8, 6, 0.95);
             border: 2px solid #c43a24;
             border-radius: 8px;
-            padding: 12px;
+            padding: ${isMobile ? '8px' : '12px'};
             font-family: 'Courier New', monospace;
             color: #e8d5cc;
             box-shadow: 0 0 30px rgba(196, 58, 36, 0.3), inset 0 0 60px rgba(13, 8, 6, 0.5);
@@ -96,10 +99,10 @@ class InventoryUI {
         // Title
         const title = document.createElement('div');
         title.style.cssText = `
-            font-size: 16px;
+            font-size: ${isMobile ? '13px' : '16px'};
             font-weight: bold;
             color: #c43a24;
-            letter-spacing: 3px;
+            letter-spacing: ${isMobile ? '1px' : '3px'};
             text-transform: uppercase;
             text-shadow: 0 0 8px rgba(196, 58, 36, 0.4);
         `;
@@ -130,13 +133,13 @@ class InventoryUI {
         this.slotCountLabel.textContent = '0/20 slots';
         this.panel.appendChild(this.slotCountLabel);
         
-        // Slots grid (5x4 — wider horizontal layout)
+        // Slots grid — responsive columns
         this.slotsContainer = document.createElement('div');
         this.slotsContainer.style.cssText = `
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 5px;
-            margin-bottom: 10px;
+            grid-template-columns: repeat(${isMobile ? 4 : 5}, 1fr);
+            gap: ${isMobile ? '3px' : '5px'};
+            margin-bottom: ${isMobile ? '6px' : '10px'};
         `;
         
         // Create 20 slot elements
@@ -154,7 +157,7 @@ class InventoryUI {
                 position: relative;
                 cursor: pointer;
                 transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-                font-size: 22px;
+                font-size: ${isMobile ? '16px' : '22px'};
             `;
             
             slot.addEventListener('mouseenter', () => this.onSlotHover(i));

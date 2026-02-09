@@ -1392,16 +1392,26 @@ class Game {
         // NPC interaction
         const npc = this.findNearbyNPC();
         if (npc) {
+            // Check if this is a shop/market merchant — open shop after dialog finishes
+            const shopNPCNames = ['Merchant Bristle', 'Vendor Shelly', 'Trader Pinch'];
+            const isShopMerchant = this.currentLocation === 'interior' && 
+                this.currentBuilding && 
+                (this.currentBuilding.type === 'shop' || this.currentBuilding.type === 'market') &&
+                shopNPCNames.includes(npc.name);
+            
+            const shopCallback = isShopMerchant && this.shopSystem ? 
+                () => this.shopSystem.open() : null;
+            
             // Check for item quest first
             const itemQuestDialogue = this.handleItemQuestDialogue(npc);
             if (itemQuestDialogue) {
                 this.sfx.play('dialog_open');
-                this.dialogSystem.show(itemQuestDialogue);
+                this.dialogSystem.show(itemQuestDialogue, shopCallback);
             } else {
                 // Get dynamic dialogue based on player state
                 const dialogue = this.getNPCDialogue(npc);
                 this.sfx.play('dialog_open');
-                this.dialogSystem.show(dialogue);
+                this.dialogSystem.show(dialogue, shopCallback);
             }
             
             // Track conversation in story systems
@@ -2257,13 +2267,7 @@ class Game {
         if (this.isTransitioning) return;
         this.isTransitioning = true;
 
-        // Special case: Shop buildings open the shop system instead of entering
-        if (building.type === 'shop' && this.shopSystem) {
-            console.log(`🏪 Opening shop: ${building.name}`);
-            this.shopSystem.open();
-            this.isTransitioning = false;
-            return;
-        }
+        // Shop buildings now enter like normal — shop menu opens when talking to merchant inside
 
         // Save current outdoor decorations (including any editor changes)
         if (this.currentLocation === 'outdoor') {
