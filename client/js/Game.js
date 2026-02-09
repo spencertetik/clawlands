@@ -264,6 +264,14 @@ class Game {
         this.controlsVisible = false;
         this._setupControlsHelp();
 
+        // Canvas HUD panel state (replaces DOM #hud-panel)
+        this.hudPanelData = {
+            musicMuted: false,
+            humans: 1,
+            bots: 0,
+            total: 1
+        };
+
         // Character customization
         this.characterBuilder = new CharacterBuilder();
         this.characterConfig = null;
@@ -440,9 +448,9 @@ class Game {
             // Mark game as active — item pickups, interactions etc. now enabled
             this.gameActive = true;
             
-            // Show controls hint
-            const controlsHint = document.getElementById('controls-hint');
-            if (controlsHint) controlsHint.style.display = 'block';
+            // Hide DOM HUD panel — now rendered on canvas
+            const hudPanel = document.getElementById('hud-panel');
+            if (hudPanel) hudPanel.style.display = 'none';
         });
     }
 
@@ -966,14 +974,13 @@ class Game {
             ctx.restore();
         }
 
+        // Render canvas HUD panel (top-right: music, player count, controls hint)
+        if (this.gameActive) {
+            this.renderCanvasHUDPanel();
+        }
+
         // Render controls help overlay (on top of everything, centered)
         this.renderControlsHelp();
-        
-        // Toggle DOM controls hint visibility — always show when game is active
-        const controlsHintEl = document.getElementById('controls-hint');
-        if (controlsHintEl) {
-            controlsHintEl.style.display = this.gameActive ? 'block' : 'none';
-        }
     }
 
     // Render player's name above their head
@@ -1741,13 +1748,8 @@ class Game {
         console.log(`🎁 Created ${itemCount} world item spawns across ${islands.length} islands`);
     }
 
-    // Update player count in the HUD panel (element lives in game.html)
+    // Update player count data for canvas HUD panel
     updatePlayerCount() {
-        if (!this.playerCountEl) {
-            this.playerCountEl = document.getElementById('player-count');
-            if (!this.playerCountEl) return; // not in DOM yet
-        }
-        
         let humans = 1; // count self
         let bots = 0;
         
@@ -1758,13 +1760,9 @@ class Game {
             });
         }
         
-        const total = humans + bots;
-        // Stacked vertically: online count on top, players/bots breakdown below
-        this.playerCountEl.innerHTML = 
-            `<span style="color:#8a7068">${total} online</span><br>` +
-            `<span style="color:#e8d5cc">Players ${humans}</span> ` +
-            `<span style="color:#8a7068">/</span> ` +
-            `<span style="color:#e8d5cc">Bots ${bots}</span>`;
+        this.hudPanelData.humans = humans;
+        this.hudPanelData.bots = bots;
+        this.hudPanelData.total = humans + bots;
     }
 
     // Find nearby remote player for interaction
@@ -3268,7 +3266,7 @@ class Game {
         return JSON.stringify(payload);
     }
 
-    // Setup controls help overlay (H key to toggle)
+    // Setup controls help overlay (H key to toggle) + canvas HUD click handler
     _setupControlsHelp() {
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -3283,6 +3281,86 @@ class Game {
                 this.toggleDebug();
             }
         });
+
+        // Canvas click handler for HUD panel music toggle
+        this.canvas.addEventListener('click', (e) => {
+            if (!this.gameActive || !this._hudMusicHitArea) return;
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const cx = (e.clientX - rect.left) * scaleX;
+            const cy = (e.clientY - rect.top) * scaleY;
+            const hit = this._hudMusicHitArea;
+            if (cx >= hit.x && cx <= hit.x + hit.w && cy >= hit.y && cy <= hit.y + hit.h) {
+                if (typeof audioManager !== 'undefined') {
+                    this.hudPanelData.musicMuted = audioManager.toggleMute();
+                }
+            }
+        });
+    }
+
+    // Render HUD panel on game canvas (top-right: music toggle, player count, controls hint)
+    renderCanvasHUDPanel() {
+        const ctx = this.canvas.getContext('2d');
+        const cw = this.canvas.width;
+
+        ctx.save();
+
+        const margin = 8;
+        const panelW = 130;
+        const lineH = 18;
+        const padX = 8;
+        const padY = 6;
+
+        // Rows to draw
+        const musicText = this.hudPanelData.musicMuted ? '[M] Music OFF' : '[M] Music';
+        const countText = `${this.hudPanelData.total} online`;
+        const breakdownText = `Players ${this.hudPanelData.humans} / Bots ${this.hudPanelData.bots}`;
+        const controlsText = '[H] Controls';
+
+        const rows = [musicText, countText, breakdownText, controlsText];
+        const panelH = padY * 2 + rows.length * lineH;
+        const panelX = cw - panelW - margin;
+        const panelY = margin;
+
+        // Background
+        ctx.fillStyle = 'rgba(13, 8, 6, 0.85)';
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+
+        // Border
+        ctx.strokeStyle = 'rgba(196, 58, 36, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        const centerX = panelX + panelW / 2;
+
+        // Row 1: Music toggle
+        ctx.fillStyle = '#c43a24';
+        ctx.fillText(musicText, centerX, panelY + padY + 12);
+
+        // Row 2: Online count
+        ctx.fillStyle = '#8a7068';
+        ctx.fillText(countText, centerX, panelY + padY + 12 + lineH);
+
+        // Row 3: Players/Bots breakdown
+        ctx.fillStyle = '#e8d5cc';
+        ctx.font = '10px monospace';
+        ctx.fillText(breakdownText, centerX, panelY + padY + 12 + lineH * 2);
+
+        // Row 4: Controls hint
+        ctx.fillStyle = '#8a7068';
+        ctx.font = '11px monospace';
+        ctx.fillText(controlsText, centerX, panelY + padY + 12 + lineH * 3);
+
+        ctx.restore();
+
+        // Store hit area for music click detection
+        this._hudMusicHitArea = {
+            x: panelX, y: panelY,
+            w: panelW, h: lineH + padY
+        };
     }
 
     // Render controls help overlay (screen-space, compact bottom-right box)
@@ -3306,7 +3384,6 @@ class Game {
             ['I', 'Inventory'],
             ['L', 'Quest Log'],
             ['M', 'Toggle Music'],
-            ['H', 'This Help'],
         ];
 
         const lineH = 16;
