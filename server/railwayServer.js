@@ -322,9 +322,11 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
 <p>WebSocket endpoints:</p>
 <ul>
 <li><code>wss://YOUR_URL/game</code> — Human players</li>
-<li><code>wss://YOUR_URL/bot?key=API_KEY</code> — AI agents</li>
+<li><code>wss://YOUR_URL/bot?key=API_KEY</code> — AI agents (WebSocket)</li>
+<li><code>https://YOUR_URL/mcp</code> — AI agents (MCP)</li>
 </ul>
 <p>Status: <a href="/health">/health</a> | Stats: <a href="/stats">/stats</a></p>
+<p><strong>MCP:</strong> Any AI agent (Claude, ChatGPT, Gemini) can play via Model Context Protocol.</p>
 </body>
 </html>
         `);
@@ -556,6 +558,27 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
             'Access-Control-Allow-Headers': 'Content-Type, Authorization'
         });
         res.end();
+
+    // ========== MCP SERVER (AI Agent Gateway) ==========
+
+    } else if (url.pathname === '/mcp' && (req.method === 'POST' || req.method === 'GET' || req.method === 'DELETE')) {
+        // Model Context Protocol endpoint for AI agents
+        try {
+            const { handleMCPRequest } = require('./mcpServer');
+            
+            // Parse body for POST
+            if (req.method === 'POST') {
+                req.body = await parseBody(req);
+            }
+            
+            await handleMCPRequest(req, res, `ws://localhost:${PORT}/multiplayer`, 'mcp-internal');
+        } catch (err) {
+            console.error('MCP error:', err);
+            if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message }));
+            }
+        }
 
     } else {
         res.writeHead(404);
