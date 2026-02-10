@@ -27,7 +27,7 @@ class DecorationLoader {
         bush: {
             path: 'assets/sprites/decorations/plant_2.png',
             width: 24, height: 23,
-            collision: { width: 18, height: 12, offsetY: 11 }
+            collision: { width: 12, height: 8, offsetY: 11 }
         },
         bush_flower: {
             path: 'assets/sprites/decorations/plant_11.png',
@@ -77,7 +77,7 @@ class DecorationLoader {
         tree_bush: {
             path: 'assets/sprites/decorations/plant_6.png',
             width: 24, height: 23,
-            collision: { width: 16, height: 10, offsetY: 13 }
+            collision: { width: 10, height: 8, offsetY: 13 }
         },
         
         // === SHELLS ===
