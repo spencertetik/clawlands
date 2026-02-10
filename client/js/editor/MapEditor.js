@@ -1465,7 +1465,7 @@ class MapEditor {
         
         console.log('📤 Exported map data (' + exportData.decorations.length + ' decorations)');
         console.log('📤 Export JSON:', jsonStr.slice(0, 500) + '...');
-        alert('Map exported! Give the JSON file to Frank to merge into the game code.');
+        alert('Map exported! (' + exportData.decorations.length + ' items)\nGive the JSON file to Frank — it will REPLACE the current map data (no merge).');
     }
 
     importMap() {
