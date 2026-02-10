@@ -518,13 +518,26 @@ class RemotePlayer {
     }
 
     updatePosition(x, y, direction, isMoving) {
+        // Track if position actually changed (for movement detection)
+        const dx = Math.abs(x - this.targetPosition.x);
+        const dy = Math.abs(y - this.targetPosition.y);
+        const posChanged = dx > 0.5 || dy > 0.5;
+        
         this.targetPosition = { x, y };
         // Map direction names
         if (direction) {
             const dirMap = { 'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east' };
             this.direction = dirMap[direction] || direction;
         }
-        this.isMoving = isMoving;
+        
+        // Use server's isMoving flag, but also detect movement from position changes
+        // This prevents animation flickering when the flag briefly drops between ticks
+        if (isMoving || posChanged) {
+            this.isMoving = true;
+            this._moveGraceTimer = 200; // Keep animating for 200ms after last movement
+        } else if (!this._moveGraceTimer || this._moveGraceTimer <= 0) {
+            this.isMoving = false;
+        }
     }
 
     showSpeech(text) {
@@ -538,6 +551,20 @@ class RemotePlayer {
         const speed = this._spectated ? 0.5 : 0.2;
         this.position.x += (this.targetPosition.x - this.position.x) * speed;
         this.position.y += (this.targetPosition.y - this.position.y) * speed;
+        
+        // Tick down movement grace timer
+        if (this._moveGraceTimer > 0) {
+            this._moveGraceTimer -= deltaTime;
+            if (this._moveGraceTimer <= 0) {
+                this._moveGraceTimer = 0;
+                // Check if we're actually still moving (position delta)
+                const dx = Math.abs(this.targetPosition.x - this.position.x);
+                const dy = Math.abs(this.targetPosition.y - this.position.y);
+                if (dx < 1 && dy < 1) {
+                    this.isMoving = false;
+                }
+            }
+        }
         
         // Animation
         if (this.isMoving) {

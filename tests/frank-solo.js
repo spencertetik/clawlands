@@ -695,12 +695,13 @@ class FrankBot {
             return;
         }
         
-        // Stuck detection
+        // Stuck detection — only trigger after 2.5s (50 ticks) of no movement
         const movedDist = Math.sqrt((this.x - this.lastX) ** 2 + (this.y - this.lastY) ** 2);
         if (movedDist < 0.3) {
             this.stuckCounter++;
-            if (this.stuckCounter > 30) { // 1.5 seconds stuck
+            if (this.stuckCounter > 50) { // 2.5 seconds stuck
                 this.handleStuck();
+                this.stuckCounter = 0; // Reset immediately so we don't re-trigger next tick
                 return;
             }
         } else {
@@ -768,25 +769,85 @@ class FrankBot {
     handleStuck() {
         this.stuckRetries++;
         
-        if (this.stuckRetries > 3) {
-            // Teleport to current island center
+        if (this.stuckRetries > 2) {
+            // After 2 failed escapes, teleport to a VERIFIED walkable spot on current island
             const island = ISLAND_DATA[this.currentIslandIndex];
-            console.log(`⚡ Teleporting to ${island.name} center`);
-            this.x = island.cx;
-            this.y = island.cy;
-            this.stuckCounter = 0;
+            const walkable = this.findNearestWalkable(island.cx, island.cy);
+            if (walkable) {
+                console.log(`⚡ Teleporting to walkable spot near ${island.name} center (${walkable.x}, ${walkable.y})`);
+                this.x = walkable.x;
+                this.y = walkable.y;
+            } else {
+                // Fallback: try a different island entirely
+                const nextIsland = ISLAND_DATA[(this.currentIslandIndex + 1) % ISLAND_DATA.length];
+                const alt = this.findNearestWalkable(nextIsland.cx, nextIsland.cy);
+                if (alt) {
+                    this.currentIslandIndex = (this.currentIslandIndex + 1) % ISLAND_DATA.length;
+                    console.log(`⚡ Emergency teleport to ${nextIsland.name} (${alt.x}, ${alt.y})`);
+                    this.x = alt.x;
+                    this.y = alt.y;
+                } else {
+                    // Last resort — island 0 center raw
+                    console.log(`⚡ Last resort teleport to island 0`);
+                    this.x = ISLAND_DATA[0].cx;
+                    this.y = ISLAND_DATA[0].cy;
+                }
+            }
             this.stuckRetries = 0;
+            // Give a brief rest before moving again to avoid instant re-stuck
+            this.rest(2000);
             return;
         }
         
-        // Try a different angle
-        const escapeAngle = Math.random() * Math.PI * 2;
-        const escapeDist = TILE_SIZE * 3;
-        this.setTarget(
-            this.x + Math.cos(escapeAngle) * escapeDist,
-            this.y + Math.sin(escapeAngle) * escapeDist
-        );
-        console.log('🔄 Stuck! Trying escape route...');
+        // Smart escape: scan 8 directions for actual walkable positions
+        const escapeFound = this.trySmartEscape();
+        if (!escapeFound) {
+            console.log('🔄 No walkable escape found — will teleport on next stuck');
+            this.stuckRetries = 3; // Force teleport on next stuck
+        }
+    }
+
+    // Scan 8 compass directions at increasing distances to find a walkable target
+    trySmartEscape() {
+        const angles = [0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI, -3*Math.PI/4, -Math.PI/2, -Math.PI/4];
+        const distances = [TILE_SIZE * 2, TILE_SIZE * 4, TILE_SIZE * 6, TILE_SIZE * 8];
+        
+        // Shuffle angles for variety
+        for (let i = angles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [angles[i], angles[j]] = [angles[j], angles[i]];
+        }
+        
+        for (const dist of distances) {
+            for (const angle of angles) {
+                const tx = this.x + Math.cos(angle) * dist;
+                const ty = this.y + Math.sin(angle) * dist;
+                if (isBoxWalkable(terrainMap, tx, ty)) {
+                    this.setTarget(tx, ty);
+                    console.log(`🔄 Stuck! Found walkable escape at angle ${(angle * 180 / Math.PI).toFixed(0)}° dist ${dist.toFixed(0)}`);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Find nearest walkable position near a target coordinate (spiral search)
+    findNearestWalkable(cx, cy) {
+        // Check center first
+        if (isBoxWalkable(terrainMap, cx, cy)) return { x: cx, y: cy };
+        
+        // Spiral outward
+        for (let radius = TILE_SIZE; radius < TILE_SIZE * 10; radius += TILE_SIZE / 2) {
+            for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+                const tx = cx + Math.cos(a) * radius;
+                const ty = cy + Math.sin(a) * radius;
+                if (isBoxWalkable(terrainMap, tx, ty)) {
+                    return { x: tx, y: ty };
+                }
+            }
+        }
+        return null;
     }
 
     // ============================================
