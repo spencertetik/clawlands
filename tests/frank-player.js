@@ -638,7 +638,7 @@ class GameController {
         }
     }
 
-    async walk(direction) {
+    async walk(direction, durationMs = 800) {
         // Directly set InputManager keys inside the game — bypasses focus issues
         const keyMap = {
             'north': 'ArrowUp', 'south': 'ArrowDown',
@@ -647,14 +647,14 @@ class GameController {
         const key = keyMap[direction];
         if (!key) return;
         
-        // Press key for ~400ms via direct InputManager manipulation
+        // Press key for duration via direct InputManager manipulation
         await this.page.evaluate((k) => {
             if (window.game && window.game.inputManager) {
                 window.game.inputManager.keys[k] = true;
             }
         }, key);
         
-        await this.page.waitForTimeout(400);
+        await this.page.waitForTimeout(durationMs);
         
         await this.page.evaluate((k) => {
             if (window.game && window.game.inputManager) {
