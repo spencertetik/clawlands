@@ -434,54 +434,89 @@ class Game {
     
     // Full-screen splash screen that covers the game during spectator load
     _showSpectatorSplash() {
+        this._splashShownAt = Date.now();
+        this._splashPlayerFound = false;
+        this._splashMinTime = 4000; // Minimum 4 seconds on splash
+        
         const splash = document.createElement('div');
         splash.id = 'spectator-splash';
         splash.innerHTML = `
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
-                <div style="font-family: 'Press Start 2P', monospace; font-size: 36px; letter-spacing: 6px; margin-bottom: 16px;">
+                <div style="font-family: monospace; font-size: 42px; font-weight: bold; letter-spacing: 8px; margin-bottom: 16px;">
                     <span style="color: #c43a24;">CLAW</span><span style="color: #e8d5cc;">LANDS</span>
                 </div>
                 <div style="font-family: monospace; font-size: 13px; color: #8a7068; letter-spacing: 2px;">
                     SPECTATOR MODE
                 </div>
-                <div id="splash-status" style="font-family: monospace; font-size: 11px; color: #5a4a42; margin-top: 20px; letter-spacing: 1px;">
-                    Connecting...
+                <div id="splash-status" style="font-family: monospace; font-size: 11px; color: #5a4a42; margin-top: 24px; letter-spacing: 1px;">
+                    Loading world...
                 </div>
-                <div style="margin-top: 24px; width: 120px; height: 3px; background: #1a1210; border-radius: 2px; overflow: hidden;">
-                    <div id="splash-bar" style="width: 0%; height: 100%; background: #c43a24; transition: width 0.5s ease;"></div>
+                <div style="margin-top: 20px; width: 160px; height: 3px; background: #1a1210; border-radius: 2px; overflow: hidden;">
+                    <div id="splash-bar" style="width: 0%; height: 100%; background: #c43a24; transition: width 0.8s ease;"></div>
                 </div>
             </div>
         `;
         splash.style.cssText = `
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #0d0806; z-index: 10000;
-            transition: opacity 0.8s ease;
+            transition: opacity 1s ease;
         `;
         document.body.appendChild(splash);
         
-        // Animate progress bar
-        setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '30%'; }, 300);
-        setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '60%'; }, 800);
+        // Animate progress bar through loading stages
+        setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '20%'; }, 400);
+        setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '40%'; }, 1200);
         setTimeout(() => { 
-            const b = document.getElementById('splash-bar'); if (b) b.style.width = '80%';
-            const s = document.getElementById('splash-status'); if (s) s.textContent = 'Finding player...';
-        }, 1500);
+            const b = document.getElementById('splash-bar'); if (b) b.style.width = '55%';
+            const s = document.getElementById('splash-status'); if (s) s.textContent = 'Loading assets...';
+        }, 2000);
+        setTimeout(() => { 
+            const b = document.getElementById('splash-bar'); if (b) b.style.width = '70%';
+            const s = document.getElementById('splash-status'); if (s) s.textContent = 'Connecting to server...';
+        }, 3000);
     }
     
-    // Called when spectate target is found — fade out splash
+    // Called when spectate target is found — wait for assets + min time, then fade
     _dismissSpectatorSplash() {
-        const splash = document.getElementById('spectator-splash');
-        if (!splash) return;
+        this._splashPlayerFound = true;
         
-        // Complete the progress bar
-        const bar = document.getElementById('splash-bar');
-        if (bar) bar.style.width = '100%';
+        // Update status
+        const s = document.getElementById('splash-status');
+        if (s) s.textContent = 'Player found!';
+        const b = document.getElementById('splash-bar');
+        if (b) b.style.width = '90%';
         
-        // Fade out after a brief moment
-        setTimeout(() => {
-            splash.style.opacity = '0';
-            setTimeout(() => splash.remove(), 800);
-        }, 400);
+        // Wait for BOTH: assets loaded + minimum display time
+        const checkReady = () => {
+            const elapsed = Date.now() - (this._splashShownAt || 0);
+            const timeReady = elapsed >= this._splashMinTime;
+            const assetsReady = this.assetsLoaded;
+            
+            if (timeReady && assetsReady) {
+                // All good — fade out
+                const bar = document.getElementById('splash-bar');
+                if (bar) bar.style.width = '100%';
+                const status = document.getElementById('splash-status');
+                if (status) status.textContent = 'Entering world...';
+                
+                setTimeout(() => {
+                    const splash = document.getElementById('spectator-splash');
+                    if (splash) {
+                        splash.style.opacity = '0';
+                        setTimeout(() => splash.remove(), 1000);
+                    }
+                }, 600);
+            } else {
+                // Not ready yet — check again in 200ms
+                if (!assetsReady) {
+                    const status = document.getElementById('splash-status');
+                    if (status) status.textContent = 'Loading assets...';
+                }
+                setTimeout(checkReady, 200);
+            }
+        };
+        
+        checkReady();
     }
 
     // Continuously scan for the spectate target among remote players
