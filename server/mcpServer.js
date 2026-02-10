@@ -187,6 +187,13 @@ class BotBridge {
                 }
                 break;
 
+            case 'chat':
+                // Store incoming chat messages so the agent can see them
+                if (!this.chatLog) this.chatLog = [];
+                this.chatLog.push({ from: msg.name, text: msg.text, time: Date.now() });
+                if (this.chatLog.length > 20) this.chatLog.shift();
+                break;
+
             case 'player_joined':
             case 'player_left':
                 // Track world events (could be useful for situational awareness)
@@ -625,6 +632,38 @@ server.registerTool('status', {
                 `  Player ID: ${bridge.playerId || '(none)'}`,
                 `  Server: ${SERVER_URL}`,
             ].join('\n')
+        }]
+    };
+});
+
+// ============================================
+// Tool: read_chat
+// ============================================
+
+server.registerTool('read_chat', {
+    title: 'Read Chat',
+    description: 'Read recent global chat messages. Shows the last 20 messages.',
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    const log = bridge.chatLog || [];
+    if (log.length === 0) {
+        return {
+            content: [{
+                type: 'text',
+                text: '💬 No chat messages yet. Use "chat" to send one, or wait for others to speak.'
+            }]
+        };
+    }
+
+    const lines = log.map(entry => `[${entry.from}]: ${entry.text}`).join('\n');
+    return {
+        content: [{
+            type: 'text',
+            text: `💬 Recent chat (${log.length} messages):\n${lines}`
         }]
     };
 });

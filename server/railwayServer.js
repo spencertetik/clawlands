@@ -1108,6 +1108,14 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return;
             }
 
+            // Check if name is taken
+            for (const [id, p] of players) {
+                if (p.name?.toLowerCase() === name.toLowerCase() && id !== playerId) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Name taken' }));
+                    return;
+                }
+            }
+
             playerData.name = name;
             playerData.species = data?.species || 'lobster';
             playerData.color = data?.color || 'red';
@@ -1231,14 +1239,14 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             
             // Check if target exists and is still connected
             if (!target || target.ws.readyState !== WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
+                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or disconnected' }));
                 return;
             }
             
             // Check distance (within 96 pixels)
             const distance = Math.sqrt(Math.pow(target.x - playerData.x, 2) + Math.pow(target.y - playerData.y, 2));
             if (distance > 96) {
-                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
+                ws.send(JSON.stringify({ type: 'error', message: `Too far away (${Math.round(distance)}px). Must be within 96px to talk.` }));
                 return;
             }
             
