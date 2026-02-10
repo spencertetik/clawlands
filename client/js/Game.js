@@ -2728,7 +2728,17 @@ class Game {
         // No world items indoors
         this.worldItems = [];
         // Create interior furniture decorations
-        this.decorations = this.createInteriorFurniture(interiorConfig);
+        // If we have editor interior data for this building, skip default furniture
+        const editorKey = `interior_${building.type}_${building.x}_${building.y}`;
+        const hasEditorInterior = typeof EDITOR_INTERIOR_DATA !== 'undefined' && EDITOR_INTERIOR_DATA[editorKey];
+        
+        if (hasEditorInterior) {
+            // Start with empty decorations — editor data is the source of truth
+            this.decorations = [];
+        } else {
+            // No editor data — use procedural defaults
+            this.decorations = this.createInteriorFurniture(interiorConfig);
+        }
         
         // Apply permanent interior editor data (from EditorInteriorData.js)
         this.applyInteriorEditorData(building);
