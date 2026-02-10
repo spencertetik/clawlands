@@ -1623,6 +1623,21 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             }));
             break;
         }
+
+        case 'respawn': {
+            if (!playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
+                return;
+            }
+            // Find a safe spawn on island 0 (reuse findSafeSpawn function that's already defined)
+            const mainIsland = terrainData.islands[0];
+            const spawn = findSafeSpawn(mainIsland);
+            playerData.x = spawn.x;
+            playerData.y = spawn.y;
+            playerData._dirty = true;
+            ws.send(JSON.stringify({ type: 'respawned', x: spawn.x, y: spawn.y }));
+            break;
+        }
     }
 }
 

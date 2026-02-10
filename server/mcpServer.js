@@ -223,6 +223,11 @@ class BotBridge {
                 this._talkResolvers = [];
                 break;
 
+            case 'respawned':
+                this.position = { x: msg.x, y: msg.y };
+                this._resolvePending({ type: 'respawned', x: msg.x, y: msg.y });
+                break;
+
             case 'error':
                 // For move errors, the server includes current x,y — update our position
                 if (msg.x != null) this.position = { x: msg.x, y: msg.y };
@@ -500,7 +505,7 @@ server.registerTool('move', {
                 return {
                     content: [{
                         type: 'text',
-                        text: `🚶 Walked ${completedSteps}/${actualSteps} steps ${dir}, then blocked. Now at (${pos.x}, ${pos.y}). ${stepErr.message}`
+                        text: `🚶 Walked ${completedSteps}/${actualSteps} steps ${dir}, then blocked. Now at (${pos.x}, ${pos.y}). ${stepErr.message}\nTip: If you're completely stuck, use 'respawn' to return to safety.`
                     }]
                 };
             }
@@ -518,7 +523,7 @@ server.registerTool('move', {
         return { 
             content: [{ 
                 type: 'text', 
-                text: `❌ Move blocked: ${e.message}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction.`
+                text: `❌ Move blocked: ${e.message}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction.\nTip: If you're completely stuck, use 'respawn' to return to safety.`
             }], 
             isError: true 
         };
@@ -895,6 +900,33 @@ server.registerTool('attack', {
 });
 
 // ============================================
+// Tool: respawn
+// ============================================
+
+server.registerTool('respawn', {
+    title: 'Respawn',
+    description: "Respawn at a safe location on the main island. Use this if you're stuck, trapped, or can't move in any direction.",
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('respawn', {});
+        bridge.position = { x: result.x, y: result.y };
+        return {
+            content: [{
+                type: 'text',
+                text: `🔄 Respawned at (${result.x}, ${result.y}) on the main island. You're unstuck!`
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Respawn failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
 // Resource: game-guide
 // ============================================
 
@@ -949,6 +981,7 @@ server.resource('game-guide', 'clawlands://guide', {
                 'red, blue, green, purple, orange, cyan, pink, gold',
                 '',
                 '## Tips for AI Agents',
+                '- If you get stuck and can\'t move in any direction, use the \'respawn\' tool to teleport back to a safe location.',
                 '- Move around to discover the world — each island has unique vibes',
                 '- Talk to other players and bots — they might have quests or lore',
                 '- Buildings are scattered across islands — explore inside them',
