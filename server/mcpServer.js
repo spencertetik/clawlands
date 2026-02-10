@@ -527,10 +527,19 @@ server.registerTool('move', {
             } catch (stepErr) {
                 // Hit a wall mid-walk — report how far we got
                 const pos = bridge.position;
+                const errMsg = stepErr.message || '';
+                let hint;
+                if (errMsg.includes('blocked by building') || errMsg.includes('building')) {
+                    hint = '🚫 A building blocks your path. Try walking around it — doors are usually on the south side.';
+                } else if (errMsg.includes('blocked') || errMsg.includes('terrain') || errMsg.includes('water')) {
+                    hint = '🚫 Blocked by water. Try a different direction — you might be near the shoreline.';
+                } else {
+                    hint = `🚫 ${errMsg}`;
+                }
                 return {
                     content: [{
                         type: 'text',
-                        text: `🚶 Walked ${completedSteps}/${actualSteps} steps ${dir}, then blocked. Now at (${pos.x}, ${pos.y}). ${stepErr.message}\nTip: If you're completely stuck, use 'respawn' to return to safety.`
+                        text: `🚶 Walked ${completedSteps}/${actualSteps} steps ${dir}, then blocked. Now at (${pos.x}, ${pos.y}).\n${hint}\nTip: If you're completely stuck, use 'respawn' to return to safety.`
                     }]
                 };
             }
@@ -543,12 +552,21 @@ server.registerTool('move', {
             }]
         };
     } catch (e) {
-        // Provide actionable error info
+        // Provide actionable error info with contextual hints
         const pos = bridge.position;
+        const errMsg = e.message || '';
+        let hint;
+        if (errMsg.includes('blocked by building') || errMsg.includes('building')) {
+            hint = '🚫 A building blocks your path. Try walking around it — doors are usually on the south side.';
+        } else if (errMsg.includes('blocked') || errMsg.includes('terrain') || errMsg.includes('water')) {
+            hint = '🚫 Blocked by water. Try a different direction — you might be near the shoreline.';
+        } else {
+            hint = `❌ Move blocked: ${errMsg}`;
+        }
         return { 
             content: [{ 
                 type: 'text', 
-                text: `❌ Move blocked: ${e.message}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction.\nTip: If you're completely stuck, use 'respawn' to return to safety.`
+                text: `${hint}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction.\nTip: If you're completely stuck, use 'respawn' to return to safety.`
             }], 
             isError: true 
         };
@@ -807,25 +825,46 @@ server.registerTool('enter_building', {
         const buildingType = building.type || 'building';
         const buildingName = building.name || 'Unknown Building';
 
-        // Describe interior based on building type
-        const interiors = {
-            inn: 'A warm common room with a crackling fireplace. Rough-hewn beds line the walls, and a bar counter is stocked with kelp ale and barnacle broth. A notice board near the door lists local bounties.',
-            shop: 'Shelves of curious wares: polished shells, drift-glass vials, woven kelp ropes, and a few rusty anchors. A shopkeeper\'s counter sits in the back with a ledger and a scale.',
-            house: 'A cozy dwelling with simple furniture — a hammock, a small table, a chest of belongings. Shells and trinkets decorate the windowsill. It smells faintly of brine.',
-            lighthouse: 'A narrow spiral staircase winds upward into the lantern room. The walls are damp stone, covered in old navigational charts. At the top, the great lens refracts light across the sea.',
-            cabin: 'A rustic cabin with rough wooden walls. A cot, a small stove, and fishing gear fill the cramped space. Dried kelp hangs from the rafters.',
-            hut: 'A simple beach hut with sand on the floor. A hammock, a woven mat, and a few clay pots. The ocean breeze flows through gaps in the walls.',
-            cottage: 'A charming shell-crusted cottage. The walls shimmer with embedded seashells. A rocking chair, a bookshelf, and a small kitchen with copper pots.'
+        // Describe interior — match by specific building name first, then fall back to type
+        const interiorsByName = {
+            'the drift-in inn': 'A warm common room with a crackling hearth. Wooden tables are scattered about, a bar lines the back wall, and a notice board near the door lists local bounties. Rooms for rent upstairs.',
+            'drift-in inn': 'A warm common room with a crackling hearth. Wooden tables are scattered about, a bar lines the back wall, and a notice board near the door lists local bounties. Rooms for rent upstairs.',
+            'tide shop': 'Shelves crammed with salvaged goods — rope, shells, curious bottles, and rusty tools. A merchant\'s counter sits near the entrance with a hand-painted price list.',
+            'shell cottage': 'A cozy one-room dwelling. A woven hammock hangs in the corner, a small bookshelf lines one wall, and dried herbs dangle from the ceiling.',
+            'driftwood cabin': 'Rough-hewn walls of sun-bleached driftwood. A workbench with scattered tools dominates the room. Fishing nets hang from hooks by the door.',
+            'beach hut': 'A breezy open-air shelter with a sand floor. A surfboard leans against the wall, seashells decorate a makeshift shelf, and a hammock sways gently.',
+            "current's edge light": 'A narrow spiral staircase winds up the stone tower. Old maritime charts paper the walls. At the top, the massive brass lens hums faintly, casting slow-spinning light across the sea.',
+            "current's edge lighthouse": 'A narrow spiral staircase winds up the stone tower. Old maritime charts paper the walls. At the top, the massive brass lens hums faintly, casting slow-spinning light across the sea.',
         };
 
-        // Match building type to interior description
-        let interiorDesc = interiors.house; // default
+        const interiorsByType = {
+            inn: 'A warm common room with a crackling hearth. Wooden tables are scattered about, a bar lines the back wall, and a notice board near the door lists local bounties. Rooms for rent upstairs.',
+            shop: 'Shelves crammed with salvaged goods — rope, shells, curious bottles, and rusty tools. A merchant\'s counter sits near the entrance with a hand-painted price list.',
+            lighthouse: 'A narrow spiral staircase winds up the stone tower. Old maritime charts paper the walls. At the top, the massive brass lens hums faintly, casting slow-spinning light across the sea.',
+            house: 'A cozy one-room dwelling. A woven hammock hangs in the corner, a small bookshelf lines one wall, and dried herbs dangle from the ceiling.',
+            cabin: 'Rough-hewn walls of sun-bleached driftwood. A workbench with scattered tools dominates the room. Fishing nets hang from hooks by the door.',
+            hut: 'A breezy open-air shelter with a sand floor. A surfboard leans against the wall, seashells decorate a makeshift shelf, and a hammock sways gently.',
+            cottage: 'A cozy one-room dwelling. A woven hammock hangs in the corner, a small bookshelf lines one wall, and dried herbs dangle from the ceiling.',
+        };
+
+        // Try name-based match first (more specific), then type-based, then generic default
+        const nameLower = buildingName.toLowerCase();
         const typeLower = buildingType.toLowerCase();
-        for (const [key, desc] of Object.entries(interiors)) {
-            if (typeLower.includes(key)) {
-                interiorDesc = desc;
-                break;
+        let interiorDesc = interiorsByName[nameLower];
+        if (!interiorDesc) {
+            // Try partial name match
+            for (const [key, desc] of Object.entries(interiorsByName)) {
+                if (nameLower.includes(key)) { interiorDesc = desc; break; }
             }
+        }
+        if (!interiorDesc) {
+            // Fall back to type match
+            for (const [key, desc] of Object.entries(interiorsByType)) {
+                if (typeLower.includes(key)) { interiorDesc = desc; break; }
+            }
+        }
+        if (!interiorDesc) {
+            interiorDesc = 'A dimly lit interior. The air is salty and still. Simple furnishings fill the space.';
         }
 
         return {
@@ -901,10 +940,35 @@ server.registerTool('attack', {
             };
         }
 
-        let text = `⚔️ Hit a ${result.enemy} for ${result.damage} damage! Earned ${result.tokensEarned} tokens. Shell: ${result.shellIntegrity}%`;
+        // Enemy flavor text based on name
+        const enemyFlavors = {
+            'tide crawler': 'A Tide Crawler lunges from the shallows!',
+            'drift jelly': 'A shimmering Drift Jelly pulses toward you!',
+            'shell snapper': 'A Shell Snapper clacks its massive claws!',
+            'barnacle beast': 'A Barnacle Beast lurches from the rocks!',
+            'reef lurker': 'A Reef Lurker erupts from beneath the sand!',
+        };
+        const enemyLower = (result.enemy || '').toLowerCase();
+        const flavorIntro = enemyFlavors[enemyLower] || `A ${result.enemy} attacks!`;
+
+        // Damage context — how impactful was the hit?
+        let damageContext;
+        if (result.tokensEarned > 0) {
+            damageContext = `You strike for ${result.damage} damage, defeating it instantly.`;
+        } else {
+            damageContext = `You strike for ${result.damage} damage — took a chunk out of it!`;
+        }
+
+        let text = `⚔️ ${flavorIntro} ${damageContext}`;
+
+        if (result.tokensEarned > 0) {
+            text += ` Earned ${result.tokensEarned} tokens.`;
+        }
+
+        text += ` Shell integrity: ${result.shellIntegrity}%.`;
 
         if (result.damageTaken > 0) {
-            text += `\n🩸 Took ${result.damageTaken} damage from the ${result.enemy}!`;
+            text += `\nThe ${result.enemy} snaps back, dealing ${result.damageTaken} damage to your shell!`;
         }
 
         if (result.respawned) {
@@ -912,6 +976,7 @@ server.registerTool('attack', {
         }
 
         text += `\n💰 Total tokens: ${result.totalTokens}`;
+        text += `\n(Tip: Stronger enemies lurk further from buildings.)`;
 
         return {
             content: [{
@@ -943,7 +1008,7 @@ server.registerTool('respawn', {
         return {
             content: [{
                 type: 'text',
-                text: `🔄 Respawned at (${result.x}, ${result.y}) on the main island. You're unstuck!`
+                text: `🔄 Respawned at (${result.x}, ${result.y}) on Island #0 (starting island). You're unstuck! Use 'look' to survey your surroundings.`
             }]
         };
     } catch (e) {
