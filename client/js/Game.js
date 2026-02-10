@@ -4899,6 +4899,13 @@ class Game {
     // Generate paths connecting buildings on islands
     generatePaths(islands) {
         const tileSize = CONSTANTS.TILE_SIZE;
+        const terrain = this.worldMap.terrainMap; // raw 0/1 grid (0=land, 1=water)
+        
+        // Helper: check if tile is land
+        const isLand = (col, row) => {
+            if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return false;
+            return terrain[row]?.[col] === 0;
+        };
         
         // Group buildings by which island they're on
         const buildingsByIsland = new Map();
@@ -4920,20 +4927,32 @@ class Game {
             }
         }
 
+        // Get bridge connections from WorldMap
+        const bridgeConns = this.worldMap.bridgeConnections || [];
+        
+        // Build adjacency: for each island index, which other island indices connect via bridge?
+        const islandNeighbors = new Map(); // islandIndex → [otherIslandIndex, ...]
+        for (const conn of bridgeConns) {
+            if (!islandNeighbors.has(conn.island1Index)) islandNeighbors.set(conn.island1Index, []);
+            if (!islandNeighbors.has(conn.island2Index)) islandNeighbors.set(conn.island2Index, []);
+            islandNeighbors.get(conn.island1Index).push(conn.island2Index);
+            islandNeighbors.get(conn.island2Index).push(conn.island1Index);
+        }
+
         let totalPathTiles = 0;
 
+        // === PHASE 1: Town layouts on each island ===
         for (const [islandId, islandBuildings] of buildingsByIsland) {
             const island = islands.find(i => i.id === islandId);
             if (!island) continue;
             const isMain = (island.id === this.mainIslandIndex);
 
-            // === STEP 1: Create town square (cobblestone plaza) ===
-            // Find the bounding box of all building doors on this island
+            // Get building doors
             const doors = islandBuildings.map(b => {
                 const d = b.getDoorBounds();
                 return {
                     x: Math.floor((d.x + d.width / 2) / tileSize),
-                    y: Math.floor((d.y + d.height) / tileSize) + 1 // one tile below door
+                    y: Math.floor((d.y + d.height) / tileSize) + 1
                 };
             });
             
@@ -4941,89 +4960,103 @@ class Game {
             const centerX = Math.round(doors.reduce((s, d) => s + d.x, 0) / doors.length);
             const centerY = Math.round(doors.reduce((s, d) => s + d.y, 0) / doors.length);
             
-            // Plaza size depends on island importance
-            const plazaRadius = isMain ? 4 : 2;
-            
-            // Create rectangular plaza around center
+            // === STEP 1: Cobblestone town plaza (circular, not rectangular) ===
+            const plazaRadius = isMain ? 3 : 2;
             for (let dy = -plazaRadius; dy <= plazaRadius; dy++) {
                 for (let dx = -plazaRadius; dx <= plazaRadius; dx++) {
-                    this.setPathTile(centerX + dx, centerY + dy);
-                    totalPathTiles++;
+                    // Circular shape: only place if within radius
+                    if (dx * dx + dy * dy <= plazaRadius * plazaRadius + 1) {
+                        if (isLand(centerX + dx, centerY + dy)) {
+                            this.setPathTile(centerX + dx, centerY + dy, 'cobblestone_path');
+                            totalPathTiles++;
+                        }
+                    }
                 }
             }
             
-            // === STEP 2: Connect each building's door to the plaza ===
+            // === STEP 2: Connect each building door to plaza center ===
             for (const building of islandBuildings) {
                 const door = building.getDoorBounds();
-                const doorX = Math.floor((door.x + door.width / 2) / tileSize);
-                const doorY = Math.floor((door.y + door.height) / tileSize);
-                const pathY = doorY + 1; // one tile below door
+                const doorCol = Math.floor((door.x + door.width / 2) / tileSize);
+                const doorRow = Math.floor((door.y + door.height) / tileSize) + 1;
                 
-                // Doorstep: door tile itself
-                this.setPathTile(doorX, doorY);
-                this.setPathTile(doorX, pathY);
+                // Doorstep tiles (cobblestone right at the door)
+                if (isLand(doorCol, doorRow)) this.setPathTile(doorCol, doorRow, 'cobblestone_path');
+                if (isLand(doorCol, doorRow - 1)) this.setPathTile(doorCol, doorRow - 1, 'cobblestone_path');
                 
-                // 2-wide path from door to center (L-shaped: horizontal then vertical)
-                // Horizontal segment toward center X
-                const hDir = Math.sign(centerX - doorX);
-                if (hDir !== 0) {
-                    for (let x = doorX; x !== centerX; x += hDir) {
-                        this.setPathTile(x, pathY);
-                        this.setPathTile(x, pathY + 1); // 2-tile wide road
-                        totalPathTiles += 2;
-                    }
-                }
-                
-                // Vertical segment toward center Y
-                const targetY = centerY;
-                const vDir = Math.sign(targetY - pathY);
-                if (vDir !== 0) {
-                    for (let y = pathY; y !== targetY; y += vDir) {
-                        this.setPathTile(centerX, y);
-                        this.setPathTile(centerX - 1, y); // 2-tile wide road
-                        totalPathTiles += 2;
-                    }
-                }
+                // 2-wide cobblestone path from door to plaza (L-shaped route)
+                this._drawPathLine(doorCol, doorRow, centerX, centerY, 'cobblestone_path', isLand);
+                // Second line offset by 1 for 2-wide effect
+                this._drawPathLine(doorCol + 1, doorRow, centerX + 1, centerY, 'cobblestone_path', isLand);
+                totalPathTiles += 10; // approximate
             }
             
-            // === STEP 3: Main road from plaza toward island edges (bridge exits) ===
-            // Create roads going north, south, east, west from plaza to island boundary
-            // This gives the player clear routes to leave the town
-            const directions = [
-                { dx: 0, dy: -1, name: 'north' },
-                { dx: 0, dy: 1, name: 'south' },
-                { dx: -1, dy: 0, name: 'west' },
-                { dx: 1, dy: 0, name: 'east' }
-            ];
+            // === STEP 3: Roads from plaza toward actual bridge exits (not all 4 directions) ===
+            const islandIdx = islands.indexOf(island);
+            const neighbors = islandNeighbors.get(islandIdx) || [];
             
-            for (const dir of directions) {
+            for (const neighborIdx of neighbors) {
+                const neighbor = islands[neighborIdx];
+                if (!neighbor) continue;
+                
+                // Direction from this island center toward the neighbor
+                const dirX = neighbor.x - island.x;
+                const dirY = neighbor.y - island.y;
+                const dist = Math.sqrt(dirX * dirX + dirY * dirY);
+                const ndx = dirX / dist;
+                const ndy = dirY / dist;
+                
+                // Walk from plaza center toward neighbor, placing dirt path tiles
+                // Stop when we leave this island's land (hit water/bridge boundary)
                 let x = centerX;
                 let y = centerY;
-                let roadLength = 0;
-                const maxRoad = island.size + 3; // extend to island edge
-                
-                while (roadLength < maxRoad) {
-                    x += dir.dx;
-                    y += dir.dy;
+                for (let step = 0; step < island.size + 5; step++) {
+                    x = Math.round(centerX + ndx * step);
+                    y = Math.round(centerY + ndy * step);
                     
-                    // Stop if we hit water or go off-map
-                    if (x < 0 || x >= this.worldMap.width || y < 0 || y >= this.worldMap.height) break;
-                    const tile = this.worldMap.groundLayer[y]?.[x];
-                    if (tile === 1) break; // water — stop
+                    if (!isLand(x, y)) break; // reached water/edge
                     
-                    // 2-wide road
-                    if (dir.dy !== 0) {
-                        // Vertical road: 2 tiles wide horizontally
-                        this.setPathTile(x, y);
-                        this.setPathTile(x - 1, y);
+                    // Use dirt (light cobblestone) for roads out of town
+                    this.setPathTile(x, y, 'dirt_path');
+                    // Make it 2 tiles wide perpendicular to direction
+                    if (Math.abs(ndx) > Math.abs(ndy)) {
+                        // Mostly horizontal road → widen vertically
+                        if (isLand(x, y + 1)) this.setPathTile(x, y + 1, 'dirt_path');
                     } else {
-                        // Horizontal road: 2 tiles wide vertically
-                        this.setPathTile(x, y);
-                        this.setPathTile(x, y + 1);
+                        // Mostly vertical road → widen horizontally
+                        if (isLand(x + 1, y)) this.setPathTile(x + 1, y, 'dirt_path');
                     }
                     totalPathTiles += 2;
-                    roadLength++;
                 }
+            }
+        }
+        
+        // === PHASE 2: Path along bridges connecting islands ===
+        for (const conn of bridgeConns) {
+            const i1 = conn.island1;
+            const i2 = conn.island2;
+            const dx = i2.x - i1.x;
+            const dy = i2.y - i1.y;
+            const steps = Math.max(Math.abs(dx), Math.abs(dy));
+            
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const col = Math.floor(i1.x + dx * t);
+                const row = Math.floor(i1.y + dy * t);
+                
+                // Place dirt path on bridge tiles (they're already land from bridge creation)
+                if (isLand(col, row)) {
+                    this.setPathTile(col, row, 'dirt_path');
+                    // Bridge is 3 wide, path should be 2 wide centered
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        // Mostly horizontal bridge
+                        if (isLand(col, row + 1)) this.setPathTile(col, row + 1, 'dirt_path');
+                    } else {
+                        // Mostly vertical bridge  
+                        if (isLand(col + 1, row)) this.setPathTile(col + 1, row, 'dirt_path');
+                    }
+                }
+                totalPathTiles += 2;
             }
         }
         
@@ -5031,6 +5064,19 @@ class Game {
         
         // Fill corner gaps at path junctions
         this.fillPathCorners();
+    }
+    
+    // Draw an L-shaped path line from (x1,y1) to (x2,y2), checking land validity
+    _drawPathLine(x1, y1, x2, y2, pathType, isLand) {
+        // Horizontal first, then vertical
+        const hDir = Math.sign(x2 - x1) || 1;
+        for (let x = x1; x !== x2; x += hDir) {
+            if (isLand(x, y1)) this.setPathTile(x, y1, pathType);
+        }
+        const vDir = Math.sign(y2 - y1) || 1;
+        for (let y = y1; y !== y2; y += vDir) {
+            if (isLand(x2, y)) this.setPathTile(x2, y, pathType);
+        }
     }
     
     // Mark collision tiles for all solid decorations (called AFTER editor data is applied)
@@ -5191,13 +5237,15 @@ class Game {
     fillPathCorners() {
         const tileSize = CONSTANTS.TILE_SIZE;
         
-        // Get all path tile positions
+        // Get all path tile positions (both types count as "path" for corner filling)
         const pathTiles = new Set();
+        const cobbleTiles = new Set();
         for (const decor of this.decorations) {
-            if (decor.type === 'dirt_path') {
+            if (decor.type === 'dirt_path' || decor.type === 'cobblestone_path') {
                 const col = Math.floor(decor.x / tileSize);
                 const row = Math.floor(decor.y / tileSize);
                 pathTiles.add(`${col},${row}`);
+                if (decor.type === 'cobblestone_path') cobbleTiles.add(`${col},${row}`);
             }
         }
         
@@ -5362,12 +5410,14 @@ class Game {
     }
     
     // Set a tile as a path - add to decorations array for rendering
-    setPathTile(col, row) {
+    // pathType: 'dirt_path' (light cobblestone) or 'cobblestone_path' (dark cobblestone)
+    setPathTile(col, row, pathType = 'dirt_path') {
         // Only set path on land tiles (not water)
         if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return;
         
-        const groundTile = this.worldMap.groundLayer[row]?.[col];
-        if (groundTile === 1) return; // Don't put path on water
+        // Use terrainMap (raw 0/1) for reliable water check
+        const rawTile = this.worldMap.terrainMap?.[row]?.[col];
+        if (rawTile === 1) return; // Don't put path on water
         
         const tileSize = CONSTANTS.TILE_SIZE;
         const worldX = col * tileSize;
@@ -5394,24 +5444,32 @@ class Game {
             }
         }
         
-        // Check if path tile already exists at this position (avoid duplicates)
-        
-        const existing = this.decorations.find(d => 
-            d.type === 'dirt_path' && d.x === worldX && d.y === worldY
+        // Check if any path tile already exists at this position (avoid duplicates)
+        // Cobblestone upgrades dirt (more specific overrides less specific)
+        const existingIdx = this.decorations.findIndex(d => 
+            (d.type === 'dirt_path' || d.type === 'cobblestone_path') && d.x === worldX && d.y === worldY
         );
-        if (existing) return;
+        if (existingIdx !== -1) {
+            // If placing cobblestone where dirt exists, upgrade it
+            if (pathType === 'cobblestone_path' && this.decorations[existingIdx].type === 'dirt_path') {
+                this.decorations.splice(existingIdx, 1); // remove old dirt, will add cobblestone below
+            } else {
+                return; // already has same or better path type
+            }
+        }
         
         // Use DecorationLoader to create proper sprite-based path tile
         if (this.decorationLoader) {
-            const pathDecor = this.decorationLoader.createDecoration('dirt_path', worldX, worldY);
+            const pathDecor = this.decorationLoader.createDecoration(pathType, worldX, worldY);
             this.decorations.push(pathDecor);
         } else {
             // Fallback to colored rectangle
+            const color = pathType === 'cobblestone_path' ? '#706060' : '#a08060';
             this.decorations.push({
                 x: worldX,
                 y: worldY,
-                type: 'path',
-                color: '#a08060',
+                type: pathType,
+                color: color,
                 width: tileSize,
                 height: tileSize
             });

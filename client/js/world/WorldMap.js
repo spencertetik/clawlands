@@ -259,6 +259,9 @@ class WorldMap {
 
     createBridgeNetwork(terrainMap, islands, bridgeChance) {
         if (islands.length < 2) return;
+        
+        // Store bridge connections for path generation
+        this.bridgeConnections = [];
 
         // Use minimum spanning tree to connect all islands
         const connected = new Set([0]);
@@ -289,6 +292,11 @@ class WorldMap {
                 const island1 = islands[bestConnection.connected];
                 const island2 = islands[bestConnection.unconnected];
                 this.createBridge(terrainMap, island1, island2);
+                this.bridgeConnections.push({
+                    island1Index: bestConnection.connected,
+                    island2Index: bestConnection.unconnected,
+                    island1, island2
+                });
                 console.log(`🌉 Bridge: Island ${bestConnection.connected} → Island ${bestConnection.unconnected}`);
             }
 
