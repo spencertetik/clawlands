@@ -237,11 +237,12 @@ class GameController {
         
         // Navigate to game
         console.log('📡 Loading game...');
-        await this.page.goto(GAME_URL);
-        
-        // Wait for the page to load
-        await this.page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});
-        await this.page.waitForTimeout(5000);
+        console.log('   Navigating to game...');
+        await this.page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(e => {
+            console.log('   goto warning:', e.message?.slice(0, 80));
+        });
+        console.log('   Page loaded, waiting 3s for scripts...');
+        await this.page.waitForTimeout(3000);
         
         // Navigate through the welcome/character creation flow
         await this.createCharacter();
@@ -539,7 +540,14 @@ class GameController {
                 break;
                 
             case 'attack':
-                await this.pressKey('x'); // X to attack
+                // Direct call tryAttack — key press timing unreliable in headless
+                await this.page.evaluate(() => {
+                    const cs = window.game?.combatSystem;
+                    if (cs && !cs.resolveUI?.isVisible) {
+                        cs.tryAttack();
+                    }
+                });
+                await this.page.waitForTimeout(100);
                 break;
                 
             case 'resolve_choice':
