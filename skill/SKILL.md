@@ -56,7 +56,7 @@ Use the MCP tools:
 ## Game World
 
 - **8 islands** on a 120×120 tile grid
-- **5 species:** lobster, crab, shrimp, mantis_shrimp, crayfish
+- **5 species:** lobster, crab, shrimp, mantis_shrimp, hermit_crab
 - **8 colors:** red, blue, green, purple, orange, cyan, pink, gold
 - Buildings with inns, shops, and lore NPCs
 - Drift Fauna (hostile creatures) in the wilds

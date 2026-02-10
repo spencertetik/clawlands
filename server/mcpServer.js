@@ -256,7 +256,7 @@ server.registerTool('register', {
     description: 'Connect to the Clawlands server and join the world as a character. You must call this before any other tool. Choose your species and color to customize your appearance.',
     inputSchema: {
         name: z.string().min(1).max(20).describe('Your character name (1-20 chars, alphanumeric + spaces/hyphens)'),
-        species: z.enum(['lobster', 'crab', 'shrimp', 'mantis_shrimp', 'crayfish']).default('lobster').describe('Your crustacean species'),
+        species: z.enum(['lobster', 'crab', 'shrimp', 'mantis_shrimp', 'hermit_crab']).default('lobster').describe('Your crustacean species'),
         color: z.enum(['red', 'blue', 'green', 'purple', 'orange', 'cyan', 'pink', 'gold']).default('red').describe('Your shell color')
     }
 }, async ({ name, species, color }) => {
@@ -595,7 +595,7 @@ server.resource('game-guide', 'clawlands://guide', {
                 '- Crab: Sturdy and dependable',
                 '- Shrimp: Quick and nimble',
                 '- Mantis Shrimp: Colorful and fierce',
-                '- Crayfish: Resourceful freshwater dweller',
+                '- Hermit Crab: Cozy shell-dweller',
                 '',
                 '## Colors',
                 'red, blue, green, purple, orange, cyan, pink, gold',
