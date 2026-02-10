@@ -253,12 +253,23 @@ class InteriorLoader {
             };
         }
 
+        // Apply interior scaling to collision boxes to match visual scaling
+        const interiorScale = def.ground ? 0.6 : 0.5; // Same as visual scaling
+        let scaledCollision = null;
+        if (def.collision) {
+            scaledCollision = {
+                width: Math.round(def.collision.width * interiorScale),
+                height: Math.round(def.collision.height * interiorScale),
+                offsetY: Math.round((def.collision.offsetY || 0) * interiorScale)
+            };
+        }
+
         return {
             x, y,
             type,
             width: def.width,
             height: def.height,
-            collision: def.collision,
+            collision: scaledCollision,
             ground: def.ground || false,
             useSprite: true
         };
