@@ -1411,6 +1411,49 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             break;
         }
 
+        case 'talk_npc': {
+            if (!playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
+                return;
+            }
+
+            const npcId = data?.npcId;
+            if (!npcId) {
+                ws.send(JSON.stringify({ type: 'error', message: 'npcId required' }));
+                return;
+            }
+
+            const npc = npcs.find(n => n.id === npcId);
+            if (!npc) {
+                ws.send(JSON.stringify({ type: 'error', message: `NPC "${npcId}" not found` }));
+                return;
+            }
+
+            // Check distance (must be within 96px)
+            const npcDist = Math.sqrt(Math.pow(npc.x - playerData.x, 2) + Math.pow(npc.y - playerData.y, 2));
+            if (npcDist > 96) {
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    message: `Too far from ${npc.name} (${Math.round(npcDist)}px away, need to be within 96px)`
+                }));
+                return;
+            }
+
+            // Get dialog line and cycle through
+            const dialogLine = npc.dialog[npc._dialogIndex % npc.dialog.length];
+            npc._dialogIndex = (npc._dialogIndex + 1) % npc.dialog.length;
+
+            ws.send(JSON.stringify({
+                type: 'npc_dialog',
+                npcId: npc.id,
+                npcName: npc.name,
+                text: dialogLine,
+                personality: npc.personality,
+                faction: npc.faction
+            }));
+            break;
+        }
+
         case 'players': {
             ws.send(JSON.stringify({
                 type: 'players',

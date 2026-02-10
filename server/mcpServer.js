@@ -144,6 +144,7 @@ class BotBridge {
                     type: 'surroundings',
                     position: msg.position,
                     nearbyPlayers: msg.nearbyPlayers,
+                    nearbyNPCs: msg.nearbyNPCs,
                     terrain: msg.terrain,
                     island: msg.island,
                     nearbyBuildings: msg.nearbyBuildings
@@ -156,6 +157,17 @@ class BotBridge {
 
             case 'chat_sent':
                 this._resolvePending({ type: 'chat_sent' });
+                break;
+
+            case 'npc_dialog':
+                this._resolvePending({
+                    type: 'npc_dialog',
+                    npcId: msg.npcId,
+                    npcName: msg.npcName,
+                    text: msg.text,
+                    personality: msg.personality,
+                    faction: msg.faction
+                });
                 break;
 
             case 'entered_building':
@@ -410,6 +422,9 @@ server.registerTool('look', {
         const island = result.island;
         const buildingList = (result.nearbyBuildings || []).map(b => `  - ${b.name} (${b.type}) at (${b.x}, ${b.y}) — ${b.distance}px away`).join('\n');
 
+        // NPC list
+        const npcList = (result.nearbyNPCs || []).map(n => `  - ${n.name} [id: ${n.id}] (${n.species}, ${n.faction}) — ${n.distance}px away at (${n.x}, ${n.y})`).join('\n');
+
         // Terrain description
         let terrainDesc = terrain;
         if (island) {
@@ -427,10 +442,12 @@ server.registerTool('look', {
                     '',
                     buildingList ? `🏠 Nearby buildings:\n${buildingList}` : 'No buildings within 150px. Try moving to an island center.',
                     '',
+                    npcList ? `🧑 Nearby NPCs:\n${npcList}` : 'No NPCs nearby.',
+                    '',
                     'Nearby players:',
                     nearby || '  (nobody nearby)',
                     '',
-                    island ? 'You\'re on an island! Explore to find buildings, NPCs, and lore.'
+                    island ? 'You\'re on an island! Explore to find buildings, NPCs, and lore. Use "talk_npc" to speak with NPCs!'
                            : 'You\'re in open water or between islands. Head toward an island!',
                     '',
                     'Tip: The 8 islands are spread across a 1920×1920 pixel world.',
@@ -608,6 +625,43 @@ server.registerTool('interact', {
         };
     } catch (e) {
         return { content: [{ type: 'text', text: `❌ Interact failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: talk_npc
+// ============================================
+
+server.registerTool('talk_npc', {
+    title: 'Talk to NPC',
+    description: 'Talk to a nearby story NPC. You must be within 96 pixels of the NPC. Use "look" first to find nearby NPCs and their IDs. Each call returns the next line of dialog (cycles through their lines).',
+    inputSchema: {
+        npcId: z.string().describe('NPC id (from "look" output, e.g. "brinehook", "flicker", "luma")'),
+        message: z.string().optional().describe('What you say to the NPC (optional — if omitted, just greet them)')
+    }
+}, async ({ npcId, message }) => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('talk_npc', { npcId, message });
+
+        return {
+            content: [{
+                type: 'text',
+                text: [
+                    `🗣️ ${result.npcName} says: "${result.text}"`,
+                    '',
+                    `  Personality: ${result.personality}`,
+                    `  Faction: ${result.faction}`,
+                    '',
+                    'Talk again to hear more. NPCs cycle through their dialog lines.',
+                ].join('\n')
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Talk failed: ${e.message}` }], isError: true };
     }
 });
 
