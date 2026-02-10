@@ -549,8 +549,20 @@ class Game {
                     this.spectatePlayer = null;
                     const status = document.getElementById('spectate-status');
                     if (status) { status.textContent = 'Reconnecting...'; status.style.color = '#c43a24'; }
+                } else if (this.spectateTarget === '*' && !this.spectatePlayer.isBot) {
+                    // We're watching a non-bot but there might be a bot now — check
+                    for (const [id, remote] of this.multiplayer.remotePlayers) {
+                        if (remote.isBot) {
+                            console.log(`👁️ Switching to bot: ${remote.name}`);
+                            this.spectatePlayer._spectated = false;
+                            this.spectatePlayer = null; // Will re-lock below
+                            break;
+                        }
+                    }
+                    if (this.spectatePlayer) return; // No bot found, stay on current
+                } else {
+                    return; // Still locked on — skip scan
                 }
-                return; // Still locked on — skip scan
             }
             
             if (scanCount % 4 === 0) { // Log every 2 seconds

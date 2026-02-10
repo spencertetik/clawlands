@@ -843,7 +843,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
                     species: playerData.species,
                     color: playerData.color,
                     x: playerData.x,
-                    y: playerData.y
+                    y: playerData.y,
+                    isBot: playerData.isBot || false
                 }
             }, playerId);
             break;
