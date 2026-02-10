@@ -3652,8 +3652,8 @@ class Game {
         // Don't clear - paths were already added by generatePaths()
         // this.decorations = [];
 
-        // First, process procedural decorations from WorldMap (new system)
-        this.addProceduralDecorations();
+        // Procedural decorations from WorldMap disabled for now (performance)
+        // this.addProceduralDecorations();
         
         // Decoration types with sizes matching our clean extracted sprites
         // Common decorations (high spawn weight)
@@ -3702,13 +3702,8 @@ class Game {
             { type: 'buoy', width: 23, height: 28, solid: true },
         ];
         
-        // OLD SYSTEM DISABLED - Using new WorldMap procedural system instead
-        // The new system provides better variety, clustering, and density zones
-        console.log(`🌿 Skipping old decoration system - using improved WorldMap procedural decorations`);
-        
-        // Keep a small amount of rare items for the old system to supplement
-        const oldSystemRareOnly = false; // Set to true if you want to keep some old decorations
-        if (oldSystemRareOnly) {
+        // Original decoration system (restored - new procedural system had performance issues)
+        {
         for (const island of islands) {
             // Number of decorations based on island size (reduced for cleaner look)
             const numDecorations = Math.floor(island.size * 1.2);
@@ -3776,7 +3771,7 @@ class Game {
                 this.decorations.push(decor);
             }
         }
-        } // End of oldSystemRareOnly conditional
+        }
         
         console.log(`🌿 Total decorations after processing: ${this.decorations.length}`);
     }

@@ -174,15 +174,9 @@ class WorldMap {
         // Step 7: Store island data for building placement
         this.islands = islands;
 
-        // Step 8: Scatter decorations on the sandy areas
-        const rng = this.createRng(config.seed + 1000); // Different seed for decorations
-        this.scatterDecorations(terrainMap, rng, {
-            decorTypes: 'archipelago',
-            nearWaterChance: 0.12,
-            inlandChance: 0.05,
-            clusterChance: 0.35,
-            rareChance: 0.015
-        });
+        // Step 8: Scatter decorations on the sandy areas (DISABLED - performance issue)
+        // const rng = this.createRng(config.seed + 1000);
+        // this.scatterDecorations(terrainMap, rng, { ... });
 
         console.log(`🌊 Generated ${islands.length} islands with autotiled coastlines and decorations`);
         return islands;
@@ -550,43 +544,36 @@ class WorldMap {
             return false;
         };
 
-        // Check if position conflicts with manually placed cobblestone paths
-        const isOnCobblestone = (worldX, worldY) => {
-            // Convert to world coordinates (WorldMap tiles are 16px each)
-            const checkX = worldX;
-            const checkY = worldY;
-            
-            // Check against manual cobblestone placements from EditorMapData
-            // Load editor data if available globally
+        // Build cobblestone lookup set once (tile coords as "col,row" keys)
+        const cobblestoneSet = new Set();
+        {
             let editorData = null;
-            if (typeof EDITOR_MAP_DATA !== 'undefined') {
-                editorData = EDITOR_MAP_DATA;
-            } else if (typeof window !== 'undefined' && window.EDITOR_MAP_DATA) {
-                editorData = window.EDITOR_MAP_DATA;
-            }
-            
-            if (editorData && editorData.placements && editorData.placements.cobblestone_path) {
+            if (typeof EDITOR_MAP_DATA !== 'undefined') editorData = EDITOR_MAP_DATA;
+            else if (typeof window !== 'undefined' && window.EDITOR_MAP_DATA) editorData = window.EDITOR_MAP_DATA;
+            if (editorData?.placements?.cobblestone_path) {
                 for (const [x, y] of editorData.placements.cobblestone_path) {
-                    if (Math.abs(x - checkX) < 16 && Math.abs(y - checkY) < 16) {
-                        return true;
-                    }
+                    cobblestoneSet.add(`${Math.floor(x / 16)},${Math.floor(y / 16)}`);
                 }
             }
-            return false;
-        };
+        }
+        const isOnCobblestone = (col, row) => cobblestoneSet.has(`${col},${row}`);
 
-        // Get distance to nearest water for density calculations
+        // Get approximate distance to nearest water (bounded search, not full map)
         const getWaterDistance = (col, row) => {
-            let minDist = Infinity;
-            for (let r = 0; r < tilesHigh; r++) {
-                for (let c = 0; c < tilesWide; c++) {
-                    if (terrainMap[r][c] === 1) {
-                        const dist = Math.sqrt((c - col) ** 2 + (r - row) ** 2);
-                        minDist = Math.min(minDist, dist);
+            const maxSearch = 6; // Only search within 6 tiles
+            for (let dist = 1; dist <= maxSearch; dist++) {
+                for (let dy = -dist; dy <= dist; dy++) {
+                    for (let dx = -dist; dx <= dist; dx++) {
+                        if (Math.abs(dx) !== dist && Math.abs(dy) !== dist) continue; // Only check perimeter
+                        const r = row + dy;
+                        const c = col + dx;
+                        if (r >= 0 && r < tilesHigh && c >= 0 && c < tilesWide && terrainMap[r][c] === 1) {
+                            return dist;
+                        }
                     }
                 }
             }
-            return minDist;
+            return maxSearch + 1; // Far from water
         };
 
         // Place decorations
@@ -598,7 +585,7 @@ class WorldMap {
                 const worldY = row * 16;
 
                 // Skip if on manually placed cobblestone
-                if (isOnCobblestone(worldX, worldY)) continue;
+                if (isOnCobblestone(col, row)) continue;
 
                 // Skip if too close to existing decorations
                 if (hasDecorationNearby(col, row, 1)) continue;
