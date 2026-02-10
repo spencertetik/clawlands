@@ -466,40 +466,18 @@ server.registerTool('look', {
 
 server.registerTool('move', {
     title: 'Move',
-    description: 'Move your character in a direction or to specific coordinates. Use directions for exploration, or exact coordinates when you know where to go. Each step moves 16 pixels (1 tile). The world is 1920×1920 pixels (120×120 tiles). Valid coordinates: 0-1904. Water tiles block movement.',
+    description: 'Walk in a direction. Each step moves 16 pixels (1 tile). Use "look" to survey your surroundings and plan your route. The world is 1920×1920 pixels (120×120 tiles). Water tiles block movement.',
     inputSchema: {
-        direction: z.enum(['north', 'south', 'east', 'west', 'n', 's', 'e', 'w']).optional().describe('Direction to walk (1 tile = 16px)'),
-        x: z.number().optional().describe('Exact X coordinate to move to'),
-        y: z.number().optional().describe('Exact Y coordinate to move to'),
+        direction: z.enum(['north', 'south', 'east', 'west', 'n', 's', 'e', 'w']).describe('Direction to walk (1 tile = 16px)'),
         steps: z.number().min(1).max(20).default(1).describe('Number of steps to take in the given direction (1-20)')
     }
-}, async ({ direction, x, y, steps }) => {
+}, async ({ direction, steps }) => {
     if (!bridge.joined) {
         return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
     }
 
     try {
         let result;
-        
-        if (x != null && y != null) {
-            // Clamp to world boundaries (world is 1920×1920, player is 16px wide)
-            const clampedX = Math.max(0, Math.min(1904, Math.round(x)));
-            const clampedY = Math.max(0, Math.min(1904, Math.round(y)));
-            
-            result = await bridge.sendCommand('move', { x: clampedX, y: clampedY, direction: 'south', isMoving: true });
-            
-            const clamped = (clampedX !== Math.round(x) || clampedY !== Math.round(y));
-            return {
-                content: [{
-                    type: 'text',
-                    text: `🚶 Moved to (${result.x}, ${result.y})${clamped ? ' (clamped to world bounds — world is 0-1920)' : ''}`
-                }]
-            };
-        }
-
-        if (!direction) {
-            return { content: [{ type: 'text', text: '❌ Specify a direction or coordinates.' }], isError: true };
-        }
 
         // Normalize direction
         const dirMap = { n: 'north', s: 'south', e: 'east', w: 'west' };
@@ -540,7 +518,7 @@ server.registerTool('move', {
         return { 
             content: [{ 
                 type: 'text', 
-                text: `❌ Move blocked: ${e.message}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction or move to a known island coordinate.`
+                text: `❌ Move blocked: ${e.message}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction.`
             }], 
             isError: true 
         };
