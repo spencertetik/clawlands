@@ -1060,11 +1060,24 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 return;
             }
             
-            // Check building collision
+            // Check building collision (inset by 8px, with door zone at bottom-center)
             let buildingBlocked = false;
+            const DOOR_WIDTH = 16;
+            const INSET = 8;
             for (const building of buildings) {
-                if (newX < building.x + building.width && newX + 16 > building.x &&
-                    newY < building.y + building.height && newY + 24 > building.y) {
+                const bx = building.x + INSET;
+                const by = building.y + INSET;
+                const bw = building.width - INSET * 2;
+                const bh = building.height - INSET * 2;
+                
+                // Check if player is in the door zone (bottom-center of building)
+                const doorX = building.x + (building.width - DOOR_WIDTH) / 2;
+                const inDoorZone = newX + 8 >= doorX && newX + 8 <= doorX + DOOR_WIDTH && 
+                                   newY >= building.y + building.height - INSET;
+                if (inDoorZone) continue; // Allow walking to door
+                
+                if (newX < bx + bw && newX + 16 > bx &&
+                    newY < by + bh && newY + 24 > by) {
                     buildingBlocked = true;
                     break;
                 }
@@ -1265,25 +1278,104 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(1904, newX));
             newY = Math.max(0, Math.min(1904, newY));
             
-            // Check terrain collision
+            // For direction-based moves, check terrain immediately and reject
+            if (!(data?.x != null && data?.y != null)) {
+                if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
+                    ws.send(JSON.stringify({ 
+                        type: 'error', 
+                        message: 'Cannot move there - blocked by terrain or buildings',
+                        x: playerData.x,
+                        y: playerData.y 
+                    }));
+                    return;
+                }
+            }
+            
+            // Check building collision (inset by 8px, with door zone at bottom-center)
+            let buildingBlocked = false;
+            const BOT_DOOR_WIDTH = 16;
+            const BOT_INSET = 8;
+            for (const building of buildings) {
+                const bx = building.x + BOT_INSET;
+                const by = building.y + BOT_INSET;
+                const bw = building.width - BOT_INSET * 2;
+                const bh = building.height - BOT_INSET * 2;
+                
+                // Check if player is in the door zone (bottom-center of building)
+                const doorX = building.x + (building.width - BOT_DOOR_WIDTH) / 2;
+                const inDoorZone = newX + 8 >= doorX && newX + 8 <= doorX + BOT_DOOR_WIDTH && 
+                                   newY >= building.y + building.height - BOT_INSET;
+                if (inDoorZone) continue; // Allow walking to door
+                
+                if (newX < bx + bw && newX + 16 > bx &&
+                    newY < by + bh && newY + 24 > by) {
+                    buildingBlocked = true;
+                    break;
+                }
+            }
+            
+            // For direct coordinate moves, try nearby tiles if destination is blocked
+            if (data?.x != null && data?.y != null && (!isBoxWalkable(terrainData.terrainMap, newX, newY) || buildingBlocked)) {
+                let found = false;
+                for (let radius = 16; radius <= 48; radius += 16) {
+                    for (const [dx, dy] of [[0,-radius],[0,radius],[radius,0],[-radius,0],
+                                              [radius,-radius],[radius,radius],[-radius,-radius],[-radius,radius]]) {
+                        const tryX = Math.round(newX + dx);
+                        const tryY = Math.round(newY + dy);
+                        
+                        // Check terrain walkability
+                        if (!isBoxWalkable(terrainData.terrainMap, tryX, tryY)) continue;
+                        
+                        // Check building collision at this candidate
+                        let blocked = false;
+                        for (const building of buildings) {
+                            const bx2 = building.x + BOT_INSET;
+                            const by2 = building.y + BOT_INSET;
+                            const bw2 = building.width - BOT_INSET * 2;
+                            const bh2 = building.height - BOT_INSET * 2;
+                            
+                            const doorX2 = building.x + (building.width - BOT_DOOR_WIDTH) / 2;
+                            const inDoor2 = tryX + 8 >= doorX2 && tryX + 8 <= doorX2 + BOT_DOOR_WIDTH && 
+                                           tryY >= building.y + building.height - BOT_INSET;
+                            if (inDoor2) continue;
+                            
+                            if (tryX < bx2 + bw2 && tryX + 16 > bx2 &&
+                                tryY < by2 + bh2 && tryY + 24 > by2) {
+                                blocked = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!blocked) {
+                            newX = tryX;
+                            newY = tryY;
+                            buildingBlocked = false;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+                
+                if (!found) {
+                    ws.send(JSON.stringify({ 
+                        type: 'error', 
+                        message: 'Cannot move there - blocked by terrain or buildings (no nearby walkable tile)',
+                        x: playerData.x,
+                        y: playerData.y 
+                    }));
+                    return;
+                }
+            }
+            
             if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by terrain or buildings',
+                    message: 'Cannot move there - blocked by terrain',
                     x: playerData.x,
                     y: playerData.y 
                 }));
                 return;
-            }
-            
-            // Check building collision
-            let buildingBlocked = false;
-            for (const building of buildings) {
-                if (newX < building.x + building.width && newX + 16 > building.x &&
-                    newY < building.y + building.height && newY + 24 > building.y) {
-                    buildingBlocked = true;
-                    break;
-                }
             }
             
             if (buildingBlocked) {
