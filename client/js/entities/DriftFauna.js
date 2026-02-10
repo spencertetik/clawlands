@@ -518,99 +518,301 @@ class DriftFauna extends Entity {
     }
 
     renderSkitter(ctx, x, y, w, h) {
+        // Animation frame for idle bob
+        const bobFrame = Math.floor(this.pulseTimer / 400) % 3;
+        const bobY = bobFrame === 1 ? -0.5 : 0;
+        
         // Twitchy jitter when moving
         const jitterX = this.state === 'chasing' ? (Math.random() - 0.5) * 1 : 0;
         const jitterY = this.state === 'chasing' ? (Math.random() - 0.5) * 1 : 0;
+        
+        // Leg animation frame
+        const legFrame = Math.floor(this.pulseTimer / 150) % 2;
 
-        // Body
-        ctx.fillStyle = this.renderColor;
-        ctx.fillRect(x + jitterX, y + jitterY, w, h);
+        // Base position with adjustments
+        const baseX = Math.floor(x + jitterX);
+        const baseY = Math.floor(y + jitterY + bobY);
 
+        // Color palette - sandy browns and oranges
+        const darkBrown = this.renderColor === this.color ? '#8B4513' : this.renderColor;
+        const medBrown = this.renderColor === this.color ? '#A0522D' : this.renderColor; 
+        const lightBrown = this.renderColor === this.color ? '#CD853F' : this.renderColor;
+        const shell = this.renderColor === this.color ? '#D2B48C' : this.renderColor;
+        const eyeColor = '#FF4500';
+        const clawColor = '#8B4513';
+
+        // Sand flea/crab body (12x12)
+        // Row 1-2: Top shell edge
+        ctx.fillStyle = darkBrown;
+        this.drawPixel(ctx, baseX + 3, baseY + 1, 6, 1);
+        ctx.fillStyle = shell;
+        this.drawPixel(ctx, baseX + 2, baseY + 2, 8, 1);
+
+        // Row 3-4: Upper shell with eyes
+        ctx.fillStyle = medBrown;
+        this.drawPixel(ctx, baseX + 1, baseY + 3, 10, 1);
+        ctx.fillStyle = lightBrown;
+        this.drawPixel(ctx, baseX + 2, baseY + 3, 8, 1);
+        
         // Eyes
-        ctx.fillStyle = '#ff6666';
-        ctx.fillRect(x + jitterX + w * 0.2, y + jitterY + h * 0.2, 2, 2);
-        ctx.fillRect(x + jitterX + w * 0.6, y + jitterY + h * 0.2, 2, 2);
+        ctx.fillStyle = eyeColor;
+        this.drawPixel(ctx, baseX + 3, baseY + 3, 1, 1);
+        this.drawPixel(ctx, baseX + 8, baseY + 3, 1, 1);
 
-        // Legs when moving
+        // Row 5-6: Main body
+        ctx.fillStyle = medBrown;
+        this.drawPixel(ctx, baseX + 1, baseY + 4, 10, 2);
+        ctx.fillStyle = lightBrown;
+        this.drawPixel(ctx, baseX + 3, baseY + 4, 6, 2);
+
+        // Row 7-8: Lower body with segment lines
+        ctx.fillStyle = medBrown;
+        this.drawPixel(ctx, baseX + 2, baseY + 6, 8, 2);
+        ctx.fillStyle = darkBrown;
+        this.drawPixel(ctx, baseX + 5, baseY + 6, 2, 1);
+        this.drawPixel(ctx, baseX + 4, baseY + 7, 4, 1);
+
+        // Row 9-10: Bottom edge
+        ctx.fillStyle = darkBrown;
+        this.drawPixel(ctx, baseX + 3, baseY + 8, 6, 2);
+
+        // Animated legs extending from sides
+        ctx.fillStyle = clawColor;
         if (this.isBursting || this.state === 'chasing') {
-            ctx.fillStyle = this.renderColor;
-            const legOffset = Math.floor(this.pulseTimer / 100) % 2 === 0 ? 0 : 1;
-            ctx.fillRect(x + jitterX - 1, y + jitterY + h * 0.3 + legOffset, 1, 1);
-            ctx.fillRect(x + jitterX + w, y + jitterY + h * 0.3 + legOffset, 1, 1);
-            ctx.fillRect(x + jitterX - 1, y + jitterY + h * 0.7 - legOffset, 1, 1);
-            ctx.fillRect(x + jitterX + w, y + jitterY + h * 0.7 - legOffset, 1, 1);
+            // Moving legs - alternate positions
+            if (legFrame === 0) {
+                // Extended legs
+                this.drawPixel(ctx, baseX - 1, baseY + 4, 1, 1); // Left front
+                this.drawPixel(ctx, baseX - 1, baseY + 6, 1, 1); // Left back
+                this.drawPixel(ctx, baseX + 12, baseY + 4, 1, 1); // Right front
+                this.drawPixel(ctx, baseX + 12, baseY + 6, 1, 1); // Right back
+            } else {
+                // Retracted legs
+                this.drawPixel(ctx, baseX, baseY + 5, 1, 1); // Left
+                this.drawPixel(ctx, baseX + 11, baseY + 5, 1, 1); // Right
+            }
+        } else {
+            // Idle legs
+            this.drawPixel(ctx, baseX - 1, baseY + 5, 1, 1);
+            this.drawPixel(ctx, baseX + 12, baseY + 5, 1, 1);
+        }
+
+        // Front claws when attacking
+        if (this.state === 'attacking') {
+            ctx.fillStyle = clawColor;
+            this.drawPixel(ctx, baseX + 1, baseY + 2, 1, 1); // Left claw
+            this.drawPixel(ctx, baseX + 10, baseY + 2, 1, 1); // Right claw
         }
     }
 
     renderHaze(ctx, x, y, w, h) {
-        // Pulsing opacity
-        const pulse = 0.4 + Math.sin(this.pulseTimer * 0.004) * 0.2;
+        // Animation frames for floating jellyfish
+        const floatFrame = Math.floor(this.pulseTimer / 600) % 3;
+        const floatY = floatFrame === 1 ? -0.5 : floatFrame === 2 ? 0.5 : 0;
+        const tentacleWave = Math.sin(this.pulseTimer * 0.005) * 1.5;
+        
+        // Pulsing opacity for ethereal effect
+        const pulse = 0.6 + Math.sin(this.pulseTimer * 0.004) * 0.3;
+        const origAlpha = ctx.globalAlpha;
+        
+        // Base position
+        const baseX = Math.floor(x);
+        const baseY = Math.floor(y + floatY);
+
+        // Color palette - ocean blues and purples
+        const darkBlue = this.renderColor === this.color ? '#191970' : this.renderColor;
+        const medBlue = this.renderColor === this.color ? '#4169E1' : this.renderColor;
+        const lightBlue = this.renderColor === this.color ? '#6495ED' : this.renderColor;
+        const glowBlue = this.renderColor === this.color ? '#87CEEB' : this.renderColor;
+        const tentacleBlue = this.renderColor === this.color ? '#4682B4' : this.renderColor;
+
+        // Jellyfish bell (14x14) - dome shape
+        ctx.globalAlpha = this.opacity * pulse * 0.8;
+        
+        // Row 1-3: Top of bell
+        ctx.fillStyle = lightBlue;
+        this.drawPixel(ctx, baseX + 5, baseY + 1, 4, 1);
+        this.drawPixel(ctx, baseX + 4, baseY + 2, 6, 1);
+        this.drawPixel(ctx, baseX + 3, baseY + 3, 8, 1);
+
+        // Row 4-6: Main bell body with inner detail
+        ctx.fillStyle = medBlue;
+        this.drawPixel(ctx, baseX + 2, baseY + 4, 10, 1);
+        this.drawPixel(ctx, baseX + 1, baseY + 5, 12, 1);
+        this.drawPixel(ctx, baseX + 1, baseY + 6, 12, 1);
+        
+        // Inner bell pattern - lighter core
+        ctx.fillStyle = lightBlue;
+        this.drawPixel(ctx, baseX + 4, baseY + 4, 6, 1);
+        this.drawPixel(ctx, baseX + 3, baseY + 5, 8, 1);
+        this.drawPixel(ctx, baseX + 3, baseY + 6, 8, 1);
+
+        // Central glow
         ctx.globalAlpha = this.opacity * pulse;
+        ctx.fillStyle = glowBlue;
+        this.drawPixel(ctx, baseX + 6, baseY + 5, 2, 1);
 
-        // Outer glow
-        ctx.fillStyle = this.renderColor === this.color ? '#b42828' : this.renderColor;
-        ctx.beginPath();
-        ctx.arc(x + w / 2, y + h / 2, w * 0.7, 0, Math.PI * 2);
-        ctx.fill();
+        // Row 7-8: Bell edge
+        ctx.globalAlpha = this.opacity * pulse * 0.7;
+        ctx.fillStyle = medBlue;
+        this.drawPixel(ctx, baseX + 2, baseY + 7, 10, 1);
+        this.drawPixel(ctx, baseX + 3, baseY + 8, 8, 1);
 
-        // Inner core
-        ctx.globalAlpha = this.opacity * (pulse + 0.2);
-        ctx.fillStyle = this.renderColor === this.color ? '#dd4444' : this.renderColor;
-        ctx.beginPath();
-        ctx.arc(x + w / 2, y + h / 2, w * 0.35, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Wisps
+        // Animated tentacles flowing beneath
         ctx.globalAlpha = this.opacity * pulse * 0.6;
-        ctx.fillStyle = '#ff8888';
+        ctx.fillStyle = tentacleBlue;
+        
+        const tentacleOffset = Math.floor(tentacleWave);
+        // Left tentacle
+        this.drawPixel(ctx, baseX + 3 + tentacleOffset, baseY + 9, 1, 2);
+        this.drawPixel(ctx, baseX + 2 + tentacleOffset, baseY + 11, 1, 1);
+        
+        // Center tentacles
+        this.drawPixel(ctx, baseX + 6, baseY + 9, 2, 3);
+        this.drawPixel(ctx, baseX + 6, baseY + 12, 1, 1);
+        this.drawPixel(ctx, baseX + 7, baseY + 12, 1, 1);
+        
+        // Right tentacle
+        this.drawPixel(ctx, baseX + 10 - tentacleOffset, baseY + 9, 1, 2);
+        this.drawPixel(ctx, baseX + 11 - tentacleOffset, baseY + 11, 1, 1);
+
+        // Outer glow effect - very translucent
+        ctx.globalAlpha = this.opacity * pulse * 0.3;
+        ctx.fillStyle = glowBlue;
+        this.drawPixel(ctx, baseX, baseY + 4, 14, 3);
+        this.drawPixel(ctx, baseX + 1, baseY + 2, 12, 5);
+
+        // Floating particles around haze
+        ctx.globalAlpha = this.opacity * pulse * 0.4;
+        ctx.fillStyle = lightBlue;
         for (let i = 0; i < 3; i++) {
-            const angle = (this.pulseTimer * 0.002) + (i * Math.PI * 2 / 3);
-            const orbitR = w * 0.5;
-            const wx = x + w / 2 + Math.cos(angle) * orbitR;
-            const wy = y + h / 2 + Math.sin(angle) * orbitR;
-            ctx.fillRect(wx, wy, 1, 1);
+            const angle = (this.pulseTimer * 0.003) + (i * Math.PI * 2 / 3);
+            const orbitR = 8;
+            const particleX = baseX + 7 + Math.cos(angle) * orbitR;
+            const particleY = baseY + 6 + Math.sin(angle) * orbitR * 0.5;
+            this.drawPixel(ctx, Math.floor(particleX), Math.floor(particleY), 1, 1);
         }
+
+        // Restore original alpha
+        ctx.globalAlpha = origAlpha;
     }
 
     renderLoopling(ctx, x, y, w, h) {
-        // Color cycling
-        const colors = ['#4a2080', '#6030a0', '#8040c0'];
-        const colorIdx = Math.floor(this.pulseTimer / 300) % colors.length;
-        const baseColor = this.renderColor === this.color ? colors[colorIdx] : this.renderColor;
+        // Animation for spine rotation and pulsing
+        const spineFrame = Math.floor(this.pulseTimer / 200) % 4;
+        const pulseFrame = Math.floor(this.pulseTimer / 500) % 3;
+        const pulseSize = pulseFrame === 1 ? 1 : 0;
+        
+        // Base position
+        const baseX = Math.floor(x);
+        const baseY = Math.floor(y);
 
-        // Diamond shape
-        ctx.fillStyle = baseColor;
-        ctx.beginPath();
-        ctx.moveTo(x + w / 2, y);
-        ctx.lineTo(x + w, y + h / 2);
-        ctx.lineTo(x + w / 2, y + h);
-        ctx.lineTo(x, y + h / 2);
-        ctx.closePath();
-        ctx.fill();
+        // Color palette - dark teals and cyans
+        const darkTeal = this.renderColor === this.color ? '#2F4F4F' : this.renderColor;
+        const medTeal = this.renderColor === this.color ? '#008B8B' : this.renderColor;
+        const lightTeal = this.renderColor === this.color ? '#20B2AA' : this.renderColor;
+        const brightTeal = this.renderColor === this.color ? '#40E0D0' : this.renderColor;
+        const spineColor = this.renderColor === this.color ? '#00CED1' : this.renderColor;
+        const eyeColor = '#FF6347';
 
-        // Inner diamond
-        ctx.fillStyle = this.renderColor === this.color ? '#aa66ff' : this.renderColor;
-        const inset = w * 0.25;
-        ctx.beginPath();
-        ctx.moveTo(x + w / 2, y + inset);
-        ctx.lineTo(x + w - inset, y + h / 2);
-        ctx.lineTo(x + w / 2, y + h - inset);
-        ctx.lineTo(x + inset, y + h / 2);
-        ctx.closePath();
-        ctx.fill();
+        // Armored nautilus shell (16x16) - circular with segments
+        // Outer spines (rotate around the body)
+        ctx.fillStyle = spineColor;
+        for (let i = 0; i < 8; i++) {
+            const angle = (i * Math.PI / 4) + (spineFrame * Math.PI / 8);
+            const spineX = baseX + 8 + Math.cos(angle) * (6 + pulseSize);
+            const spineY = baseY + 8 + Math.sin(angle) * (6 + pulseSize);
+            this.drawPixel(ctx, Math.floor(spineX), Math.floor(spineY), 1, 1);
+            
+            // Longer spines on cardinal directions
+            if (i % 2 === 0) {
+                const longSpineX = baseX + 8 + Math.cos(angle) * (7 + pulseSize);
+                const longSpineY = baseY + 8 + Math.sin(angle) * (7 + pulseSize);
+                this.drawPixel(ctx, Math.floor(longSpineX), Math.floor(longSpineY), 1, 1);
+            }
+        }
 
-        // Charge indicator
+        // Main shell body - circular armored segments
+        // Row 1-3: Top shell
+        ctx.fillStyle = darkTeal;
+        this.drawPixel(ctx, baseX + 6, baseY + 1, 4, 1);
+        this.drawPixel(ctx, baseX + 5, baseY + 2, 6, 1);
+        this.drawPixel(ctx, baseX + 4, baseY + 3, 8, 1);
+
+        // Row 4-6: Upper shell with armor segments
+        ctx.fillStyle = medTeal;
+        this.drawPixel(ctx, baseX + 3, baseY + 4, 10, 1);
+        this.drawPixel(ctx, baseX + 2, baseY + 5, 12, 1);
+        this.drawPixel(ctx, baseX + 2, baseY + 6, 12, 1);
+        
+        // Armor segment lines
+        ctx.fillStyle = lightTeal;
+        this.drawPixel(ctx, baseX + 5, baseY + 4, 6, 1);
+        this.drawPixel(ctx, baseX + 4, baseY + 5, 8, 1);
+        this.drawPixel(ctx, baseX + 4, baseY + 6, 8, 1);
+
+        // Row 7-10: Central body with eye
+        ctx.fillStyle = medTeal;
+        this.drawPixel(ctx, baseX + 1, baseY + 7, 14, 3);
+        this.drawPixel(ctx, baseX + 2, baseY + 10, 12, 1);
+        
+        // Central chamber detail
+        ctx.fillStyle = lightTeal;
+        this.drawPixel(ctx, baseX + 3, baseY + 7, 10, 3);
+        this.drawPixel(ctx, baseX + 4, baseY + 10, 8, 1);
+
+        // Central eye
+        ctx.fillStyle = eyeColor;
+        this.drawPixel(ctx, baseX + 7, baseY + 8, 2, 2);
+        ctx.fillStyle = darkTeal;
+        this.drawPixel(ctx, baseX + 7, baseY + 8, 1, 1); // Eye pupil
+
+        // Row 11-13: Lower shell segments
+        ctx.fillStyle = medTeal;
+        this.drawPixel(ctx, baseX + 3, baseY + 11, 10, 1);
+        this.drawPixel(ctx, baseX + 4, baseY + 12, 8, 1);
+        this.drawPixel(ctx, baseX + 5, baseY + 13, 6, 1);
+
+        // Row 14-15: Bottom shell
+        ctx.fillStyle = darkTeal;
+        this.drawPixel(ctx, baseX + 6, baseY + 14, 4, 1);
+
+        // Armor plate highlights
+        ctx.fillStyle = brightTeal;
+        this.drawPixel(ctx, baseX + 6, baseY + 5, 4, 1);
+        this.drawPixel(ctx, baseX + 7, baseY + 7, 2, 1);
+        this.drawPixel(ctx, baseX + 6, baseY + 11, 4, 1);
+
+        // Charge indicator glow
         if (this.isCharging) {
-            ctx.globalAlpha = this.opacity * 0.4;
-            ctx.fillStyle = '#ff44ff';
-            ctx.beginPath();
-            ctx.arc(x + w / 2, y + h / 2, w * 0.8, 0, Math.PI * 2);
-            ctx.fill();
+            const origAlpha = ctx.globalAlpha;
+            ctx.globalAlpha = this.opacity * 0.6;
+            ctx.fillStyle = brightTeal;
+            
+            // Glowing aura around the whole body
+            this.drawPixel(ctx, baseX + 1, baseY + 6, 14, 4);
+            this.drawPixel(ctx, baseX + 3, baseY + 3, 10, 10);
+            
+            ctx.globalAlpha = origAlpha;
+        }
+
+        // Defensive spikes when hurt
+        if (this.state === 'hurt') {
+            ctx.fillStyle = brightTeal;
+            this.drawPixel(ctx, baseX + 8, baseY - 1, 1, 1); // Top spike
+            this.drawPixel(ctx, baseX - 1, baseY + 8, 1, 1); // Left spike
+            this.drawPixel(ctx, baseX + 16, baseY + 8, 1, 1); // Right spike
+            this.drawPixel(ctx, baseX + 8, baseY + 16, 1, 1); // Bottom spike
         }
     }
 
     renderDefault(ctx, x, y, w, h) {
         ctx.fillStyle = this.renderColor;
+        ctx.fillRect(x, y, w, h);
+    }
+
+    // Helper method to draw individual pixels
+    drawPixel(ctx, x, y, w, h) {
         ctx.fillRect(x, y, w, h);
     }
 
