@@ -402,6 +402,11 @@ class Game {
         // Show splash screen immediately (hides ugly world generation)
         this._showSpectatorSplash();
         
+        // Disable input — spectators can't control anything (F for fullscreen handled in main.js)
+        if (this.inputManager) {
+            this.inputManager.setDisabled(true);
+        }
+        
         // Set a dummy character name so multiplayer join works
         this.characterName = `Spectator_${Date.now() % 10000}`;
         this.player.name = this.characterName;
@@ -3729,6 +3734,7 @@ class Game {
     _setupControlsHelp() {
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (this.spectateMode) return; // All game keys blocked in spectator mode
             const key = e.key.toLowerCase();
             if (key === 'h') {
                 e.preventDefault();

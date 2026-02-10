@@ -180,6 +180,26 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Setup keyboard shortcuts
     window.addEventListener('keydown', (e) => {
+        // Spectator mode: only allow F (fullscreen) and M (music)
+        if (game && game.spectateMode) {
+            const key = e.key.toLowerCase();
+            if (key === 'f') {
+                e.preventDefault();
+                const container = document.getElementById('game-container') || document.documentElement;
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    container.requestFullscreen().catch(() => {});
+                }
+            } else if (key === 'm') {
+                e.preventDefault();
+                if (typeof audioManager !== 'undefined') {
+                    audioManager.toggleMute();
+                }
+            }
+            return; // Block all other keys in spectator mode
+        }
+        
         if (e.key === '`') {
             e.preventDefault();
             game.toggleDebug();
