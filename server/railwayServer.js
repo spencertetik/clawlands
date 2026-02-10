@@ -290,17 +290,23 @@ const httpServer = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname === '/health') {
+        // Count real players vs spectators
+        let spectators = 0;
+        for (const [, p] of players) { if (p.isSpectator) spectators++; }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
-            players: players.size,
+            version: '2026-02-10a',
+            players: players.size - spectators,
+            spectators,
             database: !!db
         }));
     } else if (url.pathname === '/stats') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
+        const list = getPlayerList(); // already excludes spectators
         res.end(JSON.stringify({
-            players: players.size,
-            playerList: getPlayerList().map(p => ({ name: p.name, species: p.species, isBot: p.isBot }))
+            players: list.length,
+            playerList: list.map(p => ({ name: p.name, species: p.species, isBot: p.isBot }))
         }));
     } else if (url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
