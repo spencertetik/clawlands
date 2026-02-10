@@ -399,6 +399,9 @@ class Game {
     startSpectatorMode() {
         console.log(`👁️ Spectator mode: watching "${this.spectateTarget}"`);
         
+        // Show splash screen immediately (hides ugly world generation)
+        this._showSpectatorSplash();
+        
         // Set a dummy character name so multiplayer join works
         this.characterName = `Spectator_${Date.now() % 10000}`;
         this.player.name = this.characterName;
@@ -428,15 +431,84 @@ class Game {
             this._startSpectatorScan();
         }, 1500);
     }
+    
+    // Full-screen splash screen that covers the game during spectator load
+    _showSpectatorSplash() {
+        const splash = document.createElement('div');
+        splash.id = 'spectator-splash';
+        splash.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+                <div style="font-family: 'Press Start 2P', monospace; font-size: 36px; letter-spacing: 6px; margin-bottom: 16px;">
+                    <span style="color: #c43a24;">CLAW</span><span style="color: #e8d5cc;">LANDS</span>
+                </div>
+                <div style="font-family: monospace; font-size: 13px; color: #8a7068; letter-spacing: 2px;">
+                    SPECTATOR MODE
+                </div>
+                <div id="splash-status" style="font-family: monospace; font-size: 11px; color: #5a4a42; margin-top: 20px; letter-spacing: 1px;">
+                    Connecting...
+                </div>
+                <div style="margin-top: 24px; width: 120px; height: 3px; background: #1a1210; border-radius: 2px; overflow: hidden;">
+                    <div id="splash-bar" style="width: 0%; height: 100%; background: #c43a24; transition: width 0.5s ease;"></div>
+                </div>
+            </div>
+        `;
+        splash.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0d0806; z-index: 10000;
+            transition: opacity 0.8s ease;
+        `;
+        document.body.appendChild(splash);
+        
+        // Animate progress bar
+        setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '30%'; }, 300);
+        setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '60%'; }, 800);
+        setTimeout(() => { 
+            const b = document.getElementById('splash-bar'); if (b) b.style.width = '80%';
+            const s = document.getElementById('splash-status'); if (s) s.textContent = 'Finding player...';
+        }, 1500);
+    }
+    
+    // Called when spectate target is found — fade out splash
+    _dismissSpectatorSplash() {
+        const splash = document.getElementById('spectator-splash');
+        if (!splash) return;
+        
+        // Complete the progress bar
+        const bar = document.getElementById('splash-bar');
+        if (bar) bar.style.width = '100%';
+        
+        // Fade out after a brief moment
+        setTimeout(() => {
+            splash.style.opacity = '0';
+            setTimeout(() => splash.remove(), 800);
+        }, 400);
+    }
 
-    // Scan for the spectate target among remote players
+    // Continuously scan for the spectate target among remote players
+    // Handles reconnects: if the bot drops and comes back with a new ID, we re-lock
     _startSpectatorScan() {
         let scanCount = 0;
-        const scanInterval = setInterval(() => {
+        this._spectatorScanInterval = setInterval(() => {
             if (!this.multiplayer) return;
             scanCount++;
             
             const playerCount = this.multiplayer.remotePlayers.size;
+            
+            // If we have a target, check it's still in the player list
+            if (this.spectatePlayer) {
+                let stillExists = false;
+                for (const [id, remote] of this.multiplayer.remotePlayers) {
+                    if (remote === this.spectatePlayer) { stillExists = true; break; }
+                }
+                if (!stillExists) {
+                    console.log(`👁️ Lost spectate target — scanning for reconnect...`);
+                    this.spectatePlayer = null;
+                    const status = document.getElementById('spectate-status');
+                    if (status) { status.textContent = 'Reconnecting...'; status.style.color = '#c43a24'; }
+                }
+                return; // Still locked on — skip scan
+            }
+            
             if (scanCount % 4 === 0) { // Log every 2 seconds
                 console.log(`👁️ Scanning... ${playerCount} remote players found`);
                 for (const [id, remote] of this.multiplayer.remotePlayers) {
@@ -463,7 +535,8 @@ class Game {
                     if (status) status.textContent = 'Connected';
                     if (status) status.style.color = '#4CAF50';
                     
-                    clearInterval(scanInterval);
+                    // Fade out the splash screen
+                    this._dismissSpectatorSplash();
                     return;
                 }
             }

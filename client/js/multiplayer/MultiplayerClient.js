@@ -552,9 +552,10 @@ class RemotePlayer {
         this.position.x += (this.targetPosition.x - this.position.x) * speed;
         this.position.y += (this.targetPosition.y - this.position.y) * speed;
         
-        // Tick down movement grace timer
+        // Tick down movement grace timer (in ms)
+        const dtMs = deltaTime * 1000; // deltaTime is in seconds, convert to ms
         if (this._moveGraceTimer > 0) {
-            this._moveGraceTimer -= deltaTime;
+            this._moveGraceTimer -= dtMs;
             if (this._moveGraceTimer <= 0) {
                 this._moveGraceTimer = 0;
                 // Check if we're actually still moving (position delta)
@@ -566,9 +567,9 @@ class RemotePlayer {
             }
         }
         
-        // Animation
+        // Animation (timers in ms)
         if (this.isMoving) {
-            this.animTimer += deltaTime;
+            this.animTimer += dtMs;
             if (this.animTimer > 150) {
                 this.animFrame = (this.animFrame + 1) % 3;
                 this.animTimer = 0;
@@ -577,9 +578,9 @@ class RemotePlayer {
             this.animFrame = 0;
         }
         
-        // Speech timer
+        // Speech timer (in ms)
         if (this.speechTimer > 0) {
-            this.speechTimer -= deltaTime;
+            this.speechTimer -= dtMs;
             if (this.speechTimer <= 0) {
                 this.speechText = null;
             }
