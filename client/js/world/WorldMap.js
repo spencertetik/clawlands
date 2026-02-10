@@ -632,12 +632,18 @@ class WorldMap {
                         decorationType = decorSet.inland[Math.floor(rng() * decorSet.inland.length)];
                     }
 
-                    // Create decoration sprite object
+                    // Get decoration definition for size information
+                    const def = typeof DecorationLoader !== 'undefined' && DecorationLoader.DECORATIONS[decorationType];
+                    
+                    // Create decoration sprite object compatible with game rendering system
                     const decoration = {
                         type: decorationType,
-                        sprite: true, // Mark as sprite-based
-                        worldX: worldX,
-                        worldY: worldY
+                        x: worldX, // Use x/y format expected by renderer
+                        y: worldY,
+                        width: def?.width || 16,
+                        height: def?.height || 16,
+                        useSprite: true, // Mark as sprite-based
+                        procedural: true // Mark as procedurally generated
                     };
 
                     this.setTile(this.decorationLayer, col, row, decoration);
@@ -675,11 +681,19 @@ class WorldMap {
                 if (isOnCobblestone(worldX, worldY)) continue;
                 
                 const clusterType = clusterTypes[Math.floor(rng() * clusterTypes.length)];
+                
+                // Get decoration definition for size information
+                const def = typeof DecorationLoader !== 'undefined' && DecorationLoader.DECORATIONS[clusterType];
+                
                 const decoration = {
                     type: clusterType,
-                    sprite: true,
-                    worldX: worldX,
-                    worldY: worldY
+                    x: worldX,
+                    y: worldY,
+                    width: def?.width || 16,
+                    height: def?.height || 16,
+                    useSprite: true,
+                    procedural: true,
+                    clustered: true // Mark as part of a cluster
                 };
                 
                 this.setTile(this.decorationLayer, col, row, decoration);

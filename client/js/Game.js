@@ -3176,6 +3176,46 @@ class Game {
         return base;
     }
 
+    // Add procedural decorations from WorldMap decorationLayer to main decorations array
+    addProceduralDecorations() {
+        if (!this.worldMap || !this.worldMap.decorationLayer) return;
+        
+        let proceduralCount = 0;
+        const tileSize = CONSTANTS.TILE_SIZE;
+        
+        // Process each tile in the decoration layer
+        for (let row = 0; row < this.worldMap.height; row++) {
+            for (let col = 0; col < this.worldMap.width; col++) {
+                const decorTile = this.worldMap.decorationLayer[row][col];
+                if (!decorTile || !decorTile.procedural) continue;
+                
+                // Convert tile-based decoration to game decoration format
+                const decoration = {
+                    x: decorTile.x,
+                    y: decorTile.y,
+                    type: decorTile.type,
+                    width: decorTile.width,
+                    height: decorTile.height,
+                    useSprite: decorTile.useSprite,
+                    procedural: true
+                };
+                
+                // Get sprite from decoration loader
+                if (this.decorationLoader) {
+                    const sprite = this.decorationLoader.getSprite(decorTile.type);
+                    if (sprite) {
+                        decoration.sprite = sprite;
+                    }
+                }
+                
+                this.decorations.push(decoration);
+                proceduralCount++;
+            }
+        }
+        
+        console.log(`🌿 Added ${proceduralCount} procedural decorations from WorldMap`);
+    }
+
     // Create furniture decorations from interior config using sprite assets
     createInteriorFurniture(config) {
         const tileSize = CONSTANTS.TILE_SIZE;
@@ -3611,6 +3651,9 @@ class Game {
         const tileSize = CONSTANTS.TILE_SIZE;
         // Don't clear - paths were already added by generatePaths()
         // this.decorations = [];
+
+        // First, process procedural decorations from WorldMap (new system)
+        this.addProceduralDecorations();
         
         // Decoration types with sizes matching our clean extracted sprites
         // Common decorations (high spawn weight)
@@ -3659,8 +3702,13 @@ class Game {
             { type: 'buoy', width: 23, height: 28, solid: true },
         ];
         
-        // Combined pool selection happens per-decoration below (90% common, 10% rare)
+        // OLD SYSTEM DISABLED - Using new WorldMap procedural system instead
+        // The new system provides better variety, clustering, and density zones
+        console.log(`🌿 Skipping old decoration system - using improved WorldMap procedural decorations`);
         
+        // Keep a small amount of rare items for the old system to supplement
+        const oldSystemRareOnly = false; // Set to true if you want to keep some old decorations
+        if (oldSystemRareOnly) {
         for (const island of islands) {
             // Number of decorations based on island size (reduced for cleaner look)
             const numDecorations = Math.floor(island.size * 1.2);
@@ -3728,8 +3776,9 @@ class Game {
                 this.decorations.push(decor);
             }
         }
+        } // End of oldSystemRareOnly conditional
         
-        console.log(`🌿 Created ${this.decorations.length} decorations`);
+        console.log(`🌿 Total decorations after processing: ${this.decorations.length}`);
     }
 
     // Load sprite for an NPC based on their species
