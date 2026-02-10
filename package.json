@@ -14,7 +14,8 @@
     "bot": "node bots/clawbot.js",
     "bot:explore": "node bots/clawbot.js --explore",
     "openclaw": "node bots/openclaw-player.js",
-    "playtest": "node playtest-quick.js"
+    "playtest": "node playtest-quick.js",
+    "mcp": "node server/mcpServer.js"
   },
   "keywords": [
     "rpg",
@@ -28,7 +29,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "pg": "^8.18.0",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "zod": "^3.25.76"
   },
   "optionalDependencies": {
     "@supabase/supabase-js": "^2.95.3",

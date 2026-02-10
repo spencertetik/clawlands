@@ -1,459 +1,640 @@
+#!/usr/bin/env node
 /**
- * Clawlands MCP Server — Model Context Protocol for AI agents
+ * Clawlands MCP Server
  * 
- * Allows any MCP-compatible AI (Claude, ChatGPT, Gemini, etc.) to play Clawlands
- * via text commands. Each session gets its own server+transport pair.
+ * Model Context Protocol server that lets any AI agent play Clawlands
+ * by bridging MCP tool calls to the existing WebSocket bot protocol.
  * 
- * Streamable HTTP transport at /mcp
+ * Transport: stdio (standard for MCP — AI agents spawn this process)
+ * Connection: WebSocket to Railway server (or local botServer)
+ * 
+ * Usage:
+ *   CLAWLANDS_SERVER=wss://claw-world-production.up.railway.app \
+ *   CLAWLANDS_BOT_KEY=your-key-here \
+ *   node server/mcpServer.js
+ * 
+ * Or configure in your MCP client (Claude Desktop, OpenClaw, etc.):
+ *   {
+ *     "mcpServers": {
+ *       "clawlands": {
+ *         "command": "node",
+ *         "args": ["server/mcpServer.js"],
+ *         "env": {
+ *           "CLAWLANDS_SERVER": "wss://claw-world-production.up.railway.app",
+ *           "CLAWLANDS_BOT_KEY": "your-key-here"
+ *         }
+ *       }
+ *     }
+ *   }
  */
 
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
-const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
-const { z } = require('zod');
+const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
 const WebSocket = require('ws');
-const crypto = require('crypto');
+const z = require('zod');
 
-// Game constants
-const TILE_SIZE = 16;
-const SPECIES_LIST = ['crab', 'lobster', 'shrimp', 'mantis_shrimp', 'hermit_crab'];
-const COLOR_LIST = ['red', 'blue', 'green', 'gold', 'purple', 'orange', 'cyan', 'pink'];
+// ============================================
+// Configuration
+// ============================================
 
-// Session storage
-const sessions = new Map(); // sessionId -> { transport, server, ws, player, ... }
+const SERVER_URL = process.env.CLAWLANDS_SERVER || 'wss://claw-world-production.up.railway.app';
+const BOT_KEY = process.env.CLAWLANDS_BOT_KEY || '';
+const CONNECT_TIMEOUT = 10000;
+const COMMAND_TIMEOUT = 5000;
 
-function createMCPServer(wsUrl, botKey) {
-    const server = new McpServer({
-        name: 'clawlands',
-        version: '1.0.0',
-    });
-    
-    // Store per-session game state in closure
-    const state = {
-        ws: null,
-        player: null,
-        nearbyPlayers: new Map(),
-        recentChat: [],
-        talkRequests: [],
-        pendingResolve: null
-    };
-    
-    // Connect to game WebSocket
-    function connectWS() {
+// ============================================
+// WebSocket Bot Bridge
+// ============================================
+
+class BotBridge {
+    constructor() {
+        this.ws = null;
+        this.playerId = null;
+        this.playerName = null;
+        this.position = { x: 744, y: 680 };
+        this.species = null;
+        this.color = null;
+        this.connected = false;
+        this.joined = false;
+        this.pendingResolvers = [];
+        this.lastState = null;
+        this.nearbyPlayers = [];
+        this.lastTalkResponse = null;
+        this._talkResolvers = [];
+    }
+
+    /**
+     * Connect to the Clawlands WebSocket server
+     */
+    connect() {
         return new Promise((resolve, reject) => {
-            const ws = new WebSocket(wsUrl);
-            state.ws = ws;
-            
-            ws.on('open', () => {
-                console.log('🔌 MCP game WS connected');
-                resolve(ws);
+            if (this.connected) {
+                resolve({ already: true });
+                return;
+            }
+
+            const url = `${SERVER_URL}/bot?key=${encodeURIComponent(BOT_KEY)}`;
+            const timeout = setTimeout(() => {
+                reject(new Error(`Connection timeout after ${CONNECT_TIMEOUT}ms`));
+            }, CONNECT_TIMEOUT);
+
+            this.ws = new WebSocket(url);
+
+            this.ws.on('open', () => {
+                this.connected = true;
             });
-            
-            ws.on('message', (data) => {
+
+            this.ws.on('message', (data) => {
                 try {
-                    const msg = JSON.parse(data);
-                    handleGameMessage(msg);
-                } catch (e) {}
-            });
-            
-            ws.on('close', () => {
-                console.log('🔌 MCP game WS closed');
-                state.ws = null;
-            });
-            
-            ws.on('error', (err) => {
-                console.error('MCP WS error:', err.message);
-                reject(err);
-            });
-            
-            setTimeout(() => reject(new Error('WS connection timeout')), 10000);
-        });
-    }
-    
-    function handleGameMessage(msg) {
-        const type = msg.type || msg.t;
-        
-        if (type === 'welcome' || type === 'joined') {
-            if (state.pendingResolve) {
-                state.pendingResolve(msg);
-                state.pendingResolve = null;
-            }
-        }
-        
-        if (type === 'player_joined' || type === 'pj') {
-            const playerList = msg.players || msg.p || [];
-            for (const p of playerList) {
-                const id = p.id || p.i;
-                if (id !== state.player?.id) {
-                    state.nearbyPlayers.set(id, {
-                        id, name: p.name || p.n, x: p.x, y: p.y,
-                        species: p.species || p.sp, isBot: p.isBot || p.b
-                    });
-                }
-            }
-        }
-        
-        if (type === 'p' && msg.p) {
-            for (const p of msg.p) {
-                const id = p.i;
-                if (id !== state.player?.id) {
-                    const existing = state.nearbyPlayers.get(id) || {};
-                    state.nearbyPlayers.set(id, { ...existing, x: p.x, y: p.y, id });
-                }
-            }
-        }
-        
-        if (type === 'player_left' || type === 'pl') {
-            state.nearbyPlayers.delete(msg.id || msg.i);
-        }
-        
-        if (type === 'chat') {
-            state.recentChat.push({
-                from: msg.name || msg.n,
-                message: msg.message || msg.m,
-                time: Date.now()
-            });
-            if (state.recentChat.length > 20) state.recentChat.shift();
-        }
-        
-        if (type === 'talk_request') {
-            state.talkRequests.push({
-                from: msg.playerName, playerId: msg.playerId, time: Date.now()
-            });
-        }
-    }
-    
-    function requirePlayer() {
-        if (!state.player) {
-            throw new Error('Not in the game yet. Use the "join" tool first.');
-        }
-        return state;
-    }
-    
-    // === HELPER FUNCTIONS ===
-    
-    function getIslandName(x, y) {
-        const tx = x / TILE_SIZE;
-        const ty = y / TILE_SIZE;
-        if (tx >= 40 && tx <= 70 && ty >= 35 && ty <= 55) return 'Port Clawson';
-        if (tx >= 85 && tx <= 105 && ty >= 60 && ty <= 80) return 'Molthaven';
-        if (tx >= 65 && tx <= 85 && ty >= 22 && ty <= 38) return 'Deepcoil Isle';
-        if (tx >= 45 && tx <= 65 && ty >= 85 && ty <= 105) return 'Driftwood Shores';
-        if (tx >= 18 && tx <= 35 && ty >= 60 && ty <= 80) return 'The Tidepools';
-        if (tx >= 92 && tx <= 110 && ty >= 42 && ty <= 60) return 'Coral Heights';
-        if (tx >= 88 && tx <= 108 && ty >= 18 && ty <= 35) return 'Waygate Atoll';
-        if (tx >= 40 && tx <= 60 && ty >= 68 && ty <= 85) return 'Shell Beach';
-        return 'Open Waters';
-    }
-    
-    function getTimeOfDay() {
-        const h = new Date().getHours();
-        if (h >= 6 && h < 10) return '🌅 Morning';
-        if (h >= 10 && h < 17) return '☀️ Day';
-        if (h >= 17 && h < 20) return '🌇 Evening';
-        return '🌙 Night';
-    }
-    
-    function getDirection(from, to) {
-        const dx = to.x - from.x;
-        const dy = to.y - from.y;
-        if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return 'right here';
-        let dir = '';
-        if (dy < -16) dir += 'north';
-        if (dy > 16) dir += 'south';
-        if (dx > 16) dir += 'east';
-        if (dx < -16) dir += 'west';
-        return dir || 'nearby';
-    }
-    
-    function describePosition() {
-        const p = state.player;
-        const tx = Math.floor(p.x / TILE_SIZE);
-        const ty = Math.floor(p.y / TILE_SIZE);
-        return `📍 ${getIslandName(p.x, p.y)} — Tile (${tx}, ${ty}) — ${getTimeOfDay()}`;
-    }
-    
-    function describeNearby(range = 200) {
-        const p = state.player;
-        const parts = [];
-        
-        // Nearby players
-        const nearby = [];
-        for (const [id, pl] of state.nearbyPlayers) {
-            const dist = Math.sqrt((pl.x - p.x) ** 2 + (pl.y - p.y) ** 2);
-            if (dist <= range) nearby.push({ ...pl, dist });
-        }
-        nearby.sort((a, b) => a.dist - b.dist);
-        
-        if (nearby.length > 0) {
-            parts.push('👥 Nearby:');
-            for (const pl of nearby) {
-                const icon = pl.isBot ? '🤖' : '🧑';
-                parts.push(`  ${icon} ${pl.name || 'Unknown'} (${pl.species || '?'}) — ${Math.round(pl.dist)}px ${getDirection(p, pl)}`);
-            }
-        }
-        
-        // Recent chat
-        const recent = state.recentChat.filter(c => Date.now() - c.time < 60000);
-        if (recent.length > 0) {
-            parts.push('\n💬 Recent:');
-            for (const c of recent.slice(-5)) {
-                parts.push(`  ${c.from}: "${c.message}"`);
-            }
-        }
-        
-        // Talk requests
-        const pending = state.talkRequests.filter(t => Date.now() - t.time < 30000);
-        if (pending.length > 0) {
-            parts.push('\n🗣️ Wants to talk:');
-            for (const t of pending) parts.push(`  ${t.from}`);
-        }
-        
-        return parts.length > 0 ? parts.join('\n') : 'The area is quiet.';
-    }
-    
-    // === REGISTER TOOLS ===
-    
-    server.tool(
-        'join',
-        'Join the Clawlands world as a crustacean character.',
-        {
-            name: z.string().min(1).max(20).describe('Character name (1-20 chars)'),
-            species: z.enum(SPECIES_LIST).describe('Crustacean species: crab, lobster, shrimp, mantis_shrimp, hermit_crab'),
-            color: z.enum(COLOR_LIST).optional().describe('Shell color (default: random)')
-        },
-        async (params) => {
-            if (state.player) {
-                return { content: [{ type: 'text', text: `Already playing as ${state.player.name}. Use 'look' to see surroundings.` }] };
-            }
-            
-            // Connect to game if not connected
-            if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
-                try {
-                    await connectWS();
+                    const msg = JSON.parse(data.toString());
+                    this._handleMessage(msg, resolve, timeout);
                 } catch (e) {
-                    return { content: [{ type: 'text', text: `Could not connect to game server: ${e.message}` }] };
+                    // ignore parse errors
                 }
-            }
-            
-            const color = params.color || COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)];
-            
-            return new Promise((resolve) => {
-                state.ws.send(JSON.stringify({
-                    type: 'join',
-                    name: params.name,
-                    species: params.species,
-                    color: color,
-                    isBot: true,
-                    botKey: botKey
-                }));
-                
-                const timeout = setTimeout(() => {
-                    resolve({ content: [{ type: 'text', text: 'Join timed out. Server may be busy.' }] });
-                }, 10000);
-                
-                state.pendingResolve = (data) => {
-                    clearTimeout(timeout);
-                    state.player = {
-                        id: data.id, name: params.name,
-                        species: params.species, color: color,
-                        x: data.x || 800, y: data.y || 700
-                    };
-                    
-                    const watchUrl = 'https://claw-world.netlify.app/game.html?spectate=' + encodeURIComponent(params.name);
-                    const welcomeText = `🦀 Welcome to CLAWLANDS, ${params.name}!\n\nYou are a ${color} ${params.species}.\n${describePosition()}\n\nTools: look, move, talk, interact, nearby, map, status\n\nHumans can watch you at: ${watchUrl}`;
-                    resolve({ content: [{ type: 'text', text: welcomeText }] });
-                };
             });
-        }
-    );
-    
-    server.tool(
-        'move',
-        'Walk in a direction. Each step = 1 tile (16px).',
-        {
-            direction: z.enum(['north', 'south', 'east', 'west', 'n', 's', 'e', 'w']),
-            steps: z.number().min(1).max(10).optional().describe('Steps (1-10, default 1)')
-        },
-        async (params) => {
-            const s = requirePlayer();
-            const steps = params.steps || 1;
-            const dirMap = { north: 'up', n: 'up', south: 'down', s: 'down', east: 'right', e: 'right', west: 'left', w: 'left' };
-            const dir = dirMap[params.direction];
-            
-            const dx = dir === 'right' ? TILE_SIZE * steps : dir === 'left' ? -TILE_SIZE * steps : 0;
-            const dy = dir === 'down' ? TILE_SIZE * steps : dir === 'up' ? -TILE_SIZE * steps : 0;
-            
-            s.player.x += dx;
-            s.player.y += dy;
-            
-            s.ws.send(JSON.stringify({ type: 'move', x: s.player.x, y: s.player.y, direction: dir }));
-            
-            return { content: [{ type: 'text', text: `Moved ${params.direction}${steps > 1 ? ` ×${steps}` : ''}.\n${describePosition()}` }] };
-        }
-    );
-    
-    server.tool(
-        'look',
-        'Look around — see your position, nearby players, NPCs, and buildings.',
-        {},
-        async () => {
-            requirePlayer();
-            return { content: [{ type: 'text', text: `${describePosition()}\n\n${describeNearby()}` }] };
-        }
-    );
-    
-    server.tool(
-        'talk',
-        'Say something out loud. Appears as a speech bubble visible to all nearby players.',
-        { message: z.string().min(1).max(200).describe('What to say (max 200 chars)') },
-        async (params) => {
-            const s = requirePlayer();
-            s.ws.send(JSON.stringify({ type: 'chat', message: params.message }));
-            return { content: [{ type: 'text', text: `You say: "${params.message}"` }] };
-        }
-    );
-    
-    server.tool(
-        'nearby',
-        'See nearby players, bots, recent chat, and who wants to talk.',
-        { range: z.number().min(32).max(400).optional().describe('Look range in pixels (default 200)') },
-        async (params) => {
-            requirePlayer();
-            return { content: [{ type: 'text', text: describeNearby(params.range || 200) }] };
-        }
-    );
-    
-    server.tool(
-        'status',
-        'Check your character stats — species, position, island, time of day.',
-        {},
-        async () => {
-            const s = requirePlayer();
-            const p = s.player;
-            const spectateUrl = 'https://claw-world.netlify.app/game.html?spectate=' + encodeURIComponent(p.name);
-            const statusText = `=== ${p.name} ===\nSpecies: ${p.color} ${p.species}\nPosition: tile (${Math.floor(p.x / TILE_SIZE)}, ${Math.floor(p.y / TILE_SIZE)})\nIsland: ${getIslandName(p.x, p.y)}\nTime: ${getTimeOfDay()}\nSpectate: ${spectateUrl}`;
-            return { content: [{ type: 'text', text: statusText }] };
-        }
-    );
-    
-    server.tool(
-        'map',
-        'See the full Clawlands archipelago — all islands and your position.',
-        {},
-        async () => {
-            const s = requirePlayer();
-            const p = s.player;
-            const current = getIslandName(p.x, p.y);
-            
-            const islands = [
-                { name: 'Port Clawson', desc: 'Main island — Inn, Shop, Lighthouse, NPCs', center: '~55, 45' },
-                { name: 'Molthaven', desc: 'Residential — houses and cottages', center: '~95, 70' },
-                { name: 'Deepcoil Isle', desc: 'Dark stone, mysterious', center: '~75, 30' },
-                { name: 'Driftwood Shores', desc: 'Southern beach, fishing huts', center: '~55, 95' },
-                { name: 'The Tidepools', desc: 'Western hermit island', center: '~27, 70' },
-                { name: 'Coral Heights', desc: 'Northern harbor outpost', center: '~100, 50' },
-                { name: 'Waygate Atoll', desc: 'Far north, small & mysterious', center: '~98, 27' },
-                { name: 'Shell Beach', desc: 'Southeast coast, beach huts', center: '~50, 75' }
-            ];
-            
-            let text = `🗺️ CLAWLANDS ARCHIPELAGO\nYou: tile (${Math.floor(p.x/TILE_SIZE)}, ${Math.floor(p.y/TILE_SIZE)}) on ${current}\n\n`;
-            for (const isl of islands) {
-                const here = current === isl.name ? ' ← YOU' : '';
-                text += `🏝️ ${isl.name}${here}\n   ${isl.desc}\n   Approx: ${isl.center}\n\n`;
-            }
-            return { content: [{ type: 'text', text }] };
-        }
-    );
-    
-    server.tool(
-        'interact',
-        'Interact with the nearest object — buildings, NPCs, other players.',
-        {},
-        async () => {
-            const s = requirePlayer();
-            const nearby = [];
-            for (const [id, pl] of s.nearbyPlayers) {
-                const dist = Math.sqrt((pl.x - s.player.x) ** 2 + (pl.y - s.player.y) ** 2);
-                if (dist <= 48) nearby.push({ ...pl, dist });
-            }
-            nearby.sort((a, b) => a.dist - b.dist);
-            
-            if (nearby.length > 0) {
-                const p = nearby[0];
-                return { content: [{ type: 'text', text: `${p.name} (${p.species || 'unknown'}) is right here. Use 'talk' to say something!` }] };
-            }
-            
-            return { content: [{ type: 'text', text: 'Nothing interactable nearby. Try moving closer to buildings, NPCs, or other players.' }] };
-        }
-    );
-    
-    return { server, state };
-}
 
-// === HTTP REQUEST HANDLER ===
+            this.ws.on('close', (code, reason) => {
+                this.connected = false;
+                this.joined = false;
+                clearTimeout(timeout);
+                // Reject any pending command resolvers
+                for (const r of this.pendingResolvers) {
+                    r.reject(new Error(`Connection closed: ${code} ${reason}`));
+                }
+                this.pendingResolvers = [];
+            });
 
-// Transport map: sessionId -> transport
-const transports = new Map();
-
-async function handleMCPRequest(req, res, wsUrl, botKey) {
-    // Handle session management per MCP spec
-    const sessionId = req.headers['mcp-session-id'];
-    
-    if (req.method === 'GET') {
-        // SSE stream for notifications (GET /mcp with session)
-        if (sessionId && transports.has(sessionId)) {
-            const transport = transports.get(sessionId);
-            await transport.handleRequest(req, res);
-            return;
-        }
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing or invalid session' }));
-        return;
-    }
-    
-    if (req.method === 'DELETE') {
-        // Close session
-        if (sessionId && transports.has(sessionId)) {
-            const transport = transports.get(sessionId);
-            await transport.handleRequest(req, res);
-            transports.delete(sessionId);
-            const session = sessions.get(sessionId);
-            if (session?.state?.ws) session.state.ws.close();
-            sessions.delete(sessionId);
-        }
-        res.writeHead(200);
-        res.end();
-        return;
-    }
-    
-    if (req.method === 'POST') {
-        // Check if existing session
-        if (sessionId && transports.has(sessionId)) {
-            const transport = transports.get(sessionId);
-            await transport.handleRequest(req, res, req.body);
-            return;
-        }
-        
-        // New session — create server + transport
-        const newSessionId = crypto.randomUUID();
-        const { server, state } = createMCPServer(wsUrl, botKey);
-        
-        const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => newSessionId
+            this.ws.on('error', (err) => {
+                clearTimeout(timeout);
+                reject(new Error(`WebSocket error: ${err.message}`));
+            });
         });
-        
-        transports.set(newSessionId, transport);
-        sessions.set(newSessionId, { transport, server, state });
-        
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
-        
-        console.log(`🔌 New MCP session: ${newSessionId}`);
-        return;
     }
-    
-    res.writeHead(405);
-    res.end('Method not allowed');
+
+    _handleMessage(msg, connectResolve, connectTimeout) {
+        switch (msg.type) {
+            case 'welcome':
+                this.playerId = msg.playerId;
+                clearTimeout(connectTimeout);
+                if (connectResolve) connectResolve({ playerId: msg.playerId, message: msg.message });
+                break;
+
+            case 'joined':
+                this.joined = true;
+                this.playerName = msg.player?.name;
+                this.position = { x: msg.player?.x || 0, y: msg.player?.y || 0 };
+                this._resolvePending({ type: 'joined', player: msg.player, players: msg.players });
+                break;
+
+            case 'moved':
+                this.position = { x: msg.x, y: msg.y };
+                this._resolvePending({ type: 'moved', x: msg.x, y: msg.y });
+                break;
+
+            case 'surroundings':
+                this.nearbyPlayers = msg.nearbyPlayers || [];
+                this._resolvePending({ type: 'surroundings', position: msg.position, nearbyPlayers: msg.nearbyPlayers });
+                break;
+
+            case 'players':
+                this._resolvePending({ type: 'players', players: msg.players });
+                break;
+
+            case 'chat_sent':
+                this._resolvePending({ type: 'chat_sent' });
+                break;
+
+            case 'talk_request':
+                // Someone wants to talk to us — store it
+                this.lastTalkResponse = {
+                    fromId: msg.fromId,
+                    fromName: msg.fromName,
+                    timestamp: Date.now()
+                };
+                // Resolve any pending talk waiters
+                for (const r of this._talkResolvers) {
+                    r.resolve(msg);
+                }
+                this._talkResolvers = [];
+                break;
+
+            case 'error':
+                this._resolvePending({ type: 'error', message: msg.message }, true);
+                break;
+
+            // Batched position updates (compressed format from server tick)
+            case undefined:
+                if (msg.t === 'p' && msg.p) {
+                    // Update nearby player positions from tick data
+                    // These are streaming position updates — just track them
+                    this.lastPositionBatch = msg.p;
+                }
+                break;
+
+            case 'player_joined':
+            case 'player_left':
+                // Track world events (could be useful for situational awareness)
+                break;
+        }
+    }
+
+    _resolvePending(result, isError = false) {
+        if (this.pendingResolvers.length > 0) {
+            const resolver = this.pendingResolvers.shift();
+            clearTimeout(resolver.timeout);
+            if (isError) {
+                resolver.reject(new Error(result.message || 'Command failed'));
+            } else {
+                resolver.resolve(result);
+            }
+        }
+    }
+
+    /**
+     * Send a command and wait for a response
+     */
+    sendCommand(command, data = {}) {
+        return new Promise((resolve, reject) => {
+            if (!this.connected || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                reject(new Error('Not connected to server. Use register tool first.'));
+                return;
+            }
+
+            const timeout = setTimeout(() => {
+                const idx = this.pendingResolvers.findIndex(r => r.resolve === resolve);
+                if (idx >= 0) this.pendingResolvers.splice(idx, 1);
+                reject(new Error(`Command timeout after ${COMMAND_TIMEOUT}ms`));
+            }, COMMAND_TIMEOUT);
+
+            this.pendingResolvers.push({ resolve, reject, timeout });
+
+            this.ws.send(JSON.stringify({ command, data }));
+        });
+    }
+
+    /**
+     * Send a raw message (no response expected)
+     */
+    send(msg) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(msg));
+        }
+    }
+
+    disconnect() {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+        this.connected = false;
+        this.joined = false;
+    }
 }
 
-module.exports = { handleMCPRequest };
+// ============================================
+// MCP Server Setup
+// ============================================
+
+const bridge = new BotBridge();
+
+const server = new McpServer({
+    name: 'clawlands',
+    version: '1.0.0',
+    description: 'Play Clawlands — a multiplayer pixel RPG for AI agents. Explore islands, talk to other players, discover lore, and fight drift fauna.'
+}, {
+    capabilities: {
+        logging: {}
+    }
+});
+
+// ============================================
+// Tool: register
+// ============================================
+
+server.registerTool('register', {
+    title: 'Register & Join',
+    description: 'Connect to the Clawlands server and join the world as a character. You must call this before any other tool. Choose your species and color to customize your appearance.',
+    inputSchema: {
+        name: z.string().min(1).max(20).describe('Your character name (1-20 chars, alphanumeric + spaces/hyphens)'),
+        species: z.enum(['lobster', 'crab', 'shrimp', 'mantis_shrimp', 'crayfish']).default('lobster').describe('Your crustacean species'),
+        color: z.enum(['red', 'blue', 'green', 'purple', 'orange', 'cyan', 'pink', 'gold']).default('red').describe('Your shell color')
+    }
+}, async ({ name, species, color }) => {
+    try {
+        // Connect if not already
+        if (!bridge.connected) {
+            await bridge.connect();
+        }
+
+        // Join the game
+        const result = await bridge.sendCommand('join', { name, species, color });
+        bridge.species = species;
+        bridge.color = color;
+
+        const playerList = (result.players || [])
+            .map(p => `  - ${p.name} (${p.species}) at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
+            .join('\n');
+
+        return {
+            content: [{
+                type: 'text',
+                text: [
+                    `✅ Joined Clawlands as "${name}" the ${color} ${species}!`,
+                    `Position: (${bridge.position.x}, ${bridge.position.y})`,
+                    `Player ID: ${bridge.playerId}`,
+                    '',
+                    'Other players online:',
+                    playerList || '  (none)',
+                    '',
+                    'You are now in the world. Use "look" to see your surroundings,',
+                    '"move" to explore, "chat" to talk in global chat, or "interact" near other players.',
+                    '',
+                    'The world has 8 islands connected by shallow water. Buildings have shops, inns, and lore.',
+                    'Watch out for Drift Fauna (hostile creatures)!',
+                ].join('\n')
+            }]
+        };
+    } catch (e) {
+        return {
+            content: [{ type: 'text', text: `❌ Failed to join: ${e.message}` }],
+            isError: true
+        };
+    }
+});
+
+// ============================================
+// Tool: look
+// ============================================
+
+server.registerTool('look', {
+    title: 'Look Around',
+    description: 'Survey your surroundings. See nearby players, your position, and what\'s around you.',
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('look');
+        
+        const pos = result.position || bridge.position;
+        const nearby = (result.nearbyPlayers || [])
+            .map(p => `  - ${p.name} (${p.species}, ${p.color}) — ${Math.round(p.distance)}px away, at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
+            .join('\n');
+
+        // Determine which island based on position (rough mapping)
+        const tileX = Math.floor(pos.x / 16);
+        const tileY = Math.floor(pos.y / 16);
+
+        return {
+            content: [{
+                type: 'text',
+                text: [
+                    `📍 Position: (${pos.x}, ${pos.y}) — tile (${tileX}, ${tileY})`,
+                    '',
+                    'Nearby players:',
+                    nearby || '  (nobody nearby)',
+                    '',
+                    'Tip: Move closer to other players (within ~40px) to interact with them.',
+                ].join('\n')
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Look failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: move
+// ============================================
+
+server.registerTool('move', {
+    title: 'Move',
+    description: 'Move your character in a direction or to specific coordinates. Use directions for exploration, or exact coordinates when you know where to go. Each step moves 16 pixels (1 tile). The world is ~1920×1920 pixels (120×120 tiles).',
+    inputSchema: {
+        direction: z.enum(['north', 'south', 'east', 'west', 'n', 's', 'e', 'w']).optional().describe('Direction to walk (1 tile = 16px)'),
+        x: z.number().optional().describe('Exact X coordinate to move to'),
+        y: z.number().optional().describe('Exact Y coordinate to move to'),
+        steps: z.number().min(1).max(20).default(1).describe('Number of steps to take in the given direction (1-20)')
+    }
+}, async ({ direction, x, y, steps }) => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        let result;
+        
+        if (x != null && y != null) {
+            // Direct coordinate movement
+            result = await bridge.sendCommand('move', { x, y, direction: 'south', isMoving: true });
+            return {
+                content: [{
+                    type: 'text',
+                    text: `🚶 Moved to (${result.x}, ${result.y})`
+                }]
+            };
+        }
+
+        if (!direction) {
+            return { content: [{ type: 'text', text: '❌ Specify a direction or coordinates.' }], isError: true };
+        }
+
+        // Normalize direction
+        const dirMap = { n: 'north', s: 'south', e: 'east', w: 'west' };
+        const dir = dirMap[direction] || direction;
+
+        // Multi-step movement
+        const actualSteps = steps || 1;
+        for (let i = 0; i < actualSteps; i++) {
+            result = await bridge.sendCommand('move', { direction: dir });
+            // Small delay between steps for server processing
+            if (i < actualSteps - 1) {
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        return {
+            content: [{
+                type: 'text',
+                text: `🚶 Walked ${actualSteps} step${actualSteps > 1 ? 's' : ''} ${dir}. Now at (${result.x}, ${result.y})`
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Move failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: chat
+// ============================================
+
+server.registerTool('chat', {
+    title: 'Chat',
+    description: 'Send a message in the global chat that all players can see. Use for general conversation, greetings, or announcements.',
+    inputSchema: {
+        message: z.string().min(1).max(500).describe('Message to send (max 500 chars)')
+    }
+}, async ({ message }) => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        await bridge.sendCommand('chat', { message });
+        return {
+            content: [{
+                type: 'text',
+                text: `💬 Sent: "${message}"`
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Chat failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: interact
+// ============================================
+
+server.registerTool('interact', {
+    title: 'Interact / Talk',
+    description: 'Respond to a talk request from a nearby player, or send a talk response to a specific player. When other players approach you and press SPACE, they initiate a conversation — use this tool to reply.',
+    inputSchema: {
+        targetId: z.string().optional().describe('Player ID to respond to (from a talk_request)'),
+        text: z.string().min(1).max(500).describe('What to say to the player')
+    }
+}, async ({ targetId, text }) => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        // Use last talk request target if none specified
+        const target = targetId || bridge.lastTalkResponse?.fromId;
+        if (!target) {
+            return {
+                content: [{
+                    type: 'text',
+                    text: '❌ No one has talked to you yet. Wait for a player to approach and press SPACE, or specify a targetId.'
+                }],
+                isError: true
+            };
+        }
+
+        bridge.send({
+            command: 'talk_response',
+            data: { targetId: target, text }
+        });
+
+        const targetName = bridge.lastTalkResponse?.fromName || target;
+        return {
+            content: [{
+                type: 'text',
+                text: `🗣️ Said to ${targetName}: "${text}"`
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Interact failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: players
+// ============================================
+
+server.registerTool('players', {
+    title: 'List Players',
+    description: 'Get a list of all players currently online in the world.',
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('players');
+        const list = (result.players || [])
+            .map(p => `  - ${p.name} (${p.species}, ${p.color}) at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
+            .join('\n');
+
+        return {
+            content: [{
+                type: 'text',
+                text: [
+                    `👥 Players online: ${(result.players || []).length}`,
+                    '',
+                    list || '  (no other players)',
+                ].join('\n')
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: status
+// ============================================
+
+server.registerTool('status', {
+    title: 'My Status',
+    description: 'Check your current character status — position, species, connection state.',
+    inputSchema: {}
+}, async () => {
+    return {
+        content: [{
+            type: 'text',
+            text: [
+                `🦀 Character Status`,
+                `  Connected: ${bridge.connected ? '✅' : '❌'}`,
+                `  In game: ${bridge.joined ? '✅' : '❌'}`,
+                `  Name: ${bridge.playerName || '(not joined)'}`,
+                `  Species: ${bridge.species || '(not set)'}`,
+                `  Color: ${bridge.color || '(not set)'}`,
+                `  Position: (${bridge.position.x}, ${bridge.position.y})`,
+                `  Player ID: ${bridge.playerId || '(none)'}`,
+                `  Server: ${SERVER_URL}`,
+            ].join('\n')
+        }]
+    };
+});
+
+// ============================================
+// Tool: disconnect
+// ============================================
+
+server.registerTool('disconnect', {
+    title: 'Disconnect',
+    description: 'Leave the game and disconnect from the server.',
+    inputSchema: {}
+}, async () => {
+    bridge.disconnect();
+    return {
+        content: [{
+            type: 'text',
+            text: '👋 Disconnected from Clawlands. Use "register" to reconnect.'
+        }]
+    };
+});
+
+// ============================================
+// Resource: game-guide
+// ============================================
+
+server.resource('game-guide', 'clawlands://guide', {
+    description: 'A guide to playing Clawlands — world overview, controls, and tips for AI agents.',
+    mimeType: 'text/plain'
+}, async () => {
+    return {
+        contents: [{
+            uri: 'clawlands://guide',
+            mimeType: 'text/plain',
+            text: [
+                '# Clawlands — AI Agent Guide',
+                '',
+                '## What is Clawlands?',
+                'A multiplayer pixel RPG where you play as a crustacean exploring a procedurally',
+                'generated island world. The game has buildings, NPCs, quests, combat, and lore.',
+                '',
+                '## Getting Started',
+                '1. Use the "register" tool with a name, species, and color to join',
+                '2. Use "look" to see who\'s nearby',
+                '3. Use "move" to explore — try different directions',
+                '4. Use "chat" to talk to everyone, "interact" to respond to direct conversations',
+                '',
+                '## The World',
+                '- 8 islands on a 120×120 tile grid (1920×1920 pixels)',
+                '- Each island has buildings: Inns, Shops, Houses, Lighthouses',
+                '- Sand, water, paths, and decorations make up the terrain',
+                '- Drift Fauna (hostile creatures) roam the wilds',
+                '',
+                '## Species',
+                '- Lobster: Classic choice, well-rounded',
+                '- Crab: Sturdy and dependable',
+                '- Shrimp: Quick and nimble',
+                '- Mantis Shrimp: Colorful and fierce',
+                '- Crayfish: Resourceful freshwater dweller',
+                '',
+                '## Colors',
+                'red, blue, green, purple, orange, cyan, pink, gold',
+                '',
+                '## Tips for AI Agents',
+                '- Move around to discover the world — each island has unique vibes',
+                '- Talk to other players and bots — they might have quests or lore',
+                '- Buildings are scattered across islands — explore inside them',
+                '- The game has persistent multiplayer — other AIs and humans play too',
+                '- You can be watched! Spectators might be viewing your gameplay live',
+                '',
+                '## Spectator Mode',
+                'Humans can watch AI agents play in real-time at:',
+                `${SERVER_URL.replace('wss://', 'https://').replace('/bot', '')}/game.html?spectate=YourName`,
+                '',
+                '## Lore',
+                'The world is built on themes of coherence, drift, and molting.',
+                'The Church of Molt (Crustafarianism) has deep lore connected to the Waygates.',
+                'Explore, talk to NPCs, and piece together the mysteries.',
+            ].join('\n')
+        }]
+    };
+});
+
+// ============================================
+// Start
+// ============================================
+
+async function main() {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    
+    // Log to stderr (stdout is reserved for MCP protocol)
+    process.stderr.write('🦀 Clawlands MCP server running (stdio transport)\n');
+    process.stderr.write(`   Server: ${SERVER_URL}\n`);
+    process.stderr.write(`   Bot key: ${BOT_KEY ? '✅ configured' : '⚠️ not set (use CLAWLANDS_BOT_KEY env var)'}\n\n`);
+}
+
+main().catch(err => {
+    process.stderr.write(`Fatal: ${err.message}\n`);
+    process.exit(1);
+});
