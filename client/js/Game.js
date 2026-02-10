@@ -550,6 +550,9 @@ class Game {
             
             const playerCount = this.multiplayer.remotePlayers.size;
             
+            // Always update HUD player count
+            this._updateSpectateHUD();
+            
             // If we have a target, check it's still in the player list
             if (this.spectatePlayer) {
                 let stillExists = false;
@@ -559,19 +562,9 @@ class Game {
                 if (!stillExists) {
                     console.log(`👁️ Lost spectate target — scanning for reconnect...`);
                     this.spectatePlayer = null;
+                    this._updateSpectateHUD();
                     const status = document.getElementById('spectate-status');
                     if (status) { status.textContent = 'Reconnecting...'; status.style.color = '#c43a24'; }
-                } else if (this.spectateTarget === '*' && !this.spectatePlayer.isBot) {
-                    // We're watching a non-bot but there might be a bot now — check
-                    for (const [id, remote] of this.multiplayer.remotePlayers) {
-                        if (remote.isBot) {
-                            console.log(`👁️ Switching to bot: ${remote.name}`);
-                            this.spectatePlayer._spectated = false;
-                            this.spectatePlayer = null; // Will re-lock below
-                            break;
-                        }
-                    }
-                    if (this.spectatePlayer) return; // No bot found, stay on current
                 } else {
                     return; // Still locked on — skip scan
                 }
@@ -584,7 +577,8 @@ class Game {
                 }
             }
             
-            // When target is '*', find any bot (prefer bots, fall back to any player)
+            // Auto-find initial target (first connect or after losing target)
+            // When target is '*', prefer bots; otherwise match by name
             let bestMatch = null;
             for (const [id, remote] of this.multiplayer.remotePlayers) {
                 if (this.spectateTarget === '*') {
@@ -595,48 +589,193 @@ class Game {
                 }
             }
             if (bestMatch) {
-                const remote = bestMatch;
-                console.log(`👁️ Found spectate target: ${remote.name} at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
-                this.spectatePlayer = remote;
-                
-                // Flag for real-time position snapping (no interpolation delay)
-                remote._spectated = true;
-                
-                // Make camera follow this remote player with near-instant tracking
-                this.camera.setTarget(remote);
-                this.camera.lerpSpeed = 0.5;
-                
-                // Update overlay
-                const label = document.getElementById('spectate-label');
-                if (label) label.textContent = `Watching: ${remote.name}`;
-                const status = document.getElementById('spectate-status');
-                if (status) status.textContent = 'Connected';
-                if (status) status.style.color = '#4CAF50';
-                
-                // Fade out the splash screen
-                this._dismissSpectatorSplash();
-                return;
+                this._lockSpectateTarget(bestMatch);
             }
         }, 500);
     }
 
-    // Show spectator UI overlay
+    // Show spectator UI overlay with player cycling and search
     _showSpectatorOverlay() {
         const overlay = document.createElement('div');
         overlay.id = 'spectator-overlay';
         overlay.style.cssText = `
             position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-            background: rgba(13, 8, 6, 0.85); border: 2px solid #c43a24;
-            border-radius: 8px; padding: 8px 20px; z-index: 1000;
+            background: rgba(13, 8, 6, 0.9); border: 2px solid #c43a24;
+            border-radius: 8px; padding: 8px 16px; z-index: 1000;
             font-family: monospace; color: #e8d5cc; text-align: center;
-            pointer-events: none;
+            pointer-events: auto; min-width: 260px;
         `;
         overlay.innerHTML = `
-            <div style="font-size: 11px; color: #8a7068; text-transform: uppercase; letter-spacing: 2px;">Spectator Mode</div>
-            <div id="spectate-label" style="font-size: 16px; font-weight: bold; color: #e8d5cc; margin: 4px 0;">Looking for ${this.spectateTarget === '*' ? 'AI agent' : this.spectateTarget}...</div>
-            <div id="spectate-status" style="font-size: 11px; color: #c43a24;">Searching...</div>
+            <div style="font-size: 10px; color: #8a7068; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px;">Spectator Mode</div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <button id="spectate-prev" title="Previous player" style="
+                    background: rgba(196,58,36,0.2); border: 1px solid #c43a24; color: #c43a24;
+                    font-size: 18px; width: 32px; height: 32px; border-radius: 4px;
+                    cursor: pointer; font-family: monospace; display: flex; align-items: center;
+                    justify-content: center; transition: background 0.15s;
+                ">◀</button>
+                <div style="flex: 1; min-width: 120px;">
+                    <div id="spectate-label" style="font-size: 15px; font-weight: bold; color: #e8d5cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Searching...</div>
+                    <div id="spectate-status" style="font-size: 10px; color: #c43a24;"></div>
+                </div>
+                <button id="spectate-next" title="Next player" style="
+                    background: rgba(196,58,36,0.2); border: 1px solid #c43a24; color: #c43a24;
+                    font-size: 18px; width: 32px; height: 32px; border-radius: 4px;
+                    cursor: pointer; font-family: monospace; display: flex; align-items: center;
+                    justify-content: center; transition: background 0.15s;
+                ">▶</button>
+            </div>
+            <div style="margin-top: 6px; display: flex; gap: 4px;">
+                <input id="spectate-search" type="text" placeholder="Jump to player..." style="
+                    flex: 1; background: rgba(13,8,6,0.8); border: 1px solid #3a2a22; color: #e8d5cc;
+                    padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 11px;
+                    outline: none;
+                " />
+                <button id="spectate-go" title="Watch this player" style="
+                    background: #c43a24; border: none; color: #fff; padding: 4px 10px;
+                    border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px;
+                    font-weight: bold;
+                ">GO</button>
+            </div>
+            <div id="spectate-player-count" style="font-size: 9px; color: #5a4a42; margin-top: 4px;"></div>
         `;
         document.body.appendChild(overlay);
+
+        // Wire up buttons
+        document.getElementById('spectate-prev').addEventListener('click', () => this._cycleSpectateTarget(-1));
+        document.getElementById('spectate-next').addEventListener('click', () => this._cycleSpectateTarget(1));
+
+        // Hover effects
+        for (const btn of overlay.querySelectorAll('button')) {
+            btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(196,58,36,0.5)'; });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.background = btn.id === 'spectate-go' ? '#c43a24' : 'rgba(196,58,36,0.2)';
+            });
+        }
+
+        // Search input
+        const searchInput = document.getElementById('spectate-search');
+        const goBtn = document.getElementById('spectate-go');
+
+        const doSearch = () => {
+            const name = searchInput.value.trim();
+            if (!name) return;
+            this._switchToPlayerByName(name);
+            searchInput.value = '';
+            searchInput.blur();
+        };
+
+        goBtn.addEventListener('click', doSearch);
+        searchInput.addEventListener('keydown', (e) => {
+            e.stopPropagation(); // Don't let game key handler eat these
+            if (e.key === 'Enter') doSearch();
+            if (e.key === 'Escape') { searchInput.value = ''; searchInput.blur(); }
+        });
+        // Prevent game from blocking typing in the input
+        searchInput.addEventListener('keyup', (e) => e.stopPropagation());
+        searchInput.addEventListener('keypress', (e) => e.stopPropagation());
+    }
+
+    // Get sorted list of all remote players for cycling
+    _getSpectatePlayerList() {
+        if (!this.multiplayer) return [];
+        const players = [];
+        for (const [id, remote] of this.multiplayer.remotePlayers) {
+            players.push(remote);
+        }
+        // Bots first, then alphabetical
+        players.sort((a, b) => {
+            if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+        return players;
+    }
+
+    // Cycle to next/previous player in spectator mode
+    _cycleSpectateTarget(direction) {
+        const players = this._getSpectatePlayerList();
+        if (players.length === 0) return;
+
+        let currentIdx = -1;
+        if (this.spectatePlayer) {
+            currentIdx = players.indexOf(this.spectatePlayer);
+        }
+
+        let nextIdx = currentIdx + direction;
+        if (nextIdx < 0) nextIdx = players.length - 1;
+        if (nextIdx >= players.length) nextIdx = 0;
+
+        this._lockSpectateTarget(players[nextIdx]);
+    }
+
+    // Switch to a specific player by name
+    _switchToPlayerByName(name) {
+        if (!this.multiplayer) return;
+        const lower = name.toLowerCase();
+        for (const [id, remote] of this.multiplayer.remotePlayers) {
+            if ((remote.name || '').toLowerCase().includes(lower)) {
+                this._lockSpectateTarget(remote);
+                return;
+            }
+        }
+        // Not found — show feedback
+        const status = document.getElementById('spectate-status');
+        if (status) {
+            status.textContent = `"${name}" not found`;
+            status.style.color = '#c43a24';
+        }
+    }
+
+    // Lock onto a specific player as spectate target
+    _lockSpectateTarget(remote) {
+        // Unmark old target
+        if (this.spectatePlayer) {
+            this.spectatePlayer._spectated = false;
+        }
+
+        this.spectatePlayer = remote;
+        remote._spectated = true;
+        this.spectateTarget = remote.name; // Update so auto-scan re-finds this player on reconnect
+
+        // Camera follow
+        this.camera.setTarget(remote);
+        this.camera.lerpSpeed = 0.5;
+
+        // Update HUD
+        this._updateSpectateHUD();
+
+        // Dismiss splash if still showing
+        this._dismissSpectatorSplash();
+
+        console.log(`👁️ Now watching: ${remote.name}`);
+    }
+
+    // Update the spectator HUD with current state
+    _updateSpectateHUD() {
+        const label = document.getElementById('spectate-label');
+        const status = document.getElementById('spectate-status');
+        const countEl = document.getElementById('spectate-player-count');
+        const players = this._getSpectatePlayerList();
+
+        if (this.spectatePlayer) {
+            const p = this.spectatePlayer;
+            const icon = p.isBot ? '🤖' : '👤';
+            if (label) label.textContent = `${icon} ${p.name}`;
+            if (status) {
+                status.textContent = p.species ? `${p.species}` : 'Connected';
+                status.style.color = '#4CAF50';
+            }
+        } else {
+            if (label) label.textContent = 'Searching...';
+            if (status) { status.textContent = ''; status.style.color = '#c43a24'; }
+        }
+
+        if (countEl) {
+            const idx = this.spectatePlayer ? players.indexOf(this.spectatePlayer) + 1 : 0;
+            countEl.textContent = players.length > 0
+                ? `${idx} / ${players.length} player${players.length !== 1 ? 's' : ''}`
+                : 'No players online';
+        }
     }
 
     // Show welcome screen (plays every time — intro sequence, then game)
@@ -1235,8 +1374,8 @@ class Game {
             this.player.render(this.renderer, this.spriteRenderer);
         }
 
-        // Render combat system (enemies, attacks, effects, HUD)
-        if (this.combatSystem) {
+        // Render combat system (enemies, attacks, effects, HUD) — skip in spectator
+        if (this.combatSystem && !this.spectateMode) {
             this.combatSystem.render(this.renderer);
         }
         
@@ -1253,8 +1392,8 @@ class Game {
         // Render interaction hints
         this.renderInteractionHint();
         
-        // Render faction UI (if available)
-        if (this.factionUI) {
+        // Render faction UI (if available) — skip in spectator
+        if (this.factionUI && !this.spectateMode) {
             const ctx = this.canvas.getContext('2d');
             this.factionUI.render(ctx);
         }
@@ -1262,8 +1401,8 @@ class Game {
         // Execute all render commands
         this.renderer.render();
 
-        // Render combat HUD (screen-space, must be AFTER renderer.render)
-        if (this.combatSystem) {
+        // Render combat HUD (screen-space, must be AFTER renderer.render) — skip in spectator
+        if (this.combatSystem && !this.spectateMode) {
             this.combatSystem.renderHUD();
         }
 
@@ -1302,8 +1441,8 @@ class Game {
             ctx.restore();
         }
 
-        // Render canvas HUD panel (top-right: music, player count, controls hint)
-        if (this.gameActive) {
+        // Render canvas HUD panel (top-right: music, player count, controls hint) — skip in spectator
+        if (this.gameActive && !this.spectateMode) {
             this.renderCanvasHUDPanel();
         }
 
@@ -1378,11 +1517,24 @@ class Game {
             
             if (sprite) {
                 // Add sprite drawing to render layer system
-                const x = decor.x;
-                const y = decor.y;
-                const w = decor.width;
-                const h = decor.height;
+                let x = decor.x;
+                let y = decor.y;
+                let w = decor.width;
+                let h = decor.height;
                 const img = sprite;
+                
+                // Scale down furniture in interiors — sprites are too big relative to rooms
+                const isInterior = this.currentLocation === 'interior';
+                const furnitureScale = isInterior ? (decor.ground ? 0.75 : 0.65) : 1.0;
+                if (furnitureScale !== 1.0) {
+                    const scaledW = Math.round(w * furnitureScale);
+                    const scaledH = Math.round(h * furnitureScale);
+                    // Keep bottom-center anchored (furniture "sits" on the ground)
+                    x = x + (w - scaledW) / 2;
+                    y = y + (h - scaledH);
+                    w = scaledW;
+                    h = scaledH;
+                }
                 
                 // Use decor's layer if set, otherwise default based on ground flag
                 const layer = decor.layer || (decor.ground ? CONSTANTS.LAYER.GROUND : CONSTANTS.LAYER.GROUND_DECORATION);

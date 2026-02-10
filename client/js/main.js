@@ -180,15 +180,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Setup keyboard shortcuts
     window.addEventListener('keydown', (e) => {
-        // Spectator mode: only allow F (fullscreen) and M (music)
+        // Spectator mode: allow F (fullscreen), M (music), arrows (cycle players), search input
         if (game && game.spectateMode) {
+            // Let the search input handle its own keys
+            if (document.activeElement && document.activeElement.id === 'spectate-search') return;
+            
             const key = e.key.toLowerCase();
             if (key === 'f') {
                 e.preventDefault();
                 if (document.fullscreenElement) {
                     document.exitFullscreen().catch(() => {});
                 } else {
-                    // Fullscreen the entire page (not just game-container) for clean spectator experience
                     document.documentElement.requestFullscreen().catch((err) => {
                         console.log('Fullscreen failed:', err);
                     });
@@ -198,6 +200,12 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (typeof audioManager !== 'undefined') {
                     audioManager.toggleMute();
                 }
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                if (game._cycleSpectateTarget) game._cycleSpectateTarget(-1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                if (game._cycleSpectateTarget) game._cycleSpectateTarget(1);
             }
             return; // Block all other keys in spectator mode
         }
