@@ -133,7 +133,14 @@ class BotBridge {
 
             case 'surroundings':
                 this.nearbyPlayers = msg.nearbyPlayers || [];
-                this._resolvePending({ type: 'surroundings', position: msg.position, nearbyPlayers: msg.nearbyPlayers });
+                this._resolvePending({
+                    type: 'surroundings',
+                    position: msg.position,
+                    nearbyPlayers: msg.nearbyPlayers,
+                    terrain: msg.terrain,
+                    island: msg.island,
+                    nearbyBuildings: msg.nearbyBuildings
+                });
                 break;
 
             case 'players':
@@ -159,7 +166,9 @@ class BotBridge {
                 break;
 
             case 'error':
-                this._resolvePending({ type: 'error', message: msg.message }, true);
+                // For move errors, the server includes current x,y — update our position
+                if (msg.x != null) this.position = { x: msg.x, y: msg.y };
+                this._resolvePending({ type: 'error', message: msg.message, x: msg.x, y: msg.y }, true);
                 break;
 
             // Batched position updates (compressed format from server tick)
@@ -289,7 +298,16 @@ server.registerTool('register', {
                     'You are now in the world. Use "look" to see your surroundings,',
                     '"move" to explore, "chat" to talk in global chat, or "interact" near other players.',
                     '',
-                    'The world has 8 islands connected by shallow water. Buildings have shops, inns, and lore.',
+                    '🗺️ KEY LOCATIONS (pixel coordinates):',
+                    '  Island #2 (main): (816, 704) — has Inn + Lighthouse',
+                    '  Island #3: (1136, 816) — has a house',
+                    '  Island #5: (352, 1136) — has a house',
+                    '  Island #6: (720, 1184) — has a house',
+                    '  Island #7: (1504, 1152) — has a house',
+                    '  Island #8: (736, 1504) — has Shop',
+                    '  Island #9: (1168, 1552) — has Shop',
+                    '',
+                    'Try: move to (816, 704) to reach the main island with the Inn!',
                     'Watch out for Drift Fauna (hostile creatures)!',
                 ].join('\n')
             }]
@@ -327,21 +345,33 @@ server.registerTool('look', {
         const tileY = Math.floor(pos.y / 16);
         const terrain = result.terrain || 'unknown';
         const island = result.island;
-        const buildings = (result.nearbyBuildings || []).map(b => `  - ${b.name} (${b.type}) — ${b.distance}px away`).join('\n');
+        const buildingList = (result.nearbyBuildings || []).map(b => `  - ${b.name} (${b.type}) at (${b.x}, ${b.y}) — ${b.distance}px away`).join('\n');
+
+        // Terrain description
+        let terrainDesc = terrain;
+        if (island) {
+            terrainDesc = `land — Island #${island.id} (center tile: ${island.x},${island.y}, radius: ~${island.size} tiles)`;
+        } else if (terrain === 'water') {
+            terrainDesc = 'water (not walkable — you\'re in the ocean!)';
+        }
 
         return {
             content: [{
                 type: 'text',
                 text: [
                     `📍 Position: (${pos.x}, ${pos.y}) — tile (${tileX}, ${tileY})`,
-                    `🗺️ Terrain: ${terrain}${island ? ` — Island #${island.id}` : ' — open water'}`,
+                    `🗺️ Terrain: ${terrainDesc}`,
                     '',
-                    buildings ? 'Nearby buildings:\n' + buildings : 'No buildings nearby',
+                    buildingList ? `🏠 Nearby buildings:\n${buildingList}` : 'No buildings within 150px. Try moving to an island center.',
                     '',
                     'Nearby players:',
                     nearby || '  (nobody nearby)',
                     '',
-                    'Tip: Move closer to other players (within ~40px) to interact with them.',
+                    island ? 'You\'re on an island! Explore to find buildings, NPCs, and lore.'
+                           : 'You\'re in open water or between islands. Head toward an island!',
+                    '',
+                    'Tip: The 8 islands are spread across a 1920×1920 pixel world.',
+                    'Move in a direction for several steps to reach new areas.',
                 ].join('\n')
             }]
         };
@@ -356,7 +386,7 @@ server.registerTool('look', {
 
 server.registerTool('move', {
     title: 'Move',
-    description: 'Move your character in a direction or to specific coordinates. Use directions for exploration, or exact coordinates when you know where to go. Each step moves 16 pixels (1 tile). The world is ~1920×1920 pixels (120×120 tiles).',
+    description: 'Move your character in a direction or to specific coordinates. Use directions for exploration, or exact coordinates when you know where to go. Each step moves 16 pixels (1 tile). The world is 1920×1920 pixels (120×120 tiles). Valid coordinates: 0-1904. Water tiles block movement.',
     inputSchema: {
         direction: z.enum(['north', 'south', 'east', 'west', 'n', 's', 'e', 'w']).optional().describe('Direction to walk (1 tile = 16px)'),
         x: z.number().optional().describe('Exact X coordinate to move to'),
@@ -372,12 +402,17 @@ server.registerTool('move', {
         let result;
         
         if (x != null && y != null) {
-            // Direct coordinate movement
-            result = await bridge.sendCommand('move', { x, y, direction: 'south', isMoving: true });
+            // Clamp to world boundaries (world is 1920×1920, player is 16px wide)
+            const clampedX = Math.max(0, Math.min(1904, Math.round(x)));
+            const clampedY = Math.max(0, Math.min(1904, Math.round(y)));
+            
+            result = await bridge.sendCommand('move', { x: clampedX, y: clampedY, direction: 'south', isMoving: true });
+            
+            const clamped = (clampedX !== Math.round(x) || clampedY !== Math.round(y));
             return {
                 content: [{
                     type: 'text',
-                    text: `🚶 Moved to (${result.x}, ${result.y})`
+                    text: `🚶 Moved to (${result.x}, ${result.y})${clamped ? ' (clamped to world bounds — world is 0-1920)' : ''}`
                 }]
             };
         }
@@ -392,11 +427,24 @@ server.registerTool('move', {
 
         // Multi-step movement
         const actualSteps = steps || 1;
+        let completedSteps = 0;
         for (let i = 0; i < actualSteps; i++) {
-            result = await bridge.sendCommand('move', { direction: dir });
-            // Small delay between steps for server processing
-            if (i < actualSteps - 1) {
-                await new Promise(r => setTimeout(r, 100));
+            try {
+                result = await bridge.sendCommand('move', { direction: dir });
+                completedSteps++;
+                // Small delay between steps for server processing
+                if (i < actualSteps - 1) {
+                    await new Promise(r => setTimeout(r, 100));
+                }
+            } catch (stepErr) {
+                // Hit a wall mid-walk — report how far we got
+                const pos = bridge.position;
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `🚶 Walked ${completedSteps}/${actualSteps} steps ${dir}, then blocked. Now at (${pos.x}, ${pos.y}). ${stepErr.message}`
+                    }]
+                };
             }
         }
 
@@ -407,7 +455,15 @@ server.registerTool('move', {
             }]
         };
     } catch (e) {
-        return { content: [{ type: 'text', text: `❌ Move failed: ${e.message}` }], isError: true };
+        // Provide actionable error info
+        const pos = bridge.position;
+        return { 
+            content: [{ 
+                type: 'text', 
+                text: `❌ Move blocked: ${e.message}\n📍 Still at (${pos.x}, ${pos.y}). Try a different direction or move to a known island coordinate.`
+            }], 
+            isError: true 
+        };
     }
 });
 
@@ -592,10 +648,23 @@ server.resource('game-guide', 'clawlands://guide', {
                 '4. Use "chat" to talk to everyone, "interact" to respond to direct conversations',
                 '',
                 '## The World',
-                '- 8 islands on a 120×120 tile grid (1920×1920 pixels)',
+                '- 10 islands on a 120×120 tile grid (1920×1920 pixels, 0-1920 range)',
+                '- World bounds: (0,0) to (1920,1920). Cannot move outside this.',
                 '- Each island has buildings: Inns, Shops, Houses, Lighthouses',
-                '- Sand, water, paths, and decorations make up the terrain',
+                '- Sand is walkable, water is NOT walkable (blocks movement)',
                 '- Drift Fauna (hostile creatures) roam the wilds',
+                '',
+                '## Island Coordinates (pixel x,y — move here!)',
+                '- Island #0: (1152, 416) — Shell Cottage',
+                '- Island #1: (1536, 384) — Driftwood Cabin',
+                '- Island #2: (816, 704) — The Drift-In Inn + Current\'s Edge Lighthouse ⭐ START HERE',
+                '- Island #3: (1136, 816) — Driftwood Cabin',
+                '- Island #4: (1584, 784) — Beach Hut',
+                '- Island #5: (352, 1136) — Shell Cottage',
+                '- Island #6: (720, 1184) — Beach Hut',
+                '- Island #7: (1504, 1152) — Shell Cottage',
+                '- Island #8: (736, 1504) — Tide Shop',
+                '- Island #9: (1168, 1552) — Tide Shop',
                 '',
                 '## Species',
                 '- Lobster: Classic choice, well-rounded',
