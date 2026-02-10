@@ -239,6 +239,71 @@ function parseBody(req) {
     });
 }
 
+/**
+ * Find a safe spawn point on an island — walkable, not near buildings, integer coords
+ */
+function findSafeSpawn(island) {
+    const centerX = island.x * 16 + island.size * 8;
+    const centerY = island.y * 16 + island.size * 8;
+    let bestX = Math.round(centerX);
+    let bestY = Math.round(centerY);
+    
+    for (let attempt = 0; attempt < 100; attempt++) {
+        // Use integer tile offsets to avoid fractional coordinates
+        const offsetTilesX = Math.floor(Math.random() * (island.size * 2)) - island.size;
+        const offsetTilesY = Math.floor(Math.random() * (island.size * 2)) - island.size;
+        const tryX = (island.x + offsetTilesX) * 16;
+        const tryY = (island.y + offsetTilesY) * 16;
+        
+        // Must be walkable terrain
+        if (!isBoxWalkable(terrainData.terrainMap, tryX, tryY)) continue;
+        
+        // Must be clear of buildings (32px clearance)
+        let tooClose = false;
+        for (const building of buildings) {
+            if (tryX < building.x + building.width + 32 && tryX + 16 > building.x - 32 &&
+                tryY < building.y + building.height + 32 && tryY + 24 > building.y - 32) {
+                tooClose = true;
+                break;
+            }
+        }
+        if (tooClose) continue;
+        
+        // Must have at least 3 walkable directions (not boxed in)
+        let openDirs = 0;
+        for (const [dx, dy] of [[16,0],[-16,0],[0,16],[0,-16]]) {
+            const nx = tryX + dx, ny = tryY + dy;
+            if (isBoxWalkable(terrainData.terrainMap, nx, ny)) {
+                let buildingClear = true;
+                for (const building of buildings) {
+                    if (nx < building.x + building.width && nx + 16 > building.x &&
+                        ny < building.y + building.height && ny + 24 > building.y) {
+                        buildingClear = false;
+                        break;
+                    }
+                }
+                if (buildingClear) openDirs++;
+            }
+        }
+        if (openDirs < 3) continue;
+        
+        return { x: tryX, y: tryY };
+    }
+    
+    // Fallback: just find any walkable spot (no building check)
+    for (let attempt = 0; attempt < 50; attempt++) {
+        const offsetTilesX = Math.floor(Math.random() * (island.size * 2)) - island.size;
+        const offsetTilesY = Math.floor(Math.random() * (island.size * 2)) - island.size;
+        const tryX = (island.x + offsetTilesX) * 16;
+        const tryY = (island.y + offsetTilesY) * 16;
+        if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) {
+            return { x: tryX, y: tryY };
+        }
+    }
+    
+    return { x: bestX, y: bestY };
+}
+
 function broadcast(message, excludeId = null) {
     const data = JSON.stringify(message);
     players.forEach((player, id) => {
@@ -840,21 +905,11 @@ async function handleMessage(playerId, playerData, msg, ws) {
             playerData.species = msg.species || 'lobster';
             playerData.color = msg.color || 'red';
             
-            // Randomize spawn point on main island
+            // Randomize spawn point on main island (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
-            let spawnX = mainIsland.x * 16 + mainIsland.size * 8;
-            let spawnY = mainIsland.y * 16 + mainIsland.size * 8;
-            for (let attempt = 0; attempt < 50; attempt++) {
-                const tryX = (mainIsland.x + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
-                const tryY = (mainIsland.y + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
-                if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) { 
-                    spawnX = tryX; 
-                    spawnY = tryY; 
-                    break; 
-                }
-            }
-            playerData.x = msg.x || spawnX;
-            playerData.y = msg.y || spawnY;
+            const spawn = findSafeSpawn(mainIsland);
+            playerData.x = msg.x || spawn.x;
+            playerData.y = msg.y || spawn.y;
 
             players.set(playerId, playerData);
 
@@ -1057,17 +1112,11 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             playerData.species = data?.species || 'lobster';
             playerData.color = data?.color || 'red';
             
-            // Find a walkable spawn on island 0 (main island)
+            // Find a walkable spawn on island 0 (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
-            let spawnX = mainIsland.x * 16 + mainIsland.size * 8;
-            let spawnY = mainIsland.y * 16 + mainIsland.size * 8;
-            for (let attempt = 0; attempt < 50; attempt++) {
-                const tryX = (mainIsland.x + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
-                const tryY = (mainIsland.y + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
-                if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) { spawnX = tryX; spawnY = tryY; break; }
-            }
-            playerData.x = spawnX;
-            playerData.y = spawnY;
+            const spawn = findSafeSpawn(mainIsland);
+            playerData.x = spawn.x;
+            playerData.y = spawn.y;
 
             // Set starting position from bot data if provided (override spawn)
             if (data?.x != null) playerData.x = data.x;
@@ -1228,7 +1277,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                     ...p,
                     distance: Math.sqrt(Math.pow(p.x - playerData.x, 2) + Math.pow(p.y - playerData.y, 2))
                 }))
-                .filter(p => p.distance < 200)
+                .filter(p => p.distance < 400)
                 .sort((a, b) => a.distance - b.distance);
 
             // Determine island
@@ -1242,8 +1291,8 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             }
             const nearbyBuildings = buildings.filter(b => {
                 const cx = b.x + b.width/2, cy = b.y + b.height/2;
-                return Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2)) < 150;
-            }).map(b => ({ name: b.name, type: b.type, x: b.x, y: b.y, distance: Math.round(Math.sqrt(Math.pow(b.x - playerData.x, 2) + Math.pow(b.y - playerData.y, 2))) }));
+                return Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2)) < 400;
+            }).map(b => ({ name: b.name, type: b.type, x: b.x, y: b.y, distance: Math.round(Math.sqrt(Math.pow(b.x + b.width/2 - playerData.x, 2) + Math.pow(b.y + b.height/2 - playerData.y, 2))) }));
 
             ws.send(JSON.stringify({
                 type: 'surroundings',

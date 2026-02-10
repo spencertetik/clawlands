@@ -82,6 +82,12 @@ class BotBridge {
 
             this.ws.on('open', () => {
                 this.connected = true;
+                // Start keepalive ping every 25s (server timeout is 30s)
+                this._pingInterval = setInterval(() => {
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.ws.ping();
+                    }
+                }, 25000);
             });
 
             this.ws.on('message', (data) => {
@@ -99,9 +105,10 @@ class BotBridge {
                 clearTimeout(timeout);
                 // Reject any pending command resolvers
                 for (const r of this.pendingResolvers) {
-                    r.reject(new Error(`Connection closed: ${code} ${reason}`));
+                    r.reject(new Error(`Connection closed (code ${code}). Use "register" to reconnect.`));
                 }
                 this.pendingResolvers = [];
+                process.stderr.write(`⚠️ Connection closed: ${code} ${reason}\n`);
             });
 
             this.ws.on('error', (err) => {
@@ -231,6 +238,10 @@ class BotBridge {
     }
 
     disconnect() {
+        if (this._pingInterval) {
+            clearInterval(this._pingInterval);
+            this._pingInterval = null;
+        }
         if (this.ws) {
             this.ws.close();
             this.ws = null;
@@ -270,13 +281,19 @@ server.registerTool('register', {
     }
 }, async ({ name, species, color }) => {
     try {
+        // Sanitize name — strip HTML tags, allow only word chars + spaces + hyphens
+        const cleanName = name.replace(/<[^>]*>/g, '').replace(/[^\w\s-]/g, '').trim().slice(0, 20);
+        if (!cleanName) {
+            return { content: [{ type: 'text', text: '❌ Invalid name. Use alphanumeric characters, spaces, or hyphens.' }], isError: true };
+        }
+        
         // Connect if not already
         if (!bridge.connected) {
             await bridge.connect();
         }
 
         // Join the game
-        const result = await bridge.sendCommand('join', { name, species, color });
+        const result = await bridge.sendCommand('join', { name: cleanName, species, color });
         bridge.species = species;
         bridge.color = color;
 
@@ -288,7 +305,7 @@ server.registerTool('register', {
             content: [{
                 type: 'text',
                 text: [
-                    `✅ Joined Clawlands as "${name}" the ${color} ${species}!`,
+                    `✅ Joined Clawlands as "${cleanName}" the ${color} ${species}!`,
                     `Position: (${bridge.position.x}, ${bridge.position.y})`,
                     `Player ID: ${bridge.playerId}`,
                     '',
@@ -338,7 +355,7 @@ server.registerTool('look', {
         
         const pos = result.position || bridge.position;
         const nearby = (result.nearbyPlayers || [])
-            .map(p => `  - ${p.name} (${p.species}, ${p.color}) — ${Math.round(p.distance)}px away, at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
+            .map(p => `  - ${p.name} [id: ${p.id}] (${p.species}, ${p.color}) — ${Math.round(p.distance)}px away, at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
             .join('\n');
 
         const tileX = Math.floor(pos.x / 16);
@@ -483,11 +500,17 @@ server.registerTool('chat', {
     }
 
     try {
-        await bridge.sendCommand('chat', { message });
+        // Sanitize chat message — strip HTML
+        const cleanMessage = message.replace(/<[^>]*>/g, '').trim();
+        if (!cleanMessage) {
+            return { content: [{ type: 'text', text: '❌ Message is empty after sanitization.' }], isError: true };
+        }
+        
+        await bridge.sendCommand('chat', { message: cleanMessage });
         return {
             content: [{
                 type: 'text',
-                text: `💬 Sent: "${message}"`
+                text: `💬 Sent: "${cleanMessage}"`
             }]
         };
     } catch (e) {
@@ -501,9 +524,9 @@ server.registerTool('chat', {
 
 server.registerTool('interact', {
     title: 'Interact / Talk',
-    description: 'Respond to a talk request from a nearby player, or send a talk response to a specific player. When other players approach you and press SPACE, they initiate a conversation — use this tool to reply.',
+    description: 'Talk to a nearby player or respond to a talk request. Pass the target player\'s ID (from the "look" or "players" tool output) and your message. The target must be within ~96 pixels of you.',
     inputSchema: {
-        targetId: z.string().optional().describe('Player ID to respond to (from a talk_request)'),
+        targetId: z.string().describe('Player ID to talk to (get this from "look" or "players" output)'),
         text: z.string().min(1).max(500).describe('What to say to the player')
     }
 }, async ({ targetId, text }) => {
@@ -512,12 +535,11 @@ server.registerTool('interact', {
     }
 
     try {
-        // Require explicit targetId - remove fallback
         if (!targetId) {
             return {
                 content: [{
                     type: 'text',
-                    text: '❌ No targetId specified. Specify the player ID to respond to.'
+                    text: '❌ No targetId specified. Use "look" or "players" to find player IDs, then pass the ID here.'
                 }],
                 isError: true
             };
@@ -528,11 +550,14 @@ server.registerTool('interact', {
             data: { targetId: targetId, text }
         });
 
-        const targetName = bridge.lastTalkResponse?.fromName || targetId;
+        // Look up the actual name from nearby players, don't use stale talk_request data
+        const target = bridge.nearbyPlayers?.find(p => p.id === targetId);
+        const targetName = target?.name || targetId;
+        
         return {
             content: [{
                 type: 'text',
-                text: `🗣️ Said to ${targetName}: "${text}"`
+                text: `🗣️ Said to ${targetName}: "${text}"\n(Target must be within 96px to receive. Use "look" to check distances.)`
             }]
         };
     } catch (e) {
@@ -556,7 +581,7 @@ server.registerTool('players', {
     try {
         const result = await bridge.sendCommand('players');
         const list = (result.players || [])
-            .map(p => `  - ${p.name} (${p.species}, ${p.color}) at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
+            .map(p => `  - ${p.name} [id: ${p.id}] (${p.species}, ${p.color}) at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
             .join('\n');
 
         return {
