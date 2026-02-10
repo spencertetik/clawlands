@@ -218,17 +218,24 @@ class MultiplayerClient {
         const hueShift = config.hueShift || 0;
         const color = colorMap[hueShift] || player.colorName || 'red';
         
-        console.log(`🎮 Joining multiplayer as: ${charName} (${species}, ${color})`);
+        console.log(`🎮 Joining multiplayer as: ${charName} (${species}, ${color})${this.game.spectateMode ? ' [SPECTATOR]' : ''}`);
         console.log(`   characterConfig:`, config);
         
-        this.send({
+        const joinMsg = {
             type: 'join',
             name: charName,
             species: species,
             color: color,
             x: player.position.x,
             y: player.position.y
-        });
+        };
+        
+        // Spectators join invisibly — not shown to other players
+        if (this.game.spectateMode) {
+            joinMsg.spectator = true;
+        }
+        
+        this.send(joinMsg);
     }
 
     send(msg) {

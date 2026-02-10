@@ -257,16 +257,18 @@ function broadcastNearby(message, sourceId, sourceX, sourceY) {
 }
 
 function getPlayerList() {
-    return Array.from(players.entries()).map(([id, p]) => ({
-        id,
-        name: p.name,
-        species: p.species,
-        color: p.color,
-        x: p.x,
-        y: p.y,
-        facing: p.facing || 'down',
-        isBot: p.isBot
-    }));
+    return Array.from(players.entries())
+        .filter(([id, p]) => !p.isSpectator) // Exclude spectators from player list
+        .map(([id, p]) => ({
+            id,
+            name: p.name,
+            species: p.species,
+            color: p.color,
+            x: p.x,
+            y: p.y,
+            facing: p.facing || 'down',
+            isBot: p.isBot
+        }));
 }
 
 // ============================================
@@ -651,18 +653,22 @@ wss.on('connection', async (ws, req) => {
 
     ws.on('close', async () => {
         if (playerData.name) {
-            console.log(`${playerData.isBot ? '🤖' : '👤'} ${playerData.name} left`);
-            
-            // Save position to database
-            if (db && !playerData.isBot) {
-                await db.query(
-                    'UPDATE players SET last_x = $1, last_y = $2, last_seen = NOW() WHERE name = $3',
-                    [playerData.x, playerData.y, playerData.name]
-                );
-            }
+            if (playerData.isSpectator) {
+                console.log(`👁️ Spectator "${playerData.name}" disconnected`);
+            } else {
+                console.log(`${playerData.isBot ? '🤖' : '👤'} ${playerData.name} left`);
+                
+                // Save position to database
+                if (db && !playerData.isBot) {
+                    await db.query(
+                        'UPDATE players SET last_x = $1, last_y = $2, last_seen = NOW() WHERE name = $3',
+                        [playerData.x, playerData.y, playerData.name]
+                    );
+                }
 
-            // Notify others
-            broadcast({ type: 'player_left', playerId: playerId, name: playerData.name });
+                // Notify others (spectators don't trigger player_left)
+                broadcast({ type: 'player_left', playerId: playerId, name: playerData.name });
+            }
         }
         players.delete(playerId);
     });
@@ -714,26 +720,26 @@ setInterval(() => {
         if (recipient.ws.readyState !== WebSocket.OPEN || !recipient.name) continue;
 
         // Filter to only nearby movers (spatial partitioning)
+        // Spectators see ALL players (no AOI filter — they follow the camera)
         const nearby = [];
         for (const mp of movedPlayers) {
             if (mp.id === recipientId) continue;
-            const dx = (players.get(mp.id)?.x || mp.x) - recipient.x;
-            const dy = (players.get(mp.id)?.y || mp.y) - recipient.y;
-            if (dx * dx + dy * dy <= AOI_RANGE * AOI_RANGE) {
-                // Compressed format: short keys
-                nearby.push({
-                    i: mp.id,
-                    x: mp.x,
-                    y: mp.y,
-                    d: mp.direction,
-                    m: mp.isMoving ? 1 : 0
-                });
+            
+            if (recipient.isSpectator) {
+                // Spectators get all position updates
+                nearby.push({ i: mp.id, x: mp.x, y: mp.y, d: mp.direction, m: mp.isMoving ? 1 : 0 });
+            } else {
+                const dx = (players.get(mp.id)?.x || mp.x) - recipient.x;
+                const dy = (players.get(mp.id)?.y || mp.y) - recipient.y;
+                if (dx * dx + dy * dy <= AOI_RANGE * AOI_RANGE) {
+                    nearby.push({ i: mp.id, x: mp.x, y: mp.y, d: mp.direction, m: mp.isMoving ? 1 : 0 });
+                }
             }
         }
 
         if (nearby.length === 0) continue;
 
-        // Send compressed batched positions: { t: 'p', p: [...] }
+        // Send compressed batched positions: { t: 'p', p: nearby }
         recipient.ws.send(JSON.stringify({ t: 'p', p: nearby }));
     }
 }, TICK_RATE_MS);
@@ -756,6 +762,24 @@ async function handleMessage(playerId, playerData, msg, ws) {
             if (!name) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Invalid name' }));
                 return;
+            }
+
+            // Spectator mode — invisible watcher, not a real player
+            if (msg.spectator) {
+                playerData.name = name;
+                playerData.isSpectator = true;
+                players.set(playerId, playerData);
+                
+                console.log(`👁️ Spectator "${name}" connected`);
+                
+                // Send joined confirmation with player list (so spectator can see who's online)
+                ws.send(JSON.stringify({
+                    type: 'joined',
+                    player: { id: playerId, name, spectator: true },
+                    players: getPlayerList()
+                }));
+                // Don't broadcast player_joined — spectators are invisible
+                break;
             }
 
             // Check if name is taken
