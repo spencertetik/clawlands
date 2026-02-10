@@ -200,4 +200,120 @@ function isBoxWalkable(terrainMap, px, py, w = 16, h = 24) {
            isWalkable(terrainMap, px + w - 1, py + h - 1);
 }
 
-module.exports = { generateTerrain, isWalkable, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT };
+/**
+ * Replicate the client's building placement algorithm (Game.js findBuildingLocationAvoidingOthers)
+ * Uses identical deterministic spiral search — no RNG.
+ */
+function findBuildingLocation(terrainMap, island, width, height, placedPositions) {
+    const attempts = 100;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        const angle = (attempt / attempts) * Math.PI * 2;
+        const radius = (attempt % 10) / 10 * island.size * 0.7;
+        const col = island.x + Math.floor(Math.cos(angle) * radius);
+        const row = island.y + Math.floor(Math.sin(angle) * radius);
+
+        let valid = true;
+        for (let dy = 0; dy < height && valid; dy++) {
+            for (let dx = 0; dx < width && valid; dx++) {
+                const c = col + dx, r = row + dy;
+                if (c < 0 || c >= WORLD_WIDTH || r < 0 || r >= WORLD_HEIGHT) { valid = false; break; }
+                if (terrainMap[r]?.[c] === 1) { valid = false; break; }
+            }
+        }
+        if (valid) {
+            for (const p of placedPositions) {
+                const pad = 3;
+                if (!(col + width + pad < p.col || col > p.col + p.width + pad ||
+                      row + height + pad < p.row || row > p.row + p.height + pad)) {
+                    valid = false; break;
+                }
+            }
+        }
+        if (valid) return { col, row };
+    }
+    return null;
+}
+
+/**
+ * Generate building collision rectangles matching the client exactly.
+ * Returns array of { x, y, width, height, type, name } in PIXEL coords.
+ * Also marks building tiles as unwalkable in terrainMap (optional).
+ */
+function generateBuildings(terrainMap, islands) {
+    // Fixed sprite sizes (must match client assets)
+    const spriteSizes = {
+        inn: { w: 96, h: 72 },
+        shop: { w: 72, h: 55 },
+        lighthouse: { w: 48, h: 96 },
+        house: { w: 48, h: 48 }
+    };
+
+    // Main island buildings (same order as client Game.js)
+    const mainBuildings = [
+        { type: 'inn', name: 'The Drift-In Inn' },
+        { type: 'shop', name: 'Continuity Goods' },
+        { type: 'lighthouse', name: "Current's Edge Light" },
+        { type: 'house', name: 'Anchor House' },
+        { type: 'house', name: 'Molting Den' },
+        { type: 'house', name: 'Shell & Stay' }
+    ];
+
+    // Secondary island buildings
+    const secondaryBuildings = [
+        { type: 'house', name: 'Beach Hut' },
+        { type: 'house', name: 'Shell Cottage' },
+        { type: 'shop', name: 'Tide Shop' },
+        { type: 'house', name: 'Driftwood Cabin' }
+    ];
+
+    const sortedIslands = [...islands].sort((a, b) => b.size - a.size);
+    const mainIsland = sortedIslands[0];
+    const buildings = [];
+    const placedPositions = [];
+
+    // Place main island buildings
+    for (const config of mainBuildings) {
+        const sz = spriteSizes[config.type];
+        const tw = Math.ceil(sz.w / TILE_SIZE);
+        const th = Math.ceil(sz.h / TILE_SIZE);
+        const pos = findBuildingLocation(terrainMap, mainIsland, tw, th + 2, placedPositions);
+        if (pos) {
+            placedPositions.push({ col: pos.col, row: pos.row, width: tw, height: th + 2 });
+            buildings.push({
+                x: pos.col * TILE_SIZE, y: pos.row * TILE_SIZE,
+                width: sz.w, height: sz.h,
+                tileCol: pos.col, tileRow: pos.row, tilesW: tw, tilesH: th,
+                type: config.type, name: config.name
+            });
+        }
+    }
+
+    // Place secondary island buildings
+    for (let i = 1; i < sortedIslands.length; i++) {
+        const island = sortedIslands[i];
+        if (island.size < 8) continue;
+        const numBuildings = island.size > 12 ? 2 : 1;
+        const islandPlaced = [];
+
+        for (let b = 0; b < numBuildings; b++) {
+            const config = secondaryBuildings[(i + b) % secondaryBuildings.length];
+            const sz = spriteSizes[config.type];
+            const tw = Math.ceil(sz.w / TILE_SIZE);
+            const th = Math.ceil(sz.h / TILE_SIZE);
+            const pos = findBuildingLocation(terrainMap, island, tw, th + 2, islandPlaced);
+            if (pos) {
+                islandPlaced.push({ col: pos.col, row: pos.row, width: tw, height: th + 2 });
+                buildings.push({
+                    x: pos.col * TILE_SIZE, y: pos.row * TILE_SIZE,
+                    width: sz.w, height: sz.h,
+                    tileCol: pos.col, tileRow: pos.row, tilesW: tw, tilesH: th,
+                    type: config.type, name: config.name
+                });
+            }
+        }
+    }
+
+    return buildings;
+}
+
+module.exports = { generateTerrain, generateBuildings, isWalkable, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT };

@@ -12,14 +12,34 @@
 
 const WebSocket = require('ws');
 const path = require('path');
-const { generateTerrain, isBoxWalkable, TILE_SIZE } = require(path.join(__dirname, '..', 'server', 'terrainMap'));
+const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE } = require(path.join(__dirname, '..', 'server', 'terrainMap'));
 
 const SERVER_URL = process.env.SERVER_URL || 'wss://claw-world-production.up.railway.app';
 const BOT_KEY = process.env.BOT_KEY || 'ffabec20bd46be6666b614807d839ed7';
 
 // Generate terrain for collision + pathfinding
 const { terrainMap, islands } = generateTerrain();
-console.log(`🗺️  Terrain loaded: ${islands.length} islands`);
+const buildings = generateBuildings(terrainMap, islands);
+console.log(`🗺️  Terrain loaded: ${islands.length} islands, ${buildings.length} buildings`);
+
+// Building collision check — player box (16x24) vs building rects
+// Uses pixel-based collision matching the client's CollisionSystem
+function collidesWithBuilding(px, py, pw = 16, ph = 24) {
+    for (const b of buildings) {
+        // Building collision box (bottom portion, matching client)
+        // Client uses the full sprite rect for collision
+        if (px + pw > b.x && px < b.x + b.width &&
+            py + ph > b.y && py < b.y + b.height) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Combined walkability check: terrain + buildings
+function canMoveTo(px, py) {
+    return isBoxWalkable(terrainMap, px, py) && !collidesWithBuilding(px, py);
+}
 
 // Island info with names (sorted by size like the client does)
 const sortedIslands = [...islands].sort((a, b) => b.size - a.size);
@@ -727,14 +747,14 @@ class FrankBot {
         // Try to move with collision
         let moved = false;
         
-        if (isBoxWalkable(terrainMap, this.x + moveX, this.y + moveY)) {
+        if (canMoveTo(this.x + moveX, this.y + moveY)) {
             this.x += moveX;
             this.y += moveY;
             moved = true;
-        } else if (isBoxWalkable(terrainMap, this.x + moveX, this.y)) {
+        } else if (canMoveTo(this.x + moveX, this.y)) {
             this.x += moveX;
             moved = true;
-        } else if (isBoxWalkable(terrainMap, this.x, this.y + moveY)) {
+        } else if (canMoveTo(this.x, this.y + moveY)) {
             this.y += moveY;
             moved = true;
         } else {
@@ -743,7 +763,7 @@ class FrankBot {
             for (const pa of perpAngles) {
                 const ax = Math.cos(pa) * speed;
                 const ay = Math.sin(pa) * speed;
-                if (isBoxWalkable(terrainMap, this.x + ax, this.y + ay)) {
+                if (canMoveTo(this.x + ax, this.y + ay)) {
                     this.x += ax;
                     this.y += ay;
                     moved = true;
@@ -822,7 +842,7 @@ class FrankBot {
             for (const angle of angles) {
                 const tx = this.x + Math.cos(angle) * dist;
                 const ty = this.y + Math.sin(angle) * dist;
-                if (isBoxWalkable(terrainMap, tx, ty)) {
+                if (canMoveTo(tx, ty)) {
                     this.setTarget(tx, ty);
                     console.log(`🔄 Stuck! Found walkable escape at angle ${(angle * 180 / Math.PI).toFixed(0)}° dist ${dist.toFixed(0)}`);
                     return true;
@@ -835,14 +855,14 @@ class FrankBot {
     // Find nearest walkable position near a target coordinate (spiral search)
     findNearestWalkable(cx, cy) {
         // Check center first
-        if (isBoxWalkable(terrainMap, cx, cy)) return { x: cx, y: cy };
+        if (canMoveTo(cx, cy)) return { x: cx, y: cy };
         
         // Spiral outward
         for (let radius = TILE_SIZE; radius < TILE_SIZE * 10; radius += TILE_SIZE / 2) {
             for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
                 const tx = cx + Math.cos(a) * radius;
                 const ty = cy + Math.sin(a) * radius;
-                if (isBoxWalkable(terrainMap, tx, ty)) {
+                if (canMoveTo(tx, ty)) {
                     return { x: tx, y: ty };
                 }
             }
