@@ -49,8 +49,26 @@ class MapEditor {
         this.pathTileTypes = new Set(['dirt_path', 'cobblestone_path']);
         this.pathRebuildPending = false; // Debounce path rebuilds during drag painting
         
+        // Building drag state
+        this.draggingBuilding = null;
+        this.dragOffset = { x: 0, y: 0 };
+        this.selectedBuilding = null; // Currently selected building for move/delete
+        
+        // Terrain brush state
+        this.terrainBrushSize = 1; // 1 = single tile, 2 = 2x2, 3 = 3x3
+        
         // Asset categories with their sources
         this.categories = {
+            terrain: {
+                name: 'Terrain',
+                icon: '🌊',
+                assets: ['terrain_sand', 'terrain_water']
+            },
+            buildings: {
+                name: 'Buildings',
+                icon: '🏠',
+                assets: ['building_inn', 'building_shop', 'building_house', 'building_lighthouse']
+            },
             ground: {
                 name: 'Ground',
                 icon: '■',
@@ -144,6 +162,13 @@ class MapEditor {
             <div class="editor-rotation">
                 <span>Rotation: <span id="rotation-display">0°</span></span>
             </div>
+            <div class="editor-brush-size hidden" id="brush-size-row">
+                <span>Brush: </span>
+                <button class="brush-btn" data-size="1">1×1</button>
+                <button class="brush-btn active" data-size="2">2×2</button>
+                <button class="brush-btn" data-size="3">3×3</button>
+                <button class="brush-btn" data-size="5">5×5</button>
+            </div>
             
             <div class="editor-zoom">
                 <button class="zoom-btn" id="zoom-out" title="Zoom Out">➖</button>
@@ -220,12 +245,38 @@ class MapEditor {
         const category = this.categories[this.selectedCategory];
         if (!category) return;
         
+        // Show/hide brush size for terrain
+        const brushRow = document.getElementById('brush-size-row');
+        if (brushRow) {
+            brushRow.classList.toggle('hidden', this.selectedCategory !== 'terrain');
+        }
+        
         container.innerHTML = category.assets.map(assetKey => {
             const isSelected = this.selectedAsset === assetKey;
             
             // Get the sprite path directly from definitions
             let spritePath = null;
-            if (this.selectedCategory === 'furniture' && typeof InteriorLoader !== 'undefined') {
+            let displayName = assetKey.replace(/_/g, ' ');
+            let previewContent = '📦';
+            
+            if (this.selectedCategory === 'terrain') {
+                // Terrain tiles — show color preview
+                if (assetKey === 'terrain_sand') {
+                    previewContent = '<div style="width:100%;height:100%;background:#d4b896;border-radius:2px;"></div>';
+                    displayName = 'Sand';
+                } else if (assetKey === 'terrain_water') {
+                    previewContent = '<div style="width:100%;height:100%;background:#3a6ea5;border-radius:2px;"></div>';
+                    displayName = 'Water';
+                }
+            } else if (this.selectedCategory === 'buildings') {
+                // Building types — show building sprite
+                const buildType = assetKey.replace('building_', '');
+                const spriteImg = this.game.assetLoader?.getImage(`building_${buildType}_base`);
+                if (spriteImg) {
+                    spritePath = spriteImg.src;
+                }
+                displayName = buildType.charAt(0).toUpperCase() + buildType.slice(1);
+            } else if (this.selectedCategory === 'furniture' && typeof InteriorLoader !== 'undefined') {
                 const def = InteriorLoader.FURNITURE[assetKey];
                 spritePath = def?.path;
             } else if (typeof DecorationLoader !== 'undefined') {
@@ -239,9 +290,9 @@ class MapEditor {
                      title="${assetKey}">
                     <div class="asset-preview" data-asset="${assetKey}" 
                          ${spritePath ? `style="background-image: url(${spritePath}); background-size: contain; background-repeat: no-repeat; background-position: center;"` : ''}>
-                        ${spritePath ? '' : '📦'}
+                        ${spritePath ? '' : previewContent}
                     </div>
-                    <span class="asset-name">${assetKey.replace(/_/g, ' ')}</span>
+                    <span class="asset-name">${displayName}</span>
                 </div>
             `;
         }).join('');
@@ -360,6 +411,16 @@ class MapEditor {
         document.getElementById('tool-rect')?.addEventListener('click', () => this.setTool('rect'));
         document.getElementById('tool-rotate')?.addEventListener('click', () => this.rotate());
         document.getElementById('tool-undo')?.addEventListener('click', () => this.undo());
+        
+        // Brush size buttons (for terrain)
+        this.container.querySelectorAll('.brush-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.terrainBrushSize = parseInt(btn.dataset.size) || 1;
+                this.container.querySelectorAll('.brush-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                console.log(`🖌️ Brush size: ${this.terrainBrushSize}x${this.terrainBrushSize}`);
+            });
+        });
         
         // Zoom buttons
         document.getElementById('zoom-in')?.addEventListener('click', () => this.zoom(1.5));
@@ -626,6 +687,7 @@ class MapEditor {
     selectAsset(assetKey) {
         this.selectedAsset = assetKey;
         this.currentTool = 'place';
+        this.selectedBuilding = null; // Deselect any building
         
         // Auto-select ground layer for path tiles
         if (this.pathTileTypes.has(assetKey)) {
@@ -687,7 +749,7 @@ class MapEditor {
         const coords = this.getWorldCoordsFromEvent(e);
         if (!coords) return;
         
-        const { snapX, snapY } = coords;
+        const { snapX, snapY, worldX, worldY } = coords;
         
         // Update coords display
         document.getElementById('editor-coords').textContent = 
@@ -697,6 +759,14 @@ class MapEditor {
         if (this.cursorPreview && !this.cursorPreview.classList.contains('hidden')) {
             this.cursorPreview.style.left = `${e.clientX}px`;
             this.cursorPreview.style.top = `${e.clientY}px`;
+        }
+        
+        // Handle building drag
+        if (this.draggingBuilding) {
+            const tileSize = CONSTANTS.TILE_SIZE;
+            this.draggingBuilding.x = Math.round((worldX - this.dragOffset.x) / tileSize) * tileSize;
+            this.draggingBuilding.y = Math.round((worldY - this.dragOffset.y) / tileSize) * tileSize;
+            return;
         }
         
         // Update rect preview if in rect mode
@@ -756,7 +826,34 @@ class MapEditor {
         const coords = this.getWorldCoordsFromEvent(e);
         if (!coords) return;
         
-        const { snapX, snapY } = coords;
+        const { snapX, snapY, worldX, worldY } = coords;
+        
+        // === BUILDING MODE: click to place or grab existing building ===
+        if (this.selectedCategory === 'buildings') {
+            if (this.currentTool === 'place' && this.selectedAsset) {
+                // Check if clicking on an existing building first (to drag it)
+                const clickedBuilding = this.findBuildingAt(worldX, worldY);
+                if (clickedBuilding) {
+                    this.draggingBuilding = clickedBuilding;
+                    this.selectedBuilding = clickedBuilding;
+                    this.dragOffset.x = worldX - clickedBuilding.x;
+                    this.dragOffset.y = worldY - clickedBuilding.y;
+                    console.log(`🏠 Grabbed ${clickedBuilding.name} for dragging`);
+                    return;
+                }
+                // Place new building
+                this.placeBuilding(snapX, snapY);
+            } else if (this.currentTool === 'delete') {
+                this.deleteBuildingAt(worldX, worldY);
+            } else if (this.currentTool === 'pick') {
+                const bld = this.findBuildingAt(worldX, worldY);
+                if (bld) {
+                    this.selectAsset(`building_${bld.type}`);
+                    console.log(`💉 Picked building type: ${bld.type}`);
+                }
+            }
+            return;
+        }
         
         // Check for rect fill mode (shift key or rect tool)
         if (e.shiftKey || this.currentTool === 'rect') {
@@ -785,6 +882,27 @@ class MapEditor {
     }
     
     handleCanvasMouseUp(e) {
+        // Handle building drag release
+        if (this.draggingBuilding) {
+            const coords = this.getWorldCoordsFromEvent(e);
+            if (coords) {
+                const tileSize = CONSTANTS.TILE_SIZE;
+                const newX = Math.round((coords.worldX - this.dragOffset.x) / tileSize) * tileSize;
+                const newY = Math.round((coords.worldY - this.dragOffset.y) / tileSize) * tileSize;
+                this.draggingBuilding.x = newX;
+                this.draggingBuilding.y = newY;
+                // Update collision system
+                this.game.collisionSystem.buildings = this.game.buildings.slice();
+                console.log(`🏠 Dropped ${this.draggingBuilding.name} at (${newX}, ${newY})`);
+            }
+            this.draggingBuilding = null;
+            this.isDragging = false;
+            this.isRectFill = false;
+            this.rectStart = null;
+            this.lastPaintedTile = null;
+            return;
+        }
+        
         if (this.isRectFill && this.rectStart) {
             const coords = this.getWorldCoordsFromEvent(e);
             if (coords) {
@@ -865,6 +983,37 @@ class MapEditor {
         let count = 0;
         const isDelete = this.currentTool === 'delete';
         
+        // For terrain, paint the whole rectangle at once then rebuild once
+        if (this.selectedCategory === 'terrain' && !isDelete) {
+            const terrainMap = this.game.worldMap?.terrainMap;
+            if (!terrainMap) return;
+            
+            const tileValue = this.selectedAsset === 'terrain_water' ? 1 : 0;
+            const tilesHigh = terrainMap.length;
+            const tilesWide = terrainMap[0]?.length || 0;
+            
+            for (let x = startX; x <= endX; x += tileSize) {
+                for (let y = startY; y <= endY; y += tileSize) {
+                    const col = Math.floor(x / tileSize);
+                    const row = Math.floor(y / tileSize);
+                    if (row >= 0 && row < tilesHigh && col >= 0 && col < tilesWide) {
+                        terrainMap[row][col] = tileValue;
+                        this.game.worldMap.setTile(this.game.worldMap.collisionLayer, col, row, tileValue);
+                        count++;
+                    }
+                }
+            }
+            
+            // Rebuild terrain once for the whole region
+            const sCol = Math.floor(startX / tileSize);
+            const sRow = Math.floor(startY / tileSize);
+            const eCol = Math.floor(endX / tileSize);
+            const eRow = Math.floor(endY / tileSize);
+            this.rebuildTerrainRegion(sCol - 2, sRow - 2, eCol - sCol + 5, eRow - sRow + 5);
+            console.log(`🗺️ Terrain rect fill: painted ${count} tiles`);
+            return;
+        }
+        
         for (let x = startX; x <= endX; x += tileSize) {
             for (let y = startY; y <= endY; y += tileSize) {
                 if (isDelete) {
@@ -904,9 +1053,175 @@ class MapEditor {
         this.deleteAtPosition(snapX, snapY);
     }
     
+    // === TERRAIN BRUSH ===
+    
+    paintTerrain(x, y) {
+        if (!this.selectedAsset || !this.game.worldMap?.terrainMap) return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const col = Math.floor(x / tileSize);
+        const row = Math.floor(y / tileSize);
+        const terrainMap = this.game.worldMap.terrainMap;
+        const tilesHigh = terrainMap.length;
+        const tilesWide = terrainMap[0]?.length || 0;
+        
+        // Determine tile value: 0=sand, 1=water
+        const tileValue = this.selectedAsset === 'terrain_water' ? 1 : 0;
+        
+        const half = Math.floor(this.terrainBrushSize / 2);
+        let changed = false;
+        
+        for (let dr = -half; dr < this.terrainBrushSize - half; dr++) {
+            for (let dc = -half; dc < this.terrainBrushSize - half; dc++) {
+                const r = row + dr;
+                const c = col + dc;
+                if (r < 0 || r >= tilesHigh || c < 0 || c >= tilesWide) continue;
+                if (terrainMap[r][c] !== tileValue) {
+                    terrainMap[r][c] = tileValue;
+                    changed = true;
+                    
+                    // Update collision layer: water=solid, sand=open
+                    this.game.worldMap.setTile(this.game.worldMap.collisionLayer, c, r, tileValue);
+                }
+            }
+        }
+        
+        if (changed) {
+            // Debounce terrain rebuild during drag painting
+            this.scheduleTerrainRebuild(col - half - 2, row - half - 2, 
+                                         this.terrainBrushSize + 4, this.terrainBrushSize + 4);
+        }
+    }
+    
+    scheduleTerrainRebuild(startCol, startRow, width, height) {
+        // Track dirty region
+        if (!this._terrainDirty) {
+            this._terrainDirty = { minC: startCol, minR: startRow, maxC: startCol + width, maxR: startRow + height };
+        } else {
+            this._terrainDirty.minC = Math.min(this._terrainDirty.minC, startCol);
+            this._terrainDirty.minR = Math.min(this._terrainDirty.minR, startRow);
+            this._terrainDirty.maxC = Math.max(this._terrainDirty.maxC, startCol + width);
+            this._terrainDirty.maxR = Math.max(this._terrainDirty.maxR, startRow + height);
+        }
+        
+        if (this._terrainRebuildPending) return;
+        this._terrainRebuildPending = true;
+        
+        requestAnimationFrame(() => {
+            if (this._terrainDirty) {
+                const d = this._terrainDirty;
+                this.rebuildTerrainRegion(d.minC, d.minR, d.maxC - d.minC, d.maxR - d.minR);
+                this._terrainDirty = null;
+            }
+            this._terrainRebuildPending = false;
+        });
+    }
+    
+    rebuildTerrainRegion(startCol, startRow, width, height) {
+        const terrainMap = this.game.worldMap.terrainMap;
+        const tilesHigh = terrainMap.length;
+        const tilesWide = terrainMap[0]?.length || 0;
+        
+        // Clamp region
+        const minC = Math.max(0, startCol);
+        const minR = Math.max(0, startRow);
+        const maxC = Math.min(tilesWide - 1, startCol + width);
+        const maxR = Math.min(tilesHigh - 1, startRow + height);
+        
+        // Re-run full autotiler (needed for correct Wang tile transitions)
+        const autoTiler = new AutoTiler();
+        const tiledLayer = autoTiler.autoTileLayer(terrainMap, tilesWide, tilesHigh);
+        
+        // Apply updated tiles to ground layer
+        for (let r = minR; r <= maxR; r++) {
+            for (let c = minC; c <= maxC; c++) {
+                this.game.worldMap.setTile(this.game.worldMap.groundLayer, c, r, tiledLayer[r][c]);
+            }
+        }
+    }
+    
+    // === BUILDING PLACEMENT ===
+    
+    findBuildingAt(worldX, worldY) {
+        if (!this.game.buildings) return null;
+        return this.game.buildings.find(b => 
+            worldX >= b.x && worldX < b.x + b.width &&
+            worldY >= b.y && worldY < b.y + b.height
+        );
+    }
+    
+    placeBuilding(x, y) {
+        if (!this.selectedAsset) return;
+        
+        const buildType = this.selectedAsset.replace('building_', '');
+        const sprite = this.game.assetLoader?.getImage(`building_${buildType}_base`);
+        
+        const building = new Building(x, y, buildType, sprite);
+        building.name = this.getNextBuildingName(buildType);
+        building.editorPlaced = true;
+        
+        this.game.buildings.push(building);
+        this.game.collisionSystem.addBuilding(building);
+        
+        // Clear decorations under the building
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const tilesW = Math.ceil(building.width / tileSize);
+        const tilesH = Math.ceil(building.height / tileSize);
+        const col = Math.floor(x / tileSize);
+        const row = Math.floor(y / tileSize);
+        this.game.worldMap.clearDecorationRect(col, row, tilesW, tilesH);
+        
+        // Add sign
+        const signX = x + building.width + 4;
+        const signY = y + building.height - tileSize;
+        this.game.signs.push(new Sign(signX, signY, building.name));
+        
+        console.log(`🏠 Placed ${building.name} (${buildType}) at (${x}, ${y})`);
+    }
+    
+    deleteBuildingAt(worldX, worldY) {
+        const building = this.findBuildingAt(worldX, worldY);
+        if (!building) return;
+        
+        const idx = this.game.buildings.indexOf(building);
+        if (idx !== -1) {
+            this.game.buildings.splice(idx, 1);
+            // Remove from collision system
+            this.game.collisionSystem.buildings = this.game.buildings.slice();
+            // Remove matching sign
+            this.game.signs = this.game.signs.filter(s => s.text !== building.name);
+            console.log(`🗑️ Deleted building: ${building.name}`);
+        }
+    }
+    
+    getNextBuildingName(type) {
+        const names = {
+            inn: ['The Drift-In Inn', 'Coral Rest Inn', 'Tidewatcher Inn', 'The Salty Shell'],
+            shop: ['Continuity Goods', 'Tide Shop', 'Drift Market', 'Pearl & Claw'],
+            house: ['Shell Cottage', 'Beach Hut', 'Driftwood Cabin', 'Anchor House', 'Molting Den'],
+            lighthouse: ['Current\'s Edge Light', 'North Point Light', 'Harbor Beacon']
+        };
+        
+        const existing = this.game.buildings.filter(b => b.type === type).length;
+        const nameList = names[type] || ['Building'];
+        return nameList[existing % nameList.length] + (existing >= nameList.length ? ` ${existing + 1}` : '');
+    }
+    
     placeAsset(x, y) {
         if (!this.selectedAsset) {
             console.warn('🗺️ No asset selected');
+            return;
+        }
+        
+        // Handle terrain painting
+        if (this.selectedCategory === 'terrain') {
+            this.paintTerrain(x, y);
+            return;
+        }
+        
+        // Handle buildings (use placeBuilding instead)
+        if (this.selectedCategory === 'buildings') {
+            this.placeBuilding(x, y);
             return;
         }
         
@@ -1428,8 +1743,29 @@ class MapEditor {
     }
     
     exportMap() {
+        // Export buildings (all current positions)
+        const buildings = this.game.buildings.map(b => ({
+            x: b.x,
+            y: b.y,
+            type: b.type,
+            name: b.name,
+            editorPlaced: b.editorPlaced || false
+        }));
+        
+        // Export terrain changes (diff from procedural generation)
+        // Save only non-water tiles on land or overrides
+        let terrainOverrides = [];
+        if (this.game.worldMap?.terrainMap) {
+            const tm = this.game.worldMap.terrainMap;
+            for (let r = 0; r < tm.length; r++) {
+                for (let c = 0; c < tm[r].length; c++) {
+                    terrainOverrides.push(tm[r][c]);
+                }
+            }
+        }
+        
         const exportData = {
-            version: 2,
+            version: 3,
             location: this.getCurrentLocationKey(),
             decorations: this.game.decorations.map(d => ({
                 x: d.x,
@@ -1441,6 +1777,10 @@ class MapEditor {
                 ground: d.ground,
                 editorPlaced: d.editorPlaced || false
             })),
+            buildings: buildings,
+            terrainMap: terrainOverrides,
+            terrainWidth: this.game.worldMap?.terrainMap?.[0]?.length || 0,
+            terrainHeight: this.game.worldMap?.terrainMap?.length || 0,
             editorPlaced: this.placedItems,
             deleted: Array.from(this.deletedItems),
             timestamp: Date.now()
@@ -1463,9 +1803,9 @@ class MapEditor {
             URL.revokeObjectURL(url);
         }, 100);
         
-        console.log('📤 Exported map data (' + exportData.decorations.length + ' decorations)');
+        console.log('📤 Exported map data (' + exportData.decorations.length + ' decorations, ' + buildings.length + ' buildings)');
         console.log('📤 Export JSON:', jsonStr.slice(0, 500) + '...');
-        alert('Map exported! (' + exportData.decorations.length + ' items)\nGive the JSON file to Frank — it will REPLACE the current map data (no merge).');
+        alert(`Map exported!\n${exportData.decorations.length} decorations\n${buildings.length} buildings\nGive the JSON file to Frank — it will REPLACE the current map data.`);
     }
 
     importMap() {
@@ -1576,8 +1916,10 @@ class MapEditor {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
         
-        const startX = Math.floor(camera.x / tileSize) * tileSize - camera.x;
-        const startY = Math.floor(camera.y / tileSize) * tileSize - camera.y;
+        const camX = camera.position.x;
+        const camY = camera.position.y;
+        const startX = Math.floor(camX / tileSize) * tileSize - camX;
+        const startY = Math.floor(camY / tileSize) * tileSize - camY;
         
         const canvas = ctx.canvas;
         
@@ -1595,6 +1937,30 @@ class MapEditor {
             ctx.moveTo(0, y);
             ctx.lineTo(canvas.width, y);
             ctx.stroke();
+        }
+        
+        // Highlight selected building
+        if (this.selectedBuilding && this.selectedCategory === 'buildings') {
+            const b = this.selectedBuilding;
+            const bx = b.x - camX;
+            const by = b.y - camY;
+            ctx.strokeStyle = '#4ecdc4';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(bx, by, b.width, b.height);
+            ctx.setLineDash([]);
+        }
+        
+        // Highlight dragging building
+        if (this.draggingBuilding) {
+            const b = this.draggingBuilding;
+            const bx = b.x - camX;
+            const by = b.y - camY;
+            ctx.fillStyle = 'rgba(78, 205, 196, 0.3)';
+            ctx.fillRect(bx, by, b.width, b.height);
+            ctx.strokeStyle = '#4ecdc4';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx, by, b.width, b.height);
         }
     }
 }
