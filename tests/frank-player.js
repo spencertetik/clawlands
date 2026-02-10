@@ -67,13 +67,18 @@ class BotBrain {
             return { type: 'advance_dialog' };
         }
         
-        // Priority 2: Nearby enemies — fight them!
+        // Priority 2: Resolve UI showing (enemy killed, choose what to do)
+        if (gameState.combat && gameState.combat.resolveVisible) {
+            return { type: 'resolve_choice' };
+        }
+        
+        // Priority 3: Nearby enemies — fight them!
         if (gameState.combat && gameState.combat.enemiesNearby > 0) {
             this.state = 'combat';
             this.combatTicks = (this.combatTicks || 0) + 1;
-            // Attack and dodge in alternation
-            if (this.combatTicks % 3 === 0) {
-                // Dodge: move in a random direction
+            // Pattern: attack 2x, dodge 1x, repeat
+            if (this.combatTicks % 4 === 0) {
+                // Dodge: move toward the enemy then away
                 const dirs = ['north', 'south', 'east', 'west'];
                 return { type: 'walk', direction: dirs[Math.floor(Math.random() * 4)] };
             }
@@ -83,10 +88,17 @@ class BotBrain {
         }
         
         // Priority 3: If stuck, try increasingly varied directions
-        if (this.stuckCounter > 6) {
+        if (this.stuckCounter > 5) {
             this.stuckCounter = 0;
             this.unstickAttempts = (this.unstickAttempts || 0) + 1;
-            // Cycle through all 4 directions, then diagonals
+            
+            if (this.unstickAttempts > 8) {
+                // Stuck for a long time — try diagonal (two keys at once)
+                this.unstickAttempts = 0;
+                return { type: 'unstick_diagonal' };
+            }
+            
+            // Cycle through all 4 directions with increasing hold time
             const allDirs = ['north', 'east', 'south', 'west'];
             const dir = allDirs[this.unstickAttempts % 4];
             return { type: 'unstick', direction: dir };
@@ -350,10 +362,12 @@ class GameController {
                 const action = this.brain.decide(gameState);
                 
                 // Log interesting actions (not every walk)
-                if (action.type !== 'walk' && action.type !== 'wait' || this.brain.tickCount % 20 === 0) {
+                if (action.type !== 'walk' || this.brain.tickCount % 20 === 0) {
                     const pos = gameState.player?.position;
                     const dlg = gameState.dialog ? ` dlg:"${(gameState.dialog.text || '').slice(0,40)}..." (${gameState.dialog.index}/${gameState.dialog.total})` : '';
-                    console.log(`[${this.brain.tickCount}] ${action.type}${action.direction ? ' ' + action.direction : ''} | pos:(${pos?.x},${pos?.y}) | npcs:${gameState.nearby?.npcs?.length || 0} | bldg:${gameState.nearby?.buildings?.length || 0} | enemies:${gameState.combat?.enemiesNearby || 0}${dlg}`);
+                    const cmb = gameState.combat?.enemiesNearby ? ` shell:${gameState.combat.shellIntegrity}` : '';
+                    const resolve = gameState.combat?.resolveVisible ? ' [RESOLVE]' : '';
+                    console.log(`[${this.brain.tickCount}] ${action.type}${action.direction ? ' ' + action.direction : ''} | pos:(${pos?.x},${pos?.y}) | npcs:${gameState.nearby?.npcs?.length || 0} | bldg:${gameState.nearby?.buildings?.length || 0} | enemies:${gameState.combat?.enemiesNearby || 0}${cmb}${resolve}${dlg}`);
                 }
                 
                 // Execute the action
@@ -428,7 +442,14 @@ class GameController {
                     const dy = e.position.y - player.position.y;
                     return Math.sqrt(dx*dx + dy*dy) < 80;
                 });
-                combat = { enemiesNearby: nearEnemies.length, totalEnemies: enemies.length };
+                const resolveVisible = g.combatSystem.resolveUI && g.combatSystem.resolveUI.isVisible;
+                combat = { 
+                    enemiesNearby: nearEnemies.length, 
+                    totalEnemies: enemies.length,
+                    resolveVisible,
+                    shellIntegrity: g.combatSystem.shellIntegrity,
+                    isAttacking: g.combatSystem.isAttacking
+                };
             }
             
             // Indoor state
@@ -507,24 +528,54 @@ class GameController {
                 
             case 'attack':
                 await this.pressKey('x'); // X to attack
-                // Also move toward enemies
-                if (Math.random() > 0.3) {
-                    const dirs = ['north', 'south', 'east', 'west'];
-                    await this.walk(dirs[Math.floor(Math.random() * 4)]);
-                }
+                break;
+                
+            case 'resolve_choice':
+                // Resolve UI: pick Disperse (loot) most of the time
+                // Default selection is index 0 (Disperse), just confirm
+                console.log('⚔️ Resolving enemy — choosing Disperse');
+                await this.pressKey(' '); // Space to confirm
                 break;
                 
             case 'unstick': {
                 const escapeDir = action.direction || 'north';
                 console.log(`🔄 Stuck! Trying ${escapeDir} (attempt ${this.brain.unstickAttempts})`);
                 const escapeKeyMap = { 'north': 'ArrowUp', 'south': 'ArrowDown', 'east': 'ArrowRight', 'west': 'ArrowLeft' };
+                // Hold for longer each attempt
+                const holdTime = 600 + (this.brain.unstickAttempts * 200);
                 await this.page.evaluate((k) => {
                     if (window.game?.inputManager) window.game.inputManager.keys[k] = true;
                 }, escapeKeyMap[escapeDir]);
-                await this.page.waitForTimeout(800);
+                await this.page.waitForTimeout(holdTime);
                 await this.page.evaluate((k) => {
                     if (window.game?.inputManager) window.game.inputManager.keys[k] = false;
                 }, escapeKeyMap[escapeDir]);
+                break;
+            }
+            
+            case 'unstick_diagonal': {
+                // Try diagonal movement — hold two keys simultaneously
+                console.log('🔄 Stuck badly! Trying diagonal escape');
+                const diags = [
+                    ['ArrowUp', 'ArrowRight'],
+                    ['ArrowDown', 'ArrowLeft'],
+                    ['ArrowUp', 'ArrowLeft'],
+                    ['ArrowDown', 'ArrowRight']
+                ];
+                const [k1, k2] = diags[Math.floor(Math.random() * diags.length)];
+                await this.page.evaluate(([a, b]) => {
+                    if (window.game?.inputManager) {
+                        window.game.inputManager.keys[a] = true;
+                        window.game.inputManager.keys[b] = true;
+                    }
+                }, [k1, k2]);
+                await this.page.waitForTimeout(1200);
+                await this.page.evaluate(([a, b]) => {
+                    if (window.game?.inputManager) {
+                        window.game.inputManager.keys[a] = false;
+                        window.game.inputManager.keys[b] = false;
+                    }
+                }, [k1, k2]);
                 break;
             }
                 
@@ -564,18 +615,22 @@ class GameController {
         // Map special keys to InputManager keys
         const inputKey = key === ' ' ? ' ' : key.toLowerCase();
         try {
+            // Set key down — InputManager.update() will detect the false→true transition
+            // and set justPressed on the next game frame
             await this.page.evaluate((k) => {
                 if (window.game && window.game.inputManager) {
                     window.game.inputManager.keys[k] = true;
-                    window.game.inputManager.justPressed[k] = true;
                 }
             }, inputKey);
-            await this.page.waitForTimeout(100);
+            // Hold for 2 game frames (~33ms at 60fps) so update() sees the transition
+            await this.page.waitForTimeout(50);
+            // Release
             await this.page.evaluate((k) => {
                 if (window.game && window.game.inputManager) {
                     window.game.inputManager.keys[k] = false;
                 }
             }, inputKey);
+            await this.page.waitForTimeout(50);
         } catch (e) {}
     }
 
