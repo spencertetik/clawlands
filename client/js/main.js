@@ -185,11 +185,13 @@ window.addEventListener('DOMContentLoaded', () => {
             const key = e.key.toLowerCase();
             if (key === 'f') {
                 e.preventDefault();
-                const container = document.getElementById('game-container') || document.documentElement;
                 if (document.fullscreenElement) {
-                    document.exitFullscreen();
+                    document.exitFullscreen().catch(() => {});
                 } else {
-                    container.requestFullscreen().catch(() => {});
+                    // Fullscreen the entire page (not just game-container) for clean spectator experience
+                    document.documentElement.requestFullscreen().catch((err) => {
+                        console.log('Fullscreen failed:', err);
+                    });
                 }
             } else if (key === 'm') {
                 e.preventDefault();

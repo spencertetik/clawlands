@@ -618,6 +618,9 @@ class WelcomeScreen {
             this.overlay.style.display = 'none';
         }
         
+        // Show the game container (was hidden by mode selection screen)
+        this.setGameVisibility(true);
+        
         // Set spectator mode on the game — find any bot automatically
         if (window.game) {
             window.game.spectateTarget = '*'; // Special: watch any bot
