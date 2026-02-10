@@ -525,6 +525,12 @@ class RemotePlayer {
             this.direction = dirMap[direction] || direction;
         }
         this.isMoving = isMoving;
+        
+        // If this player is being spectated, snap position immediately for real-time feel
+        if (this._spectated) {
+            this.position.x = x;
+            this.position.y = y;
+        }
     }
 
     showSpeech(text) {
@@ -534,9 +540,12 @@ class RemotePlayer {
 
     update(deltaTime) {
         // Interpolate toward target position for smooth movement
-        const speed = 0.2;
-        this.position.x += (this.targetPosition.x - this.position.x) * speed;
-        this.position.y += (this.targetPosition.y - this.position.y) * speed;
+        // Spectated players snap instantly (position already set in updatePosition)
+        if (!this._spectated) {
+            const speed = 0.2;
+            this.position.x += (this.targetPosition.x - this.position.x) * speed;
+            this.position.y += (this.targetPosition.y - this.position.y) * speed;
+        }
         
         // Animation
         if (this.isMoving) {

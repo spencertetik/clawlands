@@ -449,8 +449,12 @@ class Game {
                     console.log(`👁️ Found spectate target: ${remote.name} at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
                     this.spectatePlayer = remote;
                     
-                    // Make camera follow this remote player
+                    // Flag for real-time position snapping (no interpolation delay)
+                    remote._spectated = true;
+                    
+                    // Make camera follow this remote player with near-instant tracking
                     this.camera.setTarget(remote);
+                    this.camera.lerpSpeed = 0.5; // Much faster camera follow for spectating
                     
                     // Update overlay
                     const label = document.getElementById('spectate-label');
