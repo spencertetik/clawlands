@@ -39,6 +39,13 @@ class Minimap {
         // Blip animations
         this.pulseTime = 0;
         
+        // Initialize data arrays (populated by update())
+        this.player = null;
+        this.npcs = [];
+        this.buildings = [];
+        this.waygates = [];
+        this.remotePlayers = [];
+        
         this.init();
     }
     
