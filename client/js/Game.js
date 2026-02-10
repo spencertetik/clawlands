@@ -5362,14 +5362,13 @@ class Game {
             console.log(`Built dark cobblestone path layer: ${darkPathPositions.size} positions`);
         }
 
-        if (!keepDecorations) {
-            // Remove path decorations since they're now rendered as tiles
-            const beforeCount = this.decorations.length;
-            this.decorations = this.decorations.filter(d => d.type !== 'dirt_path' && d.type !== 'cobblestone_path');
-            const removed = beforeCount - this.decorations.length;
-            console.log(`Built path tile layers: ${totalPaths} total path positions, removed ${removed} sprite decorations`);
-        } else {
+        // KEEP path decorations visible - they render as sprites on top
+        // Tile layer also exists for Editor compatibility (shows in editor view)
+        // But in-game we show the decoration sprites which are more visible and nicer
+        if (keepDecorations) {
             console.log(`Rebuilt path tile layers: ${totalPaths} total path positions (decorations kept for editor)`);
+        } else {
+            console.log(`Built path tile layers: ${totalPaths} total path positions (decorations kept visible as sprites)`);
         }
     }
     
