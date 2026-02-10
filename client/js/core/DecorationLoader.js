@@ -27,17 +27,17 @@ class DecorationLoader {
         bush: {
             path: 'assets/sprites/decorations/plant_2.png',
             width: 24, height: 23,
-            collision: { width: 12, height: 8, offsetY: 11 }
+            collision: { width: 6, height: 4, offsetY: 11 }
         },
         bush_flower: {
             path: 'assets/sprites/decorations/plant_11.png',
             width: 24, height: 24,
-            collision: null
+            collision: { width: 6, height: 4, offsetY: 12 }
         },
         bush_flower2: {
             path: 'assets/sprites/decorations/plant_12.png',
             width: 24, height: 21,
-            collision: null
+            collision: { width: 6, height: 4, offsetY: 10 }
         },
         fern: {
             path: 'assets/sprites/decorations/plant_4.png',
@@ -77,7 +77,7 @@ class DecorationLoader {
         tree_bush: {
             path: 'assets/sprites/decorations/plant_6.png',
             width: 24, height: 23,
-            collision: { width: 10, height: 8, offsetY: 13 }
+            collision: { width: 6, height: 4, offsetY: 13 }
         },
         
         // === SHELLS ===
