@@ -232,8 +232,8 @@ class GameController {
         await this.page.goto(GAME_URL);
         
         // Wait for the page to load
-        await this.page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-        await this.page.waitForTimeout(2000);
+        await this.page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});
+        await this.page.waitForTimeout(5000);
         
         // Navigate through the welcome/character creation flow
         await this.createCharacter();
@@ -274,8 +274,8 @@ class GameController {
         
         // Reload page so the saved character takes effect
         console.log('   Set saved character, reloading...');
-        await this.page.reload({ waitUntil: 'networkidle' }).catch(() => {});
-        await this.page.waitForTimeout(3000);
+        await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+        await this.page.waitForTimeout(5000);
         
         // Now we need to get through: Welcome → PLAY → Story Intro → PRESS START
         // PRESS START will see our localStorage and finalize immediately
