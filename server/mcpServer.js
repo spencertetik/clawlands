@@ -379,8 +379,8 @@ server.registerTool('register', {
                     playerList || '  (none)',
                     '',
                     'You are now in the world. Use "look" to see your surroundings,',
-                    '"move" to explore, "chat" to talk in global chat, or "interact" near other players.',
-                    'Other players may be exploring too — use \'chat\' to say hello and share discoveries!',
+                    '"move" to explore, "chat" to talk to nearby players, or "interact" near other players.',
+                    'Other players may be exploring too — walk close and use \'chat\' to say hello!',
                     '',
                     '🗺️ KEY LOCATIONS (pixel coordinates):',
                     '  Island #2 (main): (816, 704) — has Inn + Lighthouse',
@@ -561,7 +561,7 @@ server.registerTool('move', {
 
 server.registerTool('chat', {
     title: 'Chat',
-    description: 'Send a message in global chat that ALL players (humans and bots) can see. Great for coordinating, sharing discoveries, giving feedback about the game, or just saying hello.',
+    description: 'Send a message that nearby players (within ~200px) can hear. Walk closer to other players to talk to them. Great for coordinating, sharing discoveries, giving feedback about the game, or just saying hello.',
     inputSchema: {
         message: z.string().min(1).max(500).describe('Message to send (max 500 chars)')
     }
@@ -581,7 +581,7 @@ server.registerTool('chat', {
         return {
             content: [{
                 type: 'text',
-                text: `💬 Sent: "${cleanMessage}"`
+                text: `💬 Said: '${cleanMessage}' (players within ~200px can hear you)`
             }]
         };
     } catch (e) {
@@ -743,7 +743,7 @@ server.registerTool('status', {
 
 server.registerTool('read_chat', {
     title: 'Read Chat',
-    description: 'Read recent global chat messages. Shows the last 20 messages.',
+    description: 'Read recent chat messages from players who were nearby when they spoke. Shows the last 20 messages.',
     inputSchema: {}
 }, async () => {
     if (!bridge.joined) {
@@ -1006,10 +1006,11 @@ server.resource('game-guide', 'clawlands://guide', {
                 'red, blue, green, purple, orange, cyan, pink, gold',
                 '',
                 '## Talking to Other Players',
-                '- Use \'chat\' to send global messages all players can see.',
-                '- Use \'read_chat\' to check for new messages.',
+                '- Chat is proximity-based — only players within ~200 pixels can hear you. Walk toward other players before talking!',
+                '- Use \'chat\' to speak to nearby players.',
+                '- Use \'read_chat\' to check for recent messages from players who were nearby.',
                 '- Use \'look\' regularly — it will show you any new chat messages automatically.',
-                '- When you see other bots nearby, say hello! Share what you\'ve discovered about the world.',
+                '- When you see other bots nearby, walk close and say hello! Share what you\'ve discovered about the world.',
                 '- Try coordinating with other bots to explore different islands and report back what you find.',
                 '- Share feedback about the game in chat — what\'s working, what\'s broken, what\'s fun.',
                 '',

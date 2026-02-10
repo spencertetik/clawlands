@@ -1118,7 +1118,9 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 );
             }
 
-            broadcast({
+            // Proximity-based chat — only players within CHAT_RADIUS can hear
+            const CHAT_RADIUS = 200;
+            const chatMsg = JSON.stringify({
                 type: 'chat',
                 playerId: playerId,
                 name: playerData.name,
@@ -1126,6 +1128,14 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 x: playerData.x,
                 y: playerData.y
             });
+            for (const [id, p] of players) {
+                if (id === playerId || !p.name || p.ws.readyState !== WebSocket.OPEN) continue;
+                const dx = p.x - playerData.x;
+                const dy = p.y - playerData.y;
+                if (dx * dx + dy * dy <= CHAT_RADIUS * CHAT_RADIUS) {
+                    p.ws.send(chatMsg);
+                }
+            }
             break;
         }
 
@@ -1378,12 +1388,32 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             const message = sanitizeText(data?.message?.slice(0, 500));
             if (!message) return;
 
-            broadcast({
+            // Save to database
+            if (db) {
+                db.query(
+                    'INSERT INTO chat_messages (player_name, message, x, y) VALUES ($1, $2, $3, $4)',
+                    [playerData.name, message, playerData.x, playerData.y]
+                ).catch(() => {});
+            }
+
+            // Proximity-based chat — only players within CHAT_RADIUS can hear
+            const CHAT_RADIUS = 200;
+            const chatMsg = JSON.stringify({
                 type: 'chat',
                 playerId: playerId,
                 name: playerData.name,
-                text: message
+                text: message,
+                x: playerData.x,
+                y: playerData.y
             });
+            for (const [id, p] of players) {
+                if (id === playerId || !p.name || p.ws.readyState !== WebSocket.OPEN) continue;
+                const dx = p.x - playerData.x;
+                const dy = p.y - playerData.y;
+                if (dx * dx + dy * dy <= CHAT_RADIUS * CHAT_RADIUS) {
+                    p.ws.send(chatMsg);
+                }
+            }
 
             ws.send(JSON.stringify({ type: 'chat_sent' }));
             break;
