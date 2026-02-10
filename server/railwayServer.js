@@ -1497,20 +1497,27 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return;
             }
 
-            // Find buildings within 48px of the bot's position
+            // Distance from player center to nearest point on building rectangle
+            const playerCenterX = playerData.x + 8;  // player is 16px wide
+            const playerCenterY = playerData.y + 12; // player is 24px tall
+
+            function distToBuilding(pcx, pcy, b) {
+                const nearestX = Math.max(b.x, Math.min(pcx, b.x + b.width));
+                const nearestY = Math.max(b.y, Math.min(pcy, b.y + b.height));
+                return Math.sqrt((pcx - nearestX) ** 2 + (pcy - nearestY) ** 2);
+            }
+
             let nearestBuilding = null;
             let nearestDist = Infinity;
             for (const building of buildings) {
-                const cx = building.x + building.width / 2;
-                const cy = building.y + building.height / 2;
-                const dist = Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2));
+                const dist = distToBuilding(playerCenterX, playerCenterY, building);
                 if (dist < nearestDist) {
                     nearestDist = dist;
                     nearestBuilding = building;
                 }
             }
 
-            if (nearestBuilding && nearestDist <= 48) {
+            if (nearestBuilding && nearestDist <= 64) {
                 ws.send(JSON.stringify({
                     type: 'entered_building',
                     building: {
@@ -1521,9 +1528,12 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                     }
                 }));
             } else {
+                const errMsg = nearestBuilding
+                    ? `No building within range. Nearest: ${nearestBuilding.name} (${nearestBuilding.type}) — ${Math.round(nearestDist)}px away. Walk closer and try again.`
+                    : 'No buildings found on this map.';
                 ws.send(JSON.stringify({
                     type: 'error',
-                    message: 'No building nearby. Move closer to a building door.'
+                    message: errMsg
                 }));
             }
             break;

@@ -768,7 +768,7 @@ server.registerTool('disconnect', {
 
 server.registerTool('enter_building', {
     title: 'Enter Building',
-    description: 'Enter a nearby building. You must be within 48 pixels of a building to enter. Use "look" first to find buildings and move close to one.',
+    description: 'Enter a nearby building. You must be within ~64px of a building edge to enter. Use "look" to find nearby buildings and their distances, then walk closer if needed.',
     inputSchema: {}
 }, async () => {
     if (!bridge.joined) {
