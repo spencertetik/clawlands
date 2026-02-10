@@ -69,7 +69,15 @@ class BotBrain {
         
         // Priority 2: Resolve UI showing (enemy killed, choose what to do)
         if (gameState.combat && gameState.combat.resolveVisible) {
+            this.resolveStuckCount = (this.resolveStuckCount || 0) + 1;
+            if (this.resolveStuckCount > 10) {
+                // Force-close resolve UI if stuck
+                this.resolveStuckCount = 0;
+                return { type: 'force_close_resolve' };
+            }
             return { type: 'resolve_choice' };
+        } else {
+            this.resolveStuckCount = 0;
         }
         
         // Priority 3: Nearby enemies — fight them!
@@ -535,10 +543,17 @@ class GameController {
                 break;
                 
             case 'resolve_choice':
-                // Resolve UI: pick Disperse (loot) most of the time
-                // Default selection is index 0 (Disperse), just confirm
+                // Resolve UI: directly call confirmChoice via evaluate
+                // Can't use key press because dialog system intercepts Space
                 console.log('⚔️ Resolving enemy — choosing Disperse');
-                await this.pressKey(' '); // Space to confirm
+                await this.page.evaluate(() => {
+                    const r = window.game?.combatSystem?.resolveUI;
+                    if (r && r.isVisible) {
+                        r.selectedIndex = 0; // Disperse
+                        r.confirmChoice();
+                    }
+                });
+                await this.page.waitForTimeout(300);
                 break;
                 
             case 'unstick': {
@@ -554,6 +569,24 @@ class GameController {
                 await this.page.evaluate((k) => {
                     if (window.game?.inputManager) window.game.inputManager.keys[k] = false;
                 }, escapeKeyMap[escapeDir]);
+                break;
+            }
+            
+            case 'force_close_resolve': {
+                console.log('🚨 Force-closing stuck resolve UI');
+                await this.page.evaluate(() => {
+                    const r = window.game?.combatSystem?.resolveUI;
+                    if (r) {
+                        r.isVisible = false;
+                        r._confirming = false;
+                        r.enemy = null;
+                    }
+                    // Also close any open dialog
+                    if (window.game?.dialogSystem?.close) {
+                        window.game.dialogSystem.close();
+                    }
+                });
+                await this.page.waitForTimeout(200);
                 break;
             }
             
