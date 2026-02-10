@@ -31,17 +31,17 @@ class AudioManager {
             default: 'Harbor Steps'
         };
         
-        // Music zones (world coordinates) - 1920x1920 world divided into regions
+        // Music zones (world coordinates) - 3200x3200 world divided into regions
         // Format: { x, y, width, height, track }
         this.musicZones = [
             // Northern mysterious region (top third)
-            { x: 0, y: 0, width: 1920, height: 600, track: 'zone_north', name: 'Northern Reaches' },
+            { x: 0, y: 0, width: 3200, height: 1000, track: 'zone_north', name: 'Northern Reaches' },
             // Eastern quirky region (right side, middle)
-            { x: 1300, y: 600, width: 620, height: 720, track: 'zone_east', name: 'Eastern Shores' },
+            { x: 2160, y: 1000, width: 1040, height: 1200, track: 'zone_east', name: 'Eastern Shores' },
             // Southern relaxed beaches (bottom third)
-            { x: 0, y: 1320, width: 1920, height: 600, track: 'zone_south', name: 'Southern Sands' },
+            { x: 0, y: 2200, width: 3200, height: 1000, track: 'zone_south', name: 'Southern Sands' },
             // Central/default - Harbor Steps (middle area)
-            { x: 0, y: 600, width: 1300, height: 720, track: 'zone_central', name: 'Harbor District' }
+            { x: 0, y: 1000, width: 2160, height: 1200, track: 'zone_central', name: 'Harbor District' }
         ];
         
         this.currentZone = null;

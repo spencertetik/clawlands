@@ -264,8 +264,8 @@ class SupabaseBotServer {
             // Add presence
             await this.supabase.from('player_presence').insert({
                 id: player.id,
-                x: player.last_x || 744,
-                y: player.last_y || 680,
+                x: player.last_x || 1288,
+                y: player.last_y || 1160,
                 facing: 'down'
             });
 
@@ -293,8 +293,8 @@ class SupabaseBotServer {
                 id: clientData.botId,
                 name: sanitizedName,
                 species: species || 'lobster',
-                x: 744,
-                y: 680
+                x: 1288,
+                y: 1160
             };
             
             this.send(ws, {

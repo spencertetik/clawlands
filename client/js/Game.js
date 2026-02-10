@@ -15,8 +15,8 @@ class Game {
         this.inputManager = new InputManager();
 
         // Create world map - larger Clawlands archipelago
-        const worldTilesWide = 120;
-        const worldTilesHigh = 120;
+        const worldTilesWide = 200;
+        const worldTilesHigh = 200;
         this.worldMap = new WorldMap(worldTilesWide, worldTilesHigh, CONSTANTS.TILE_SIZE);
         
         // Reset RNG for deterministic world (multiplayer sync)

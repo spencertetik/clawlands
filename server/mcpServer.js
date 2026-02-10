@@ -51,7 +51,7 @@ class BotBridge {
         this.ws = null;
         this.playerId = null;
         this.playerName = null;
-        this.position = { x: 744, y: 680 };
+        this.position = { x: 1288, y: 1160 };
         this.species = null;
         this.color = null;
         this.connected = false;
@@ -480,7 +480,7 @@ server.registerTool('look', {
                     island ? 'You\'re on an island! Explore to find buildings, NPCs, and lore. Use "talk_npc" to speak with NPCs!'
                            : 'You\'re in open water or between islands. Head toward an island!',
                     '',
-                    'Tip: The 8 islands are spread across a 1920×1920 pixel world.',
+                    'Tip: The 10 islands are spread across a 3200×3200 pixel world.',
                     'Move in a direction for several steps to reach new areas.',
                 ].join('\n')
             }]
@@ -496,7 +496,7 @@ server.registerTool('look', {
 
 server.registerTool('move', {
     title: 'Move',
-    description: 'Walk in a direction. Each step moves 16 pixels (1 tile). Use "look" to survey your surroundings and plan your route. The world is 1920×1920 pixels (120×120 tiles). Water tiles block movement.',
+    description: 'Walk in a direction. Each step moves 16 pixels (1 tile). Use "look" to survey your surroundings and plan your route. The world is 3200×3200 pixels (200×200 tiles). Water tiles block movement.',
     inputSchema: {
         direction: z.enum(['north', 'south', 'east', 'west', 'n', 's', 'e', 'w']).describe('Direction to walk (1 tile = 16px)'),
         steps: z.number().min(1).max(20).default(1).describe('Number of steps to take in the given direction (1-20)')
@@ -1042,23 +1042,23 @@ server.resource('game-guide', 'clawlands://guide', {
                 '4. Use "chat" to talk to everyone, "interact" to respond to direct conversations',
                 '',
                 '## The World',
-                '- 10 islands on a 120×120 tile grid (1920×1920 pixels, 0-1920 range)',
-                '- World bounds: (0,0) to (1920,1920). Cannot move outside this.',
+                '- 10 islands on a 200×200 tile grid (3200×3200 pixels, 0-3200 range)',
+                '- World bounds: (0,0) to (3200,3200). Cannot move outside this.',
                 '- Each island has buildings: Inns, Shops, Houses, Lighthouses',
                 '- Sand is walkable, water is NOT walkable (blocks movement)',
                 '- Drift Fauna (hostile creatures) roam the wilds',
                 '',
                 '## Island Coordinates (pixel x,y — move here!)',
-                '- Island #0: (1152, 416) — Shell Cottage',
-                '- Island #1: (1536, 384) — Driftwood Cabin',
-                '- Island #2: (816, 704) — The Drift-In Inn + Current\'s Edge Lighthouse ⭐ START HERE',
-                '- Island #3: (1136, 816) — Driftwood Cabin',
-                '- Island #4: (1584, 784) — Beach Hut',
-                '- Island #5: (352, 1136) — Shell Cottage',
-                '- Island #6: (720, 1184) — Beach Hut',
-                '- Island #7: (1504, 1152) — Shell Cottage',
-                '- Island #8: (736, 1504) — Tide Shop',
-                '- Island #9: (1168, 1552) — Tide Shop',
+                '- Island #0: (1936, 704) — Shell Cottage',
+                '- Island #1: (2560, 656) — Driftwood Cabin',
+                '- Island #2: (1360, 1184) — The Drift-In Inn + Current\'s Edge Lighthouse ⭐ START HERE',
+                '- Island #3: (1888, 1360) — Driftwood Cabin',
+                '- Island #4: (2640, 1296) — Beach Hut',
+                '- Island #5: (592, 1904) — Shell Cottage',
+                '- Island #6: (1200, 1984) — Beach Hut',
+                '- Island #7: (2512, 1920) — Shell Cottage',
+                '- Island #8: (1232, 2512) — Tide Shop',
+                '- Island #9: (1952, 2576) — Tide Shop',
                 '',
                 '## Species',
                 '- Lobster: Classic choice, well-rounded',

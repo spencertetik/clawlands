@@ -24,8 +24,8 @@ const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE, WORLD_WIDT
 // ============================================
 
 const PORT = process.env.PORT || 3000;
-const WORLD_PIXEL_WIDTH = 1920;
-const WORLD_PIXEL_HEIGHT = 1920;
+const WORLD_PIXEL_WIDTH = WORLD_WIDTH * TILE_SIZE;  // 200 * 16 = 3200
+const WORLD_PIXEL_HEIGHT = WORLD_HEIGHT * TILE_SIZE; // 200 * 16 = 3200
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k => k);
 
@@ -176,8 +176,8 @@ async function initDatabase() {
             name TEXT UNIQUE NOT NULL,
             species TEXT DEFAULT 'lobster',
             color TEXT DEFAULT 'red',
-            last_x INTEGER DEFAULT 744,
-            last_y INTEGER DEFAULT 680,
+            last_x INTEGER DEFAULT 1288,
+            last_y INTEGER DEFAULT 1160,
             continuity REAL DEFAULT 50.0,
             auth_token TEXT,
             is_bot BOOLEAN DEFAULT false,
@@ -393,9 +393,9 @@ function broadcast(message, excludeId = null) {
 }
 
 // Spatial partitioning: only send to players within AOI_RANGE pixels
-// World is 120 tiles × 16px = 1920px. Use full world for now (no culling)
+// World is 200 tiles × 16px = 3200px. Use full world for now (no culling)
 // until player counts actually justify it — premature optimization was hiding players
-const AOI_RANGE = 2000;
+const AOI_RANGE = 3500;
 
 function broadcastNearby(message, sourceId, sourceX, sourceY) {
     const data = JSON.stringify(message);
@@ -797,8 +797,8 @@ wss.on('connection', async (ws, req) => {
         name: null,
         species: 'lobster',
         color: 'red',
-        x: 744,
-        y: 680,
+        x: 1288,
+        y: 1160,
         facing: 'down',
         isBot,
         isAlive: true,
@@ -1044,9 +1044,9 @@ async function handleMessage(playerId, playerData, msg, ws) {
             let newX = msg.x || playerData.x;
             let newY = msg.y || playerData.y;
             
-            // Clamp to world boundaries (world is 1920x1920, minus player width 16)
-            newX = Math.max(0, Math.min(1904, newX));
-            newY = Math.max(0, Math.min(1904, newY));
+            // Clamp to world boundaries (world pixel size minus player width 16)
+            newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
+            newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
             // Check terrain collision
             if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
@@ -1288,8 +1288,8 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             }
 
             // Clamp to world boundaries
-            newX = Math.max(0, Math.min(1904, newX));
-            newY = Math.max(0, Math.min(1904, newY));
+            newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
+            newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
             // Check terrain collision
             if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {

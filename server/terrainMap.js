@@ -10,8 +10,8 @@
  * Game.js passes { seed: 12345 } → config.seed = 12345.
  */
 
-const WORLD_WIDTH = 120;
-const WORLD_HEIGHT = 120;
+const WORLD_WIDTH = 200;
+const WORLD_HEIGHT = 200;
 const TILE_SIZE = 16;
 
 function createRng(seed) {
