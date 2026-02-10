@@ -174,7 +174,17 @@ class WorldMap {
         // Step 7: Store island data for building placement
         this.islands = islands;
 
-        console.log(`🌊 Generated ${islands.length} islands with autotiled coastlines`);
+        // Step 8: Scatter decorations on the sandy areas
+        const rng = this.createRng(config.seed + 1000); // Different seed for decorations
+        this.scatterDecorations(terrainMap, rng, {
+            decorTypes: 'archipelago',
+            nearWaterChance: 0.12,
+            inlandChance: 0.05,
+            clusterChance: 0.35,
+            rareChance: 0.015
+        });
+
+        console.log(`🌊 Generated ${islands.length} islands with autotiled coastlines and decorations`);
         return islands;
     }
 
@@ -442,18 +452,82 @@ class WorldMap {
         console.log('✅ Beach world generated with decorations');
     }
 
-    // Scatter shells/rocks/etc on sand tiles
+    // Scatter rich variety of decorations on sand tiles using sprites
     scatterBeachDecorations(terrainMap, rng, config) {
+        this.scatterDecorations(terrainMap, rng, {
+            ...config,
+            decorTypes: 'beach' // Use beach-specific decoration sets
+        });
+    }
+
+    // Main decoration scattering method with rich variety and clustering
+    scatterDecorations(terrainMap, rng, config = {}) {
         const tilesWide = this.width;
         const tilesHigh = this.height;
+        
+        // Default decoration chances
+        const decorConfig = {
+            nearWaterChance: config.decorNearWaterChance ?? 0.15,
+            inlandChance: config.decorInlandChance ?? 0.06,
+            clusterChance: config.clusterChance ?? 0.4,
+            rareChance: config.rareChance ?? 0.02,
+            decorTypes: config.decorTypes ?? 'archipelago'
+        };
 
-        const nearWaterDecorTiles = [1, 2, 3, 4, 8, 10];
-        const inlandDecorTiles = [4, 5, 6, 7, 9, 11];
+        // Define decoration sets based on environment
+        const decorationSets = {
+            beach: {
+                nearWater: [
+                    // Beach detritus - shells, starfish, coral
+                    'shell_pink', 'shell_fan', 'shell_spiral', 'shell_white', 'shell_striped',
+                    'starfish', 'starfish2', 'starfish3',
+                    'coral', 'coral2', 'coral3',
+                    'driftwood', 'driftwood2',
+                    'rock_small', 'seagrass', 'seagrass_tall'
+                ],
+                inland: [
+                    // Inland vegetation and smaller items
+                    'fern', 'fern2', 'tropical_plant', 'small_plant',
+                    'flower_stem', 'bush', 'bush_flower', 'bush_flower2',
+                    'rock_small', 'seagrass'
+                ],
+                rare: [
+                    'treasure_chest', 'treasure_chest2', 'message_bottle',
+                    'anchor', 'wooden_sign', 'lobster_statue',
+                    'rock', 'rock2', 'campfire'
+                ]
+            },
+            archipelago: {
+                nearWater: [
+                    // Coastal decorations
+                    'shell_pink', 'shell_fan', 'shell_spiral', 'shell_white', 'shell_striped',
+                    'starfish', 'starfish2', 'starfish3',
+                    'coral', 'coral2', 'coral3',
+                    'driftwood', 'driftwood2',
+                    'seagrass', 'seagrass_tall',
+                    'rock_small', 'fishing_net', 'fishing_net2'
+                ],
+                inland: [
+                    // Island vegetation
+                    'fern', 'fern2', 'tropical_plant', 'tree_bush',
+                    'flower_stem', 'small_plant',
+                    'bush', 'bush_flower', 'bush_flower2',
+                    'rock_small'
+                ],
+                rare: [
+                    'treasure_chest', 'treasure_chest2', 'message_bottle',
+                    'anchor', 'wooden_sign', 'lobster_statue', 'buoy',
+                    'rock', 'rock2', 'campfire', 'log_pile', 'scroll'
+                ]
+            }
+        };
 
-        const hasWaterNeighbor = (col, row) => {
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
-                    if (dx === 0 && dy === 0) continue;
+        const decorSet = decorationSets[decorConfig.decorTypes] || decorationSets.archipelago;
+
+        // Helper functions
+        const hasWaterNeighbor = (col, row, radius = 1) => {
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
                     const r = row + dy;
                     const c = col + dx;
                     if (r < 0 || r >= tilesHigh || c < 0 || c >= tilesWide) continue;
@@ -463,9 +537,9 @@ class WorldMap {
             return false;
         };
 
-        const hasDecorNeighbor = (col, row) => {
-            for (let dy = -1; dy <= 1; dy++) {
-                for (let dx = -1; dx <= 1; dx++) {
+        const hasDecorationNearby = (col, row, radius = 1) => {
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
                     if (dx === 0 && dy === 0) continue;
                     const r = row + dy;
                     const c = col + dx;
@@ -476,21 +550,187 @@ class WorldMap {
             return false;
         };
 
+        // Check if position conflicts with manually placed cobblestone paths
+        const isOnCobblestone = (worldX, worldY) => {
+            // Convert to world coordinates (WorldMap tiles are 16px each)
+            const checkX = worldX;
+            const checkY = worldY;
+            
+            // Check against manual cobblestone placements from EditorMapData
+            // Load editor data if available globally
+            let editorData = null;
+            if (typeof EDITOR_MAP_DATA !== 'undefined') {
+                editorData = EDITOR_MAP_DATA;
+            } else if (typeof window !== 'undefined' && window.EDITOR_MAP_DATA) {
+                editorData = window.EDITOR_MAP_DATA;
+            }
+            
+            if (editorData && editorData.placements && editorData.placements.cobblestone_path) {
+                for (const [x, y] of editorData.placements.cobblestone_path) {
+                    if (Math.abs(x - checkX) < 16 && Math.abs(y - checkY) < 16) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        // Get distance to nearest water for density calculations
+        const getWaterDistance = (col, row) => {
+            let minDist = Infinity;
+            for (let r = 0; r < tilesHigh; r++) {
+                for (let c = 0; c < tilesWide; c++) {
+                    if (terrainMap[r][c] === 1) {
+                        const dist = Math.sqrt((c - col) ** 2 + (r - row) ** 2);
+                        minDist = Math.min(minDist, dist);
+                    }
+                }
+            }
+            return minDist;
+        };
+
+        // Place decorations
         for (let row = 0; row < tilesHigh; row++) {
             for (let col = 0; col < tilesWide; col++) {
                 if (terrainMap[row][col] !== 0) continue; // Only sand
-                if (hasDecorNeighbor(col, row)) continue;
 
-                const nearWater = hasWaterNeighbor(col, row);
-                const chance = nearWater ? config.decorNearWaterChance : config.decorInlandChance;
+                const worldX = col * 16;
+                const worldY = row * 16;
+
+                // Skip if on manually placed cobblestone
+                if (isOnCobblestone(worldX, worldY)) continue;
+
+                // Skip if too close to existing decorations
+                if (hasDecorationNearby(col, row, 1)) continue;
+
+                const nearWater = hasWaterNeighbor(col, row, 2);
+                const waterDistance = getWaterDistance(col, row);
+                
+                // Create density zones - more decorations near water
+                let chance = decorConfig.inlandChance;
+                if (nearWater) {
+                    // Higher density near shoreline
+                    if (waterDistance <= 2) {
+                        chance = decorConfig.nearWaterChance * 1.5; // Beach detritus zone
+                    } else if (waterDistance <= 4) {
+                        chance = decorConfig.nearWaterChance;
+                    } else {
+                        chance = decorConfig.nearWaterChance * 0.7;
+                    }
+                }
 
                 if (rng() < chance) {
-                    const pool = nearWater ? nearWaterDecorTiles : inlandDecorTiles;
-                    const tileId = pool[Math.floor(rng() * pool.length)];
-                    this.setTile(this.decorationLayer, col, row, { tileset: 'decor', id: tileId });
+                    let decorationType;
+                    
+                    // Choose decoration type
+                    if (rng() < decorConfig.rareChance) {
+                        // Rare items
+                        decorationType = decorSet.rare[Math.floor(rng() * decorSet.rare.length)];
+                    } else if (nearWater) {
+                        decorationType = decorSet.nearWater[Math.floor(rng() * decorSet.nearWater.length)];
+                    } else {
+                        decorationType = decorSet.inland[Math.floor(rng() * decorSet.inland.length)];
+                    }
+
+                    // Create decoration sprite object
+                    const decoration = {
+                        type: decorationType,
+                        sprite: true, // Mark as sprite-based
+                        worldX: worldX,
+                        worldY: worldY
+                    };
+
+                    this.setTile(this.decorationLayer, col, row, decoration);
+
+                    // Clustering - chance to place related decorations nearby
+                    if (rng() < decorConfig.clusterChance) {
+                        this.createCluster(terrainMap, col, row, decorationType, decorSet, rng, decorConfig);
+                    }
                 }
             }
         }
+    }
+
+    // Create a cluster of related decorations
+    createCluster(terrainMap, centerCol, centerRow, baseType, decorSet, rng, config) {
+        const clusterTypes = this.getClusterTypes(baseType, decorSet);
+        const clusterSize = Math.floor(rng() * 3) + 1; // 1-3 additional items
+        
+        for (let i = 0; i < clusterSize; i++) {
+            // Find nearby position (within 2 tiles)
+            const attempts = 8;
+            for (let attempt = 0; attempt < attempts; attempt++) {
+                const offsetX = Math.floor((rng() - 0.5) * 4); // -2 to 2
+                const offsetY = Math.floor((rng() - 0.5) * 4);
+                const col = centerCol + offsetX;
+                const row = centerRow + offsetY;
+                
+                if (col < 0 || col >= this.width || row < 0 || row >= this.height) continue;
+                if (terrainMap[row][col] !== 0) continue; // Only sand
+                if (this.decorationLayer[row][col]) continue; // No overlap
+                
+                // Check cobblestone conflict
+                const worldX = col * 16;
+                const worldY = row * 16;
+                if (isOnCobblestone(worldX, worldY)) continue;
+                
+                const clusterType = clusterTypes[Math.floor(rng() * clusterTypes.length)];
+                const decoration = {
+                    type: clusterType,
+                    sprite: true,
+                    worldX: worldX,
+                    worldY: worldY
+                };
+                
+                this.setTile(this.decorationLayer, col, row, decoration);
+                break;
+            }
+        }
+    }
+
+    // Get decoration types that cluster well together
+    getClusterTypes(baseType, decorSet) {
+        const clusters = {
+            // Shell clusters
+            'shell_pink': ['shell_fan', 'shell_white', 'shell_striped', 'shell_spiral'],
+            'shell_fan': ['shell_pink', 'shell_white', 'shell_striped'],
+            'shell_white': ['shell_pink', 'shell_fan', 'shell_spiral'],
+            'shell_spiral': ['shell_pink', 'shell_white', 'shell_fan'],
+            'shell_striped': ['shell_pink', 'shell_fan', 'shell_white'],
+            
+            // Starfish clusters
+            'starfish': ['starfish2', 'starfish3', 'shell_pink', 'shell_fan'],
+            'starfish2': ['starfish', 'starfish3', 'shell_white'],
+            'starfish3': ['starfish', 'starfish2', 'coral'],
+            
+            // Coral clusters  
+            'coral': ['coral2', 'coral3', 'seagrass', 'starfish3'],
+            'coral2': ['coral', 'coral3', 'seagrass_tall'],
+            'coral3': ['coral', 'coral2', 'seagrass'],
+            
+            // Rock clusters
+            'rock_small': ['rock_small', 'seagrass', 'fern'],
+            'rock': ['rock2', 'rock_small', 'fern', 'bush'],
+            'rock2': ['rock', 'rock_small', 'tropical_plant'],
+            
+            // Plant clusters
+            'fern': ['fern2', 'tropical_plant', 'small_plant'],
+            'fern2': ['fern', 'bush', 'flower_stem'],
+            'tropical_plant': ['fern', 'bush_flower', 'tree_bush'],
+            'bush': ['bush_flower', 'bush_flower2', 'fern'],
+            'bush_flower': ['bush', 'bush_flower2', 'flower_stem'],
+            'bush_flower2': ['bush', 'bush_flower', 'tropical_plant'],
+            
+            // Seagrass clusters
+            'seagrass': ['seagrass_tall', 'coral', 'small_plant'],
+            'seagrass_tall': ['seagrass', 'coral2', 'fern'],
+            
+            // Driftwood doesn't really cluster
+            'driftwood': ['driftwood2', 'shell_pink'],
+            'driftwood2': ['driftwood', 'rock_small']
+        };
+        
+        return clusters[baseType] || [baseType];
     }
 
     // Clear decoration tiles in a rectangular area (for buildings/paths)

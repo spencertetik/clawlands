@@ -1542,7 +1542,7 @@ class Game {
                 
                 // Scale down furniture in interiors — sprites are too big relative to rooms
                 const isInterior = this.currentLocation === 'interior';
-                const furnitureScale = isInterior ? (decor.ground ? 0.75 : 0.65) : 1.0;
+                const furnitureScale = isInterior ? (decor.ground ? 0.6 : 0.5) : 1.0;
                 if (furnitureScale !== 1.0) {
                     const scaledW = Math.round(w * furnitureScale);
                     const scaledH = Math.round(h * furnitureScale);
