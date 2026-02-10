@@ -4839,27 +4839,13 @@ class Game {
             }
         }
         
-        // Check if editor map data provides paths and decorations
-        const editorHasPaths = typeof EDITOR_MAP_DATA !== 'undefined' && 
-            EDITOR_MAP_DATA.placements && 
-            EDITOR_MAP_DATA.placements.cobblestone_path && 
-            EDITOR_MAP_DATA.placements.cobblestone_path.length > 0;
-        const editorHasDecorations = typeof EDITOR_MAP_DATA !== 'undefined' && 
-            EDITOR_MAP_DATA.placements && 
-            Object.keys(EDITOR_MAP_DATA.placements).some(k => k !== 'cobblestone_path');
+        // Generate town layouts: cobblestone plazas, roads connecting buildings
+        this.generatePaths(sortedIslands);
 
-        // Generate paths connecting buildings on each island
-        // Skip if editor data provides hand-placed paths
-        if (editorHasPaths) {
-            console.log('🗺️ Editor map data has paths — skipping procedural generatePaths()');
-        } else {
-            this.generatePaths(sortedIslands);
-        }
-
-        // Apply editor map data (Spencer's hand-placed roads & decorations)
+        // Apply any editor overrides (currently clean slate)
         this.applyEditorMapData();
         
-        // Mark collision for ALL solid decorations (procedural + editor-placed)
+        // Mark collision for ALL solid decorations
         this.markDecorationCollisions();
 
         // Build auto-tiled path layer from dirt_path decoration positions
@@ -4884,13 +4870,8 @@ class Game {
         this.outdoorNPCs = [...this.npcs];
         this.collisionSystem.setNPCs(this.npcs);
         
-        // Create decorations (plants, shells, rocks)
-        // Skip if editor data provides hand-placed decorations
-        if (editorHasDecorations) {
-            console.log('🗺️ Editor map data has decorations — skipping procedural createDecorations()');
-        } else {
-            this.createDecorations(islands);
-        }
+        // Create minimal decorations (sparse plants along paths, a few landmarks)
+        this.createDecorations(islands);
         this.outdoorDecorations = [...this.decorations];
         
         // Create special world objects (Waygates, Stability Engine)
@@ -4921,87 +4902,134 @@ class Game {
         
         // Group buildings by which island they're on
         const buildingsByIsland = new Map();
-        
         for (const building of this.buildings) {
-            const buildingCenterX = (building.x + building.width / 2) / tileSize;
-            const buildingCenterY = (building.y + building.height / 2) / tileSize;
-            
-            // Find which island this building is on
+            const bcx = (building.x + building.width / 2) / tileSize;
+            const bcy = (building.y + building.height / 2) / tileSize;
             let closestIsland = null;
             let closestDist = Infinity;
-            
             for (const island of islands) {
-                const dist = Math.sqrt(
-                    (buildingCenterX - island.x) ** 2 + 
-                    (buildingCenterY - island.y) ** 2
-                );
+                const dist = Math.sqrt((bcx - island.x) ** 2 + (bcy - island.y) ** 2);
                 if (dist < closestDist && dist < island.size + 5) {
                     closestDist = dist;
                     closestIsland = island;
                 }
             }
-            
             if (closestIsland) {
-                if (!buildingsByIsland.has(closestIsland.id)) {
-                    buildingsByIsland.set(closestIsland.id, []);
-                }
+                if (!buildingsByIsland.has(closestIsland.id)) buildingsByIsland.set(closestIsland.id, []);
                 buildingsByIsland.get(closestIsland.id).push(building);
             }
         }
-        
-        // Create paths on each island
-        let pathCount = 0;
+
+        let totalPathTiles = 0;
+
         for (const [islandId, islandBuildings] of buildingsByIsland) {
             const island = islands.find(i => i.id === islandId);
             if (!island) continue;
+            const isMain = (island.id === this.mainIslandIndex);
+
+            // === STEP 1: Create town square (cobblestone plaza) ===
+            // Find the bounding box of all building doors on this island
+            const doors = islandBuildings.map(b => {
+                const d = b.getDoorBounds();
+                return {
+                    x: Math.floor((d.x + d.width / 2) / tileSize),
+                    y: Math.floor((d.y + d.height) / tileSize) + 1 // one tile below door
+                };
+            });
             
-            // Connect buildings in a simple chain (only if 2+ buildings)
-            if (islandBuildings.length >= 2) {
-                for (let i = 0; i < islandBuildings.length - 1; i++) {
-                    const b1 = islandBuildings[i];
-                    const b2 = islandBuildings[i + 1];
-                    
-                    // Get actual door positions - path ends right at the door
-                    const door1 = b1.getDoorBounds();
-                    const door2 = b2.getDoorBounds();
-                    const x1 = Math.floor((door1.x + door1.width / 2) / tileSize);
-                    const y1Door = Math.floor((door1.y + door1.height) / tileSize); // Right at door
-                    const y1Path = y1Door + 1; // One tile below door for main path
-                    const x2 = Math.floor((door2.x + door2.width / 2) / tileSize);
-                    const y2Door = Math.floor((door2.y + door2.height) / tileSize); // Right at door
-                    const y2Path = y2Door + 1; // One tile below door for main path
-                    
-                    // Create path segment from door to path level (doorstep)
-                    this.createPathSegment(x1, y1Door, x1, y1Path);
-                    this.createPathSegment(x2, y2Door, x2, y2Path);
-                    
-                    // Create L-shaped path connecting buildings
-                    this.createPathSegment(x1, y1Path, x2, y1Path); // Horizontal
-                    this.createPathSegment(x2, y1Path, x2, y2Path); // Vertical
-                    pathCount++;
+            // Town center = centroid of all doors
+            const centerX = Math.round(doors.reduce((s, d) => s + d.x, 0) / doors.length);
+            const centerY = Math.round(doors.reduce((s, d) => s + d.y, 0) / doors.length);
+            
+            // Plaza size depends on island importance
+            const plazaRadius = isMain ? 4 : 2;
+            
+            // Create rectangular plaza around center
+            for (let dy = -plazaRadius; dy <= plazaRadius; dy++) {
+                for (let dx = -plazaRadius; dx <= plazaRadius; dx++) {
+                    this.setPathTile(centerX + dx, centerY + dy);
+                    totalPathTiles++;
                 }
             }
             
-            // Create a path from EVERY building's door toward island center
+            // === STEP 2: Connect each building's door to the plaza ===
             for (const building of islandBuildings) {
                 const door = building.getDoorBounds();
-                const bx = Math.floor((door.x + door.width / 2) / tileSize);
-                const byDoor = Math.floor((door.y + door.height) / tileSize); // Right at door
-                const byPath = byDoor + 1; // One tile below
+                const doorX = Math.floor((door.x + door.width / 2) / tileSize);
+                const doorY = Math.floor((door.y + door.height) / tileSize);
+                const pathY = doorY + 1; // one tile below door
                 
-                // Path from door down to path level
-                this.createPathSegment(bx, byDoor, bx, byPath);
+                // Doorstep: door tile itself
+                this.setPathTile(doorX, doorY);
+                this.setPathTile(doorX, pathY);
                 
-                // Path toward island center
-                this.createPathSegment(bx, byPath, island.x, byPath);
-                this.createPathSegment(island.x, byPath, island.x, island.y);
-                pathCount++;
+                // 2-wide path from door to center (L-shaped: horizontal then vertical)
+                // Horizontal segment toward center X
+                const hDir = Math.sign(centerX - doorX);
+                if (hDir !== 0) {
+                    for (let x = doorX; x !== centerX; x += hDir) {
+                        this.setPathTile(x, pathY);
+                        this.setPathTile(x, pathY + 1); // 2-tile wide road
+                        totalPathTiles += 2;
+                    }
+                }
+                
+                // Vertical segment toward center Y
+                const targetY = centerY;
+                const vDir = Math.sign(targetY - pathY);
+                if (vDir !== 0) {
+                    for (let y = pathY; y !== targetY; y += vDir) {
+                        this.setPathTile(centerX, y);
+                        this.setPathTile(centerX - 1, y); // 2-tile wide road
+                        totalPathTiles += 2;
+                    }
+                }
+            }
+            
+            // === STEP 3: Main road from plaza toward island edges (bridge exits) ===
+            // Create roads going north, south, east, west from plaza to island boundary
+            // This gives the player clear routes to leave the town
+            const directions = [
+                { dx: 0, dy: -1, name: 'north' },
+                { dx: 0, dy: 1, name: 'south' },
+                { dx: -1, dy: 0, name: 'west' },
+                { dx: 1, dy: 0, name: 'east' }
+            ];
+            
+            for (const dir of directions) {
+                let x = centerX;
+                let y = centerY;
+                let roadLength = 0;
+                const maxRoad = island.size + 3; // extend to island edge
+                
+                while (roadLength < maxRoad) {
+                    x += dir.dx;
+                    y += dir.dy;
+                    
+                    // Stop if we hit water or go off-map
+                    if (x < 0 || x >= this.worldMap.width || y < 0 || y >= this.worldMap.height) break;
+                    const tile = this.worldMap.groundLayer[y]?.[x];
+                    if (tile === 1) break; // water — stop
+                    
+                    // 2-wide road
+                    if (dir.dy !== 0) {
+                        // Vertical road: 2 tiles wide horizontally
+                        this.setPathTile(x, y);
+                        this.setPathTile(x - 1, y);
+                    } else {
+                        // Horizontal road: 2 tiles wide vertically
+                        this.setPathTile(x, y);
+                        this.setPathTile(x, y + 1);
+                    }
+                    totalPathTiles += 2;
+                    roadLength++;
+                }
             }
         }
         
-        console.log(`🛤️ Created ${pathCount} path segments connecting buildings (${this.decorations.length} path tiles)`);
+        console.log(`🛤️ Created town layouts: ${totalPathTiles} path tiles across ${buildingsByIsland.size} islands`);
         
-        // Fill corner gaps at L-junctions
+        // Fill corner gaps at path junctions
         this.fillPathCorners();
     }
     
