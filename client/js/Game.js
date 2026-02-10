@@ -4780,7 +4780,7 @@ class Game {
             'campfire':         { collisionW: 1, collisionH: 1 },
             'log_pile':         { collisionW: 1, collisionH: 1 },
             'buoy':             { collisionW: 1, collisionH: 1 },
-            'bush':             { collisionW: 1, collisionH: 1 },
+            'bush':             { collisionW: 1, collisionH: 1, centerY: true },
         };
         
         let marked = 0;
@@ -4791,16 +4791,25 @@ class Game {
             const cw = solidDef.collisionW;
             const ch = solidDef.collisionH;
             
-            // Center collision at the base (bottom-center of sprite)
+            // Position collision box
             const baseCenterX = decor.x + decor.width / 2;
-            const baseBottomY = decor.y + decor.height;
-            
             const centerCol = Math.floor(baseCenterX / tileSize);
-            const bottomRow = Math.floor((baseBottomY - 1) / tileSize);
             
-            // Expand from center
+            let startRow;
+            if (solidDef.centerY) {
+                // Center collision on sprite (for short ground-level items like bushes)
+                const centerY = decor.y + decor.height / 2;
+                const centerRow = Math.floor(centerY / tileSize);
+                startRow = centerRow - Math.floor((ch - 1) / 2);
+            } else {
+                // Anchor collision at base/bottom (for tall items like trees)
+                const baseBottomY = decor.y + decor.height;
+                const bottomRow = Math.floor((baseBottomY - 1) / tileSize);
+                startRow = bottomRow - (ch - 1);
+            }
+            
+            // Expand from center column
             const startCol = centerCol - Math.floor((cw - 1) / 2);
-            const startRow = bottomRow - (ch - 1);
             
             for (let r = 0; r < ch; r++) {
                 for (let c = 0; c < cw; c++) {
