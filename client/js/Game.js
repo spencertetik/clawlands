@@ -4839,8 +4839,22 @@ class Game {
             }
         }
         
+        // Check if editor map data provides paths and decorations
+        const editorHasPaths = typeof EDITOR_MAP_DATA !== 'undefined' && 
+            EDITOR_MAP_DATA.placements && 
+            EDITOR_MAP_DATA.placements.cobblestone_path && 
+            EDITOR_MAP_DATA.placements.cobblestone_path.length > 0;
+        const editorHasDecorations = typeof EDITOR_MAP_DATA !== 'undefined' && 
+            EDITOR_MAP_DATA.placements && 
+            Object.keys(EDITOR_MAP_DATA.placements).some(k => k !== 'cobblestone_path');
+
         // Generate paths connecting buildings on each island
-        this.generatePaths(sortedIslands);
+        // Skip if editor data provides hand-placed paths
+        if (editorHasPaths) {
+            console.log('🗺️ Editor map data has paths — skipping procedural generatePaths()');
+        } else {
+            this.generatePaths(sortedIslands);
+        }
 
         // Apply editor map data (Spencer's hand-placed roads & decorations)
         this.applyEditorMapData();
@@ -4871,7 +4885,12 @@ class Game {
         this.collisionSystem.setNPCs(this.npcs);
         
         // Create decorations (plants, shells, rocks)
-        this.createDecorations(islands);
+        // Skip if editor data provides hand-placed decorations
+        if (editorHasDecorations) {
+            console.log('🗺️ Editor map data has decorations — skipping procedural createDecorations()');
+        } else {
+            this.createDecorations(islands);
+        }
         this.outdoorDecorations = [...this.decorations];
         
         // Create special world objects (Waygates, Stability Engine)
