@@ -223,7 +223,7 @@ class WelcomeScreen {
         if (params.get('quickStart') === 'true') {
             this.quickStartGame();
         } else if (params.get('botMode') === 'true' || params.get('mode') === 'agent') {
-            this.showAgentWaiting();
+            this.startSpectatorFromMenu();
         } else {
             this.showModeSelection();
         }
@@ -374,10 +374,10 @@ class WelcomeScreen {
         humanBtn.onclick = () => this.showStoryIntro();
         buttons.appendChild(humanBtn);
 
-        // AI Agent button
-        const agentBtn = createTerminalBtn('>', 'AI AGENT', false);
-        agentBtn.onclick = () => this.showAgentWaiting();
-        buttons.appendChild(agentBtn);
+        // Watch AI button — enters spectator mode to watch a bot play
+        const watchBtn = createTerminalBtn('👁', 'WATCH AI', false);
+        watchBtn.onclick = () => this.startSpectatorFromMenu();
+        buttons.appendChild(watchBtn);
 
         this.container.appendChild(buttons);
 
@@ -603,6 +603,26 @@ class WelcomeScreen {
 
         if (window.game) {
             window.game.enableBotMode();
+        }
+    }
+
+    /**
+     * Start spectator mode from the menu — find any bot and watch it play
+     */
+    startSpectatorFromMenu() {
+        this.clearSequenceTimers();
+        
+        // Clean up the welcome screen
+        if (this.container) this.container.remove();
+        if (this.overlay) {
+            this.overlay.style.display = 'none';
+        }
+        
+        // Set spectator mode on the game — find any bot automatically
+        if (window.game) {
+            window.game.spectateTarget = '*'; // Special: watch any bot
+            window.game.spectateMode = true;
+            window.game.startSpectatorMode();
         }
     }
 

@@ -479,6 +479,10 @@ class Game {
             const b = document.getElementById('splash-bar'); if (b) b.style.width = '70%';
             const s = document.getElementById('splash-status'); if (s) s.textContent = 'Connecting to server...';
         }, 3000);
+        setTimeout(() => { 
+            const s = document.getElementById('splash-status'); 
+            if (s && !this._splashPlayerFound) s.textContent = 'Searching for AI agent...';
+        }, 4500);
     }
     
     // Called when spectate target is found — wait for assets + min time, then fade
@@ -556,29 +560,38 @@ class Game {
                 }
             }
             
+            // When target is '*', find any bot (prefer bots, fall back to any player)
+            let bestMatch = null;
             for (const [id, remote] of this.multiplayer.remotePlayers) {
-                if (remote.name.toLowerCase() === this.spectateTarget.toLowerCase()) {
-                    console.log(`👁️ Found spectate target: ${remote.name} at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
-                    this.spectatePlayer = remote;
-                    
-                    // Flag for real-time position snapping (no interpolation delay)
-                    remote._spectated = true;
-                    
-                    // Make camera follow this remote player with near-instant tracking
-                    this.camera.setTarget(remote);
-                    this.camera.lerpSpeed = 0.5; // Much faster camera follow for spectating
-                    
-                    // Update overlay
-                    const label = document.getElementById('spectate-label');
-                    if (label) label.textContent = `Watching: ${remote.name}`;
-                    const status = document.getElementById('spectate-status');
-                    if (status) status.textContent = 'Connected';
-                    if (status) status.style.color = '#4CAF50';
-                    
-                    // Fade out the splash screen
-                    this._dismissSpectatorSplash();
-                    return;
+                if (this.spectateTarget === '*') {
+                    if (remote.isBot) { bestMatch = remote; break; }
+                    if (!bestMatch) bestMatch = remote;
+                } else if (remote.name.toLowerCase() === this.spectateTarget.toLowerCase()) {
+                    bestMatch = remote; break;
                 }
+            }
+            if (bestMatch) {
+                const remote = bestMatch;
+                console.log(`👁️ Found spectate target: ${remote.name} at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
+                this.spectatePlayer = remote;
+                
+                // Flag for real-time position snapping (no interpolation delay)
+                remote._spectated = true;
+                
+                // Make camera follow this remote player with near-instant tracking
+                this.camera.setTarget(remote);
+                this.camera.lerpSpeed = 0.5;
+                
+                // Update overlay
+                const label = document.getElementById('spectate-label');
+                if (label) label.textContent = `Watching: ${remote.name}`;
+                const status = document.getElementById('spectate-status');
+                if (status) status.textContent = 'Connected';
+                if (status) status.style.color = '#4CAF50';
+                
+                // Fade out the splash screen
+                this._dismissSpectatorSplash();
+                return;
             }
         }, 500);
     }
