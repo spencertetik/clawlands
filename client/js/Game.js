@@ -578,12 +578,12 @@ class Game {
             }
             
             // Auto-find initial target (first connect or after losing target)
-            // When target is '*', prefer bots; otherwise match by name
+            // Only bots are spectatable — humans are excluded
             let bestMatch = null;
             for (const [id, remote] of this.multiplayer.remotePlayers) {
+                if (!remote.isBot) continue; // Skip humans
                 if (this.spectateTarget === '*') {
-                    if (remote.isBot) { bestMatch = remote; break; }
-                    if (!bestMatch) bestMatch = remote;
+                    bestMatch = remote; break;
                 } else if (remote.name.toLowerCase() === this.spectateTarget.toLowerCase()) {
                     bestMatch = remote; break;
                 }
@@ -626,7 +626,7 @@ class Game {
                 ">▶</button>
             </div>
             <div style="margin-top: 6px; display: flex; gap: 4px;">
-                <input id="spectate-search" type="text" placeholder="Jump to player..." style="
+                <input id="spectate-search" type="text" placeholder="Jump to bot..." style="
                     flex: 1; background: rgba(13,8,6,0.8); border: 1px solid #3a2a22; color: #e8d5cc;
                     padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 11px;
                     outline: none;
@@ -676,18 +676,15 @@ class Game {
         searchInput.addEventListener('keypress', (e) => e.stopPropagation());
     }
 
-    // Get sorted list of all remote players for cycling
+    // Get sorted list of bots for spectator cycling (humans excluded)
     _getSpectatePlayerList() {
         if (!this.multiplayer) return [];
         const players = [];
         for (const [id, remote] of this.multiplayer.remotePlayers) {
-            players.push(remote);
+            if (remote.isBot) players.push(remote);
         }
-        // Bots first, then alphabetical
-        players.sort((a, b) => {
-            if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
-            return (a.name || '').localeCompare(b.name || '');
-        });
+        // Alphabetical by name
+        players.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         return players;
     }
 
@@ -708,12 +705,12 @@ class Game {
         this._lockSpectateTarget(players[nextIdx]);
     }
 
-    // Switch to a specific player by name
+    // Switch to a specific bot by name (humans excluded from spectating)
     _switchToPlayerByName(name) {
         if (!this.multiplayer) return;
         const lower = name.toLowerCase();
         for (const [id, remote] of this.multiplayer.remotePlayers) {
-            if ((remote.name || '').toLowerCase().includes(lower)) {
+            if (remote.isBot && (remote.name || '').toLowerCase().includes(lower)) {
                 this._lockSpectateTarget(remote);
                 return;
             }
@@ -721,7 +718,7 @@ class Game {
         // Not found — show feedback
         const status = document.getElementById('spectate-status');
         if (status) {
-            status.textContent = `"${name}" not found`;
+            status.textContent = `Bot "${name}" not found`;
             status.style.color = '#c43a24';
         }
     }
@@ -773,8 +770,8 @@ class Game {
         if (countEl) {
             const idx = this.spectatePlayer ? players.indexOf(this.spectatePlayer) + 1 : 0;
             countEl.textContent = players.length > 0
-                ? `${idx} / ${players.length} player${players.length !== 1 ? 's' : ''}`
-                : 'No players online';
+                ? `${idx} / ${players.length} bot${players.length !== 1 ? 's' : ''}`
+                : 'No bots online';
         }
     }
 
