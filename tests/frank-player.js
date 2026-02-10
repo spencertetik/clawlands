@@ -92,9 +92,13 @@ class BotBrain {
             this.stuckCounter = 0;
             this.unstickAttempts = (this.unstickAttempts || 0) + 1;
             
+            if (this.unstickAttempts > 12) {
+                // Really stuck — emergency escape: pick random direction and GO
+                this.unstickAttempts = 0;
+                return { type: 'emergency_escape' };
+            }
             if (this.unstickAttempts > 8) {
                 // Stuck for a long time — try diagonal (two keys at once)
-                this.unstickAttempts = 0;
                 return { type: 'unstick_diagonal' };
             }
             
@@ -553,6 +557,21 @@ class GameController {
                 break;
             }
             
+            case 'emergency_escape': {
+                // Really stuck — hold a direction for 3 full seconds
+                const escapeDirs = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+                const escKey = escapeDirs[Math.floor(Math.random() * 4)];
+                console.log('🚨 Emergency escape! Holding direction for 3s');
+                await this.page.evaluate((k) => {
+                    if (window.game?.inputManager) window.game.inputManager.keys[k] = true;
+                }, escKey);
+                await this.page.waitForTimeout(3000);
+                await this.page.evaluate((k) => {
+                    if (window.game?.inputManager) window.game.inputManager.keys[k] = false;
+                }, escKey);
+                break;
+            }
+            
             case 'unstick_diagonal': {
                 // Try diagonal movement — hold two keys simultaneously
                 console.log('🔄 Stuck badly! Trying diagonal escape');
@@ -657,13 +676,26 @@ controller.start().catch(err => {
     process.exit(1);
 });
 
-// Status logging
-setInterval(() => {
+// Status logging every 60s
+setInterval(async () => {
     if (controller.brain && controller.running) {
         const b = controller.brain;
-        console.log(`📊 Tick ${b.tickCount} | State: ${b.state} | Kills: ${b.combatKills} | NPCs: ${b.talkedToNPCs.size} | Buildings: ${b.visitedBuildings.size} | Dir: ${b.currentDirection}`);
+        try {
+            const state = await controller.getGameState();
+            const pos = state.player?.position;
+            console.log(`\n📊 === STATUS (tick ${b.tickCount}) ===`);
+            console.log(`   Position: (${pos?.x}, ${pos?.y}) | State: ${b.state}`);
+            console.log(`   NPCs talked: ${[...b.talkedToNPCs].join(', ') || 'none'}`);
+            console.log(`   Buildings visited: ${[...b.visitedBuildings].join(', ') || 'none'}`);
+            console.log(`   Nearby: ${state.nearby?.npcs?.length || 0} NPCs, ${state.nearby?.buildings?.length || 0} buildings, ${state.combat?.enemiesNearby || 0} enemies`);
+            console.log(`   Shell: ${state.combat?.shellIntegrity ?? '?'} | Indoor: ${state.isIndoors}`);
+            console.log(`   Direction: ${b.currentDirection} | Stuck attempts: ${b.unstickAttempts || 0}`);
+            console.log('');
+        } catch (e) {
+            console.log(`📊 Tick ${b.tickCount} | ${b.state} | (state fetch failed)`);
+        }
     }
-}, 30000);
+}, 60000);
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
