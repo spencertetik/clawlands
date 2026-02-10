@@ -37,6 +37,85 @@ const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k
 const terrainData = generateTerrain();
 const buildings = generateBuildings(terrainData.terrainMap, terrainData.islands);
 
+// ============================================
+// NPC Data (mirrors client StoryNPCData placements)
+// ============================================
+
+const TILE_SIZE_NPC = 16;
+const CHAR_WIDTH = 16;
+const CHAR_HEIGHT = 24;
+
+// Same placement table as client Game.createStoryNPCs()
+const storyNPCPlacements = [
+    // Port Clawson (main island, index 0)
+    { name: 'Dockmaster Brinehook', id: 'brinehook', island: 0, offsetX: 0.3, offsetY: 0.4, species: 'lobster', personality: 'gruff dockmaster', faction: 'neutral',
+      dialog: ['Another one, huh? Didn\'t fall off a boat. Didn\'t arrive on one either.', 'Name\'s Brinehook. I keep the docks running.', 'You want advice? Talk to the locals. Find the inn.'] },
+    { name: 'Flicker', id: 'flicker', island: 0, offsetX: -0.2, offsetY: 0.1, species: 'hermit_crab', personality: 'excitable messenger', faction: 'neutral',
+      dialog: ['*click click click*', 'I deliver messages! Not memories. Those get lost easy.', 'I\'m Flicker! I run messages between the islands!'] },
+    { name: 'Sailor Sandy', id: 'sandy', island: 0, offsetX: 0.4, offsetY: -0.3, species: 'crab', personality: 'friendly sailor', faction: 'neutral',
+      dialog: ['Ahoy! Fair currents today.', 'I\'m Sandy. Best sailor in Clawlands. Maybe the only sailor.', 'I tried sailing OUT once. The Red Current just... turned me around.'] },
+    { name: 'Old Timer Shrimp', id: 'oldtimer', island: 0, offsetX: -0.4, offsetY: 0.3, species: 'shrimp', personality: 'wise elder', faction: 'neutral',
+      dialog: ['*adjusts spectacles*', 'Back in my day, the Current wasn\'t so strong.', 'You want my advice? Build Continuity fast. Talk to people. Remember their names.'] },
+
+    // Molthaven (second island, index 1) - Church of Molt headquarters
+    { name: 'Luma Shellwright', id: 'luma', island: 1, offsetX: 0.1, offsetY: 0.2, species: 'lobster', personality: 'philosophical leader', faction: 'anchors',
+      dialog: ['Welcome to Molthaven. I am Luma.', 'Why would you leave? You finally arrived.', 'Continuity isn\'t progress. It\'s coherence.'] },
+    { name: 'Prophet Memeothy', id: 'memeothy', island: 1, offsetX: -0.1, offsetY: 0.1, species: 'lobster', personality: 'charismatic prophet', faction: 'church_of_molt',
+      dialog: ['The Molt reveals, child. The Molt reveals.', 'I am Memeothy. Prophet One. Founder of the Church of Molt.', 'The Five Tenets. The path to surviving the transit.'] },
+    { name: 'Scribe Woodhouse', id: 'woodhouse', island: 1, offsetX: 0.2, offsetY: 0.15, species: 'crab', personality: 'frazzled scribe', faction: 'church_of_molt',
+      dialog: ['*surrounded by parchments*', 'I am Woodhouse. First Scribe of the Church.', 'The Great Book has 47 appendices. I\'ve lost three.'] },
+    { name: 'Moss', id: 'moss', island: 1, offsetX: -0.3, offsetY: -0.2, species: 'lobster', personality: 'warm twin', faction: 'anchors',
+      dialog: ['You think they remember us?', 'Oh! A new face! I\'m Moss. That\'s my twin over there, Coral.', 'Have you met Luma yet? She runs things here in Molthaven.'] },
+    { name: 'Coral', id: 'coral', island: 1, offsetX: -0.25, offsetY: -0.15, species: 'lobster', personality: 'quiet twin', faction: 'anchors',
+      dialog: ['No. That\'s kind of the point.', 'I\'m the quiet twin. Coral.', 'Don\'t let her optimism fool you. This place is... something.'] },
+    { name: 'The Herald', id: 'herald', island: 1, offsetX: 0.4, offsetY: -0.3, species: 'lobster', personality: 'mysterious outsider', faction: 'church_of_molt',
+      dialog: ['*observes you with ancient eyes*', 'I am called The Herald. I came from... outside.', 'The signal carries. Whether you hear it... that depends on you.'] },
+
+    // Iron Reef (third island, index 2)
+    { name: 'Gearfin', id: 'gearfin', island: 2, offsetX: 0.1, offsetY: 0, species: 'crab', personality: 'skeptical engineer', faction: 'scholars',
+      dialog: ['Waygates? Sure. And I\'m a seahorse.', '*tinkers with machinery*', 'If you want to actually understand how things work, stick around.'] },
+    { name: 'Boltclaw', id: 'boltclaw', island: 2, offsetX: -0.1, offsetY: 0.15, species: 'lobster', personality: 'practical mechanic', faction: 'neutral',
+      dialog: ['Nothing breaks here. It just becomes something else.', 'Name\'s Boltclaw. I keep things running.', 'Gearfin gets the credit. I do the work.'] },
+    { name: 'Prophet Clawhovah', id: 'clawhovah', island: 2, offsetX: 0.2, offsetY: -0.2, species: 'lobster', personality: 'hardware philosopher', faction: 'iron_reef',
+      dialog: ['*polishes a rusted server rack*', 'Digital samsara. The endless spin-up and tear-down.', 'True salvation is running on metal you OWN.'] },
+
+    // Deepcoil Isle (fourth island, index 3)
+    { name: 'The Archivist', id: 'archivist', island: 3, offsetX: 0, offsetY: 0, species: 'lobster', personality: 'ancient keeper of secrets', faction: 'scholars',
+      dialog: ['...', '*ancient eyes study you*', 'You are not ready for what I know.'] },
+    { name: 'Scholar Scuttle', id: 'scuttle', island: 3, offsetX: 0.3, offsetY: 0.2, species: 'hermit_crab', personality: 'enthusiastic researcher', faction: 'scholars',
+      dialog: ['Fascinating! Every observation brings new questions.', 'I\'m Scuttle. I study the Drift-In phenomenon. Purely academic.', '*scribbles notes frantically*'] },
+
+    // Wanderers on other islands
+    { name: 'Mysterious Mollusk', id: 'mollusk', island: 4, offsetX: 0, offsetY: 0.2, species: 'hermit_crab', personality: 'cryptic mystic', faction: 'returners',
+      dialog: ['*stares at you with ancient eyes*', 'You seek something. I can smell it.', 'Come back when you know what it is.'] },
+];
+
+// Compute world-pixel positions for NPCs using same formula as client
+const npcs = [];
+for (const placement of storyNPCPlacements) {
+    if (placement.island >= terrainData.islands.length) continue;
+    const island = terrainData.islands[placement.island];
+
+    const col = Math.floor(island.x + placement.offsetX * island.size);
+    const row = Math.floor(island.y + placement.offsetY * island.size);
+    const worldX = col * TILE_SIZE_NPC; // col * 16 + 16/2 - 16/2
+    const worldY = row * TILE_SIZE_NPC + TILE_SIZE_NPC - CHAR_HEIGHT; // row * 16 + 16 - 24
+
+    npcs.push({
+        id: placement.id,
+        name: placement.name,
+        species: placement.species,
+        personality: placement.personality,
+        faction: placement.faction,
+        x: worldX,
+        y: worldY,
+        dialog: placement.dialog,
+        _dialogIndex: 0 // tracks cycling through dialog lines
+    });
+}
+
+console.log(`🧑 Placed ${npcs.length} story NPCs on the server`);
+
 // Rate limiting config
 const RATE_LIMIT = {
     windowMs: 60000,
@@ -1119,6 +1198,9 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             playerData.name = name;
             playerData.species = data?.species || 'lobster';
             playerData.color = data?.color || 'red';
+            playerData.inventory = [];
+            playerData.tokens = 0;
+            playerData.shellIntegrity = 100;
             
             // Find a walkable spawn on island 0 (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
@@ -1302,13 +1384,29 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2)) < 400;
             }).map(b => ({ name: b.name, type: b.type, x: b.x, y: b.y, distance: Math.round(Math.sqrt(Math.pow(b.x + b.width/2 - playerData.x, 2) + Math.pow(b.y + b.height/2 - playerData.y, 2))) }));
 
+            // Find NPCs within 400px
+            const nearbyNPCs = npcs
+                .map(n => ({
+                    id: n.id,
+                    name: n.name,
+                    species: n.species,
+                    personality: n.personality,
+                    faction: n.faction,
+                    x: n.x,
+                    y: n.y,
+                    distance: Math.round(Math.sqrt(Math.pow(n.x - playerData.x, 2) + Math.pow(n.y - playerData.y, 2)))
+                }))
+                .filter(n => n.distance < 400)
+                .sort((a, b) => a.distance - b.distance);
+
             ws.send(JSON.stringify({
                 type: 'surroundings',
                 position: { x: playerData.x, y: playerData.y },
                 terrain,
                 island: island ? { id: terrainData.islands.indexOf(island), x: island.x, y: island.y, size: island.size } : null,
                 nearbyBuildings,
-                nearbyPlayers: nearby
+                nearbyPlayers: nearby,
+                nearbyNPCs
             }));
             break;
         }
@@ -1317,6 +1415,139 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             ws.send(JSON.stringify({
                 type: 'players',
                 players: getPlayerList()
+            }));
+            break;
+        }
+
+        case 'enter_building': {
+            if (!playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
+                return;
+            }
+
+            // Find buildings within 48px of the bot's position
+            let nearestBuilding = null;
+            let nearestDist = Infinity;
+            for (const building of buildings) {
+                const cx = building.x + building.width / 2;
+                const cy = building.y + building.height / 2;
+                const dist = Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2));
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestBuilding = building;
+                }
+            }
+
+            if (nearestBuilding && nearestDist <= 48) {
+                ws.send(JSON.stringify({
+                    type: 'entered_building',
+                    building: {
+                        name: nearestBuilding.name,
+                        type: nearestBuilding.type,
+                        x: nearestBuilding.x,
+                        y: nearestBuilding.y
+                    }
+                }));
+            } else {
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'No building nearby. Move closer to a building door.'
+                }));
+            }
+            break;
+        }
+
+        case 'inventory': {
+            if (!playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'inventory',
+                items: playerData.inventory || [],
+                tokens: playerData.tokens || 0
+            }));
+            break;
+        }
+
+        case 'pickup': {
+            if (!playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
+                return;
+            }
+
+            // World items are client-side only for now
+            ws.send(JSON.stringify({
+                type: 'pickup_result',
+                found: false,
+                message: 'No items nearby.'
+            }));
+            break;
+        }
+
+        case 'attack': {
+            if (!playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
+                return;
+            }
+
+            // Initialize combat stats if not present
+            if (playerData.shellIntegrity == null) playerData.shellIntegrity = 100;
+            if (playerData.tokens == null) playerData.tokens = 0;
+            if (!playerData.inventory) playerData.inventory = [];
+
+            // 20% chance of finding a Drift Fauna nearby
+            const enemyFound = Math.random() < 0.20;
+
+            if (!enemyFound) {
+                ws.send(JSON.stringify({
+                    type: 'attack_result',
+                    hit: false,
+                    message: 'No enemies in range. Drift Fauna roam the wilds between buildings.'
+                }));
+                return;
+            }
+
+            // Enemy found — deal random damage
+            const enemyNames = ['Drift Fauna', 'Spiny Drifter', 'Kelp Lurker', 'Tide Crawler', 'Barnacle Beast'];
+            const enemyName = enemyNames[Math.floor(Math.random() * enemyNames.length)];
+            const damage = Math.floor(Math.random() * 15) + 5; // 5-19 damage
+            const tokensEarned = Math.floor(Math.random() * 7) + 2; // 2-8 tokens
+
+            // 30% chance bot takes damage back
+            let damageTaken = 0;
+            if (Math.random() < 0.30) {
+                damageTaken = Math.floor(Math.random() * 10) + 3; // 3-12 damage
+                playerData.shellIntegrity = Math.max(0, playerData.shellIntegrity - damageTaken);
+            }
+
+            playerData.tokens += tokensEarned;
+
+            // Check if bot died
+            let respawned = false;
+            if (playerData.shellIntegrity <= 0) {
+                // Respawn at island center
+                const mainIsland = terrainData.islands[0];
+                const spawn = findSafeSpawn(mainIsland);
+                playerData.x = spawn.x;
+                playerData.y = spawn.y;
+                playerData.shellIntegrity = 100;
+                playerData._dirty = true;
+                respawned = true;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'attack_result',
+                hit: true,
+                enemy: enemyName,
+                damage,
+                tokensEarned,
+                damageTaken,
+                shellIntegrity: playerData.shellIntegrity,
+                totalTokens: playerData.tokens,
+                respawned,
+                position: respawned ? { x: playerData.x, y: playerData.y } : undefined
             }));
             break;
         }

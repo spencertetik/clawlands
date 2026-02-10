@@ -158,6 +158,45 @@ class BotBridge {
                 this._resolvePending({ type: 'chat_sent' });
                 break;
 
+            case 'entered_building':
+                this._resolvePending({
+                    type: 'entered_building',
+                    building: msg.building
+                });
+                break;
+
+            case 'inventory':
+                this._resolvePending({
+                    type: 'inventory',
+                    items: msg.items,
+                    tokens: msg.tokens
+                });
+                break;
+
+            case 'pickup_result':
+                this._resolvePending({
+                    type: 'pickup_result',
+                    found: msg.found,
+                    message: msg.message
+                });
+                break;
+
+            case 'attack_result':
+                this._resolvePending({
+                    type: 'attack_result',
+                    hit: msg.hit,
+                    enemy: msg.enemy,
+                    damage: msg.damage,
+                    tokensEarned: msg.tokensEarned,
+                    damageTaken: msg.damageTaken,
+                    shellIntegrity: msg.shellIntegrity,
+                    totalTokens: msg.totalTokens,
+                    respawned: msg.respawned,
+                    position: msg.position,
+                    message: msg.message
+                });
+                break;
+
             case 'talk_request':
                 // Someone wants to talk to us — store it
                 this.lastTalkResponse = {
@@ -684,6 +723,143 @@ server.registerTool('disconnect', {
             text: '👋 Disconnected from Clawlands. Use "register" to reconnect.'
         }]
     };
+});
+
+// ============================================
+// Tool: enter_building
+// ============================================
+
+server.registerTool('enter_building', {
+    title: 'Enter Building',
+    description: 'Enter a nearby building. You must be within 48 pixels of a building to enter. Use "look" first to find buildings and move close to one.',
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('enter_building');
+
+        const building = result.building;
+        const buildingType = building.type || 'building';
+        const buildingName = building.name || 'Unknown Building';
+
+        // Describe interior based on building type
+        const interiors = {
+            inn: 'A warm common room with a crackling fireplace. Rough-hewn beds line the walls, and a bar counter is stocked with kelp ale and barnacle broth. A notice board near the door lists local bounties.',
+            shop: 'Shelves of curious wares: polished shells, drift-glass vials, woven kelp ropes, and a few rusty anchors. A shopkeeper\'s counter sits in the back with a ledger and a scale.',
+            house: 'A cozy dwelling with simple furniture — a hammock, a small table, a chest of belongings. Shells and trinkets decorate the windowsill. It smells faintly of brine.',
+            lighthouse: 'A narrow spiral staircase winds upward into the lantern room. The walls are damp stone, covered in old navigational charts. At the top, the great lens refracts light across the sea.',
+            cabin: 'A rustic cabin with rough wooden walls. A cot, a small stove, and fishing gear fill the cramped space. Dried kelp hangs from the rafters.',
+            hut: 'A simple beach hut with sand on the floor. A hammock, a woven mat, and a few clay pots. The ocean breeze flows through gaps in the walls.',
+            cottage: 'A charming shell-crusted cottage. The walls shimmer with embedded seashells. A rocking chair, a bookshelf, and a small kitchen with copper pots.'
+        };
+
+        // Match building type to interior description
+        let interiorDesc = interiors.house; // default
+        const typeLower = buildingType.toLowerCase();
+        for (const [key, desc] of Object.entries(interiors)) {
+            if (typeLower.includes(key)) {
+                interiorDesc = desc;
+                break;
+            }
+        }
+
+        return {
+            content: [{
+                type: 'text',
+                text: `🏠 Entered ${buildingName} (${buildingType}). Inside you see:\n${interiorDesc}`
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: inventory
+// ============================================
+
+server.registerTool('inventory', {
+    title: 'Check Inventory',
+    description: 'View your current inventory and token count. Tokens are earned by defeating Drift Fauna.',
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('inventory');
+
+        const tokens = result.tokens || 0;
+        const items = result.items || [];
+
+        let itemList;
+        if (items.length === 0) {
+            itemList = '  (empty)';
+        } else {
+            itemList = items.map(item => `  - ${item.name || item}${item.quantity > 1 ? ` x${item.quantity}` : ''}`).join('\n');
+        }
+
+        return {
+            content: [{
+                type: 'text',
+                text: `🎒 Inventory (${tokens} tokens):\n${itemList}`
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Inventory failed: ${e.message}` }], isError: true };
+    }
+});
+
+// ============================================
+// Tool: attack
+// ============================================
+
+server.registerTool('attack', {
+    title: 'Attack',
+    description: 'Attack in your facing direction. Drift Fauna roam the wilds between buildings — you have a chance of encountering one when you attack. Defeating enemies earns tokens but you may take damage. If your shell integrity reaches 0%, you respawn at the island center.',
+    inputSchema: {}
+}, async () => {
+    if (!bridge.joined) {
+        return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
+    }
+
+    try {
+        const result = await bridge.sendCommand('attack');
+
+        if (!result.hit) {
+            return {
+                content: [{
+                    type: 'text',
+                    text: `⚔️ ${result.message}`
+                }]
+            };
+        }
+
+        let text = `⚔️ Hit a ${result.enemy} for ${result.damage} damage! Earned ${result.tokensEarned} tokens. Shell: ${result.shellIntegrity}%`;
+
+        if (result.damageTaken > 0) {
+            text += `\n🩸 Took ${result.damageTaken} damage from the ${result.enemy}!`;
+        }
+
+        if (result.respawned) {
+            text += `\n💀 Shell shattered! Respawned at (${result.position.x}, ${result.position.y}) with full integrity.`;
+        }
+
+        text += `\n💰 Total tokens: ${result.totalTokens}`;
+
+        return {
+            content: [{
+                type: 'text',
+                text
+            }]
+        };
+    } catch (e) {
+        return { content: [{ type: 'text', text: `❌ Attack failed: ${e.message}` }], isError: true };
+    }
 });
 
 // ============================================
