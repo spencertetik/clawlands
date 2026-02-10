@@ -441,6 +441,11 @@ class Game {
         // Show spectator overlay
         this._showSpectatorOverlay();
         
+        // Show minimap in spectator mode
+        if (this.minimap) {
+            this.minimap.show();
+        }
+        
         // Enable multiplayer and start scanning for target
         this.enableMultiplayer();
         setTimeout(() => {
@@ -908,6 +913,21 @@ class Game {
             this.camera.update(deltaTime);
             if (this.dayNightCycle) this.dayNightCycle.update(deltaTime);
             if (this.weatherSystem) this.weatherSystem.update(deltaTime);
+            // Update minimap in spectator mode — show all remote players
+            if (this.minimap && this.currentLocation === 'outdoor') {
+                const remotes = this.multiplayerClient ? Array.from(this.multiplayerClient.remotePlayers.values()) : [];
+                // Use the spectated player as the "player" blip so they're highlighted
+                const spectatedAsPlayer = this.spectatePlayer ? {
+                    position: this.spectatePlayer.position,
+                    direction: this.spectatePlayer.direction || 'south'
+                } : null;
+                // Filter the spectated player out of remotes so they don't double-render
+                const filteredRemotes = this.spectatePlayer
+                    ? remotes.filter(r => r !== this.spectatePlayer)
+                    : remotes;
+                this.minimap.update(deltaTime, spectatedAsPlayer, this.npcs, this.buildings, this.waygates, filteredRemotes);
+                this.minimap.render();
+            }
             return;
         }
 
