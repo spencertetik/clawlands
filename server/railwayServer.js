@@ -17,14 +17,25 @@ const http = require('http');
 const WebSocket = require('ws');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } = require('./terrainMap');
 
 // ============================================
 // Configuration
 // ============================================
 
 const PORT = process.env.PORT || 3000;
+const WORLD_PIXEL_WIDTH = 1920;
+const WORLD_PIXEL_HEIGHT = 1920;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k => k);
+
+// ============================================
+// Terrain Generation
+// ============================================
+
+// Generate terrain data - same seed as client
+const terrainData = generateTerrain();
+const buildings = generateBuildings(terrainData.terrainMap, terrainData.islands);
 
 // Rate limiting config
 const RATE_LIMIT = {
@@ -793,6 +804,12 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 return;
             }
 
+            // Block re-registration while connected
+            if (playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Already joined. Disconnect first to change character.' }));
+                return;
+            }
+
             // Spectator mode — invisible watcher, not a real player
             if (msg.spectator) {
                 playerData.name = name;
@@ -805,7 +822,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 ws.send(JSON.stringify({
                     type: 'joined',
                     player: { id: playerId, name, spectator: true },
-                    players: getPlayerList()
+                    players: getPlayerList().filter(p => p.id !== playerId)
                 }));
                 // Don't broadcast player_joined — spectators are invisible
                 break;
@@ -822,8 +839,22 @@ async function handleMessage(playerId, playerData, msg, ws) {
             playerData.name = name;
             playerData.species = msg.species || 'lobster';
             playerData.color = msg.color || 'red';
-            playerData.x = msg.x || 744;
-            playerData.y = msg.y || 680;
+            
+            // Randomize spawn point on main island
+            const mainIsland = terrainData.islands[0];
+            let spawnX = mainIsland.x * 16 + mainIsland.size * 8;
+            let spawnY = mainIsland.y * 16 + mainIsland.size * 8;
+            for (let attempt = 0; attempt < 50; attempt++) {
+                const tryX = (mainIsland.x + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
+                const tryY = (mainIsland.y + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
+                if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) { 
+                    spawnX = tryX; 
+                    spawnY = tryY; 
+                    break; 
+                }
+            }
+            playerData.x = msg.x || spawnX;
+            playerData.y = msg.y || spawnY;
 
             players.set(playerId, playerData);
 
@@ -854,7 +885,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
                     x: playerData.x,
                     y: playerData.y
                 },
-                players: getPlayerList()
+                players: getPlayerList().filter(p => p.id !== playerId)
             }));
 
             // Notify others
@@ -876,8 +907,48 @@ async function handleMessage(playerId, playerData, msg, ws) {
         case 'move': {
             if (!playerData.name) return;
             
-            playerData.x = msg.x;
-            playerData.y = msg.y;
+            let newX = msg.x || playerData.x;
+            let newY = msg.y || playerData.y;
+            
+            // Clamp to world boundaries (world is 1920x1920, minus player width 16)
+            newX = Math.max(0, Math.min(1904, newX));
+            newY = Math.max(0, Math.min(1904, newY));
+            
+            // Check terrain collision
+            if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
+                // Position blocked, keep old position
+                ws.send(JSON.stringify({ 
+                    type: 'error', 
+                    message: 'Cannot move there - blocked by terrain or buildings',
+                    x: playerData.x,
+                    y: playerData.y 
+                }));
+                return;
+            }
+            
+            // Check building collision
+            let buildingBlocked = false;
+            for (const building of buildings) {
+                if (newX < building.x + building.width && newX + 16 > building.x &&
+                    newY < building.y + building.height && newY + 24 > building.y) {
+                    buildingBlocked = true;
+                    break;
+                }
+            }
+            
+            if (buildingBlocked) {
+                ws.send(JSON.stringify({ 
+                    type: 'error', 
+                    message: 'Cannot move there - blocked by building',
+                    x: playerData.x,
+                    y: playerData.y 
+                }));
+                return;
+            }
+            
+            // Update position and round to integers
+            playerData.x = Math.round(newX);
+            playerData.y = Math.round(newY);
             playerData.direction = msg.direction || playerData.direction;
             playerData.isMoving = msg.isMoving || false;
 
@@ -889,7 +960,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
         case 'chat': {
             if (!playerData.name) return;
             
-            const message = msg.text?.slice(0, 500);
+            const message = sanitizeText(msg.text?.slice(0, 500));
             if (!message) return;
 
             // Save to database
@@ -931,15 +1002,31 @@ async function handleMessage(playerId, playerData, msg, ws) {
 
         case 'talk_response': {
             // Response to a talk request
+            if (!playerData.name) return;
+            
             const target = players.get(msg.targetId);
-            if (target?.ws.readyState === WebSocket.OPEN) {
-                target.ws.send(JSON.stringify({
-                    type: 'talk_response',
-                    fromId: playerId,
-                    fromName: playerData.name,
-                    text: msg.text?.slice(0, 500)
-                }));
+            
+            // Check if target exists and is still connected
+            if (!target || target.ws.readyState !== WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
+                return;
             }
+            
+            // Check distance (within 96 pixels)
+            const distance = Math.sqrt(Math.pow(target.x - playerData.x, 2) + Math.pow(target.y - playerData.y, 2));
+            if (distance > 96) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
+                return;
+            }
+            
+            const sanitizedText = sanitizeText(msg.text?.slice(0, 500));
+            
+            target.ws.send(JSON.stringify({
+                type: 'talk_response',
+                fromId: playerId,
+                fromName: playerData.name,
+                text: sanitizedText
+            }));
             break;
         }
     }
@@ -960,16 +1047,35 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return;
             }
 
+            // Block re-registration while connected
+            if (playerData.name) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Already joined. Disconnect first to change character.' }));
+                return;
+            }
+
             playerData.name = name;
             playerData.species = data?.species || 'lobster';
             playerData.color = data?.color || 'red';
+            
+            // Find a walkable spawn on island 0 (main island)
+            const mainIsland = terrainData.islands[0];
+            let spawnX = mainIsland.x * 16 + mainIsland.size * 8;
+            let spawnY = mainIsland.y * 16 + mainIsland.size * 8;
+            for (let attempt = 0; attempt < 50; attempt++) {
+                const tryX = (mainIsland.x + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
+                const tryY = (mainIsland.y + Math.floor(Math.random() * mainIsland.size * 1.2) - mainIsland.size * 0.6) * 16;
+                if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) { spawnX = tryX; spawnY = tryY; break; }
+            }
+            playerData.x = spawnX;
+            playerData.y = spawnY;
+
+            // Set starting position from bot data if provided (override spawn)
+            if (data?.x != null) playerData.x = data.x;
+            if (data?.y != null) playerData.y = data.y;
+            
             players.set(playerId, playerData);
 
             console.log(`🤖 ${name} joined`);
-
-            // Set starting position from bot data
-            if (data?.x != null) playerData.x = data.x;
-            if (data?.y != null) playerData.y = data.y;
 
             ws.send(JSON.stringify({
                 type: 'joined',
@@ -980,7 +1086,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                     y: playerData.y,
                     isBot: true
                 },
-                players: getPlayerList()
+                players: getPlayerList().filter(p => p.id !== playerId)
             }));
 
             broadcast({
@@ -996,24 +1102,66 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return;
             }
 
+            let newX = playerData.x;
+            let newY = playerData.y;
+
             // Accept direct x/y from smart bots (preferred) or direction-based step
             if (data?.x != null && data?.y != null) {
-                playerData.x = data.x;
-                playerData.y = data.y;
-                if (data.direction) playerData.direction = data.direction;
-                playerData.isMoving = !!data.isMoving;
+                newX = data.x;
+                newY = data.y;
             } else {
                 const step = 16;
                 const dir = data?.direction?.toLowerCase();
                 
                 if (dir) {
-                    if (dir === 'north' || dir === 'up' || dir === 'n') { playerData.y -= step; playerData.direction = 'north'; }
-                    else if (dir === 'south' || dir === 'down' || dir === 's') { playerData.y += step; playerData.direction = 'south'; }
-                    else if (dir === 'east' || dir === 'right' || dir === 'e') { playerData.x += step; playerData.direction = 'east'; }
-                    else if (dir === 'west' || dir === 'left' || dir === 'w') { playerData.x -= step; playerData.direction = 'west'; }
+                    if (dir === 'north' || dir === 'up' || dir === 'n') { newY -= step; }
+                    else if (dir === 'south' || dir === 'down' || dir === 's') { newY += step; }
+                    else if (dir === 'east' || dir === 'right' || dir === 'e') { newX += step; }
+                    else if (dir === 'west' || dir === 'left' || dir === 'w') { newX -= step; }
                     playerData.isMoving = true;
                 }
             }
+
+            // Clamp to world boundaries
+            newX = Math.max(0, Math.min(1904, newX));
+            newY = Math.max(0, Math.min(1904, newY));
+            
+            // Check terrain collision
+            if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
+                ws.send(JSON.stringify({ 
+                    type: 'error', 
+                    message: 'Cannot move there - blocked by terrain or buildings',
+                    x: playerData.x,
+                    y: playerData.y 
+                }));
+                return;
+            }
+            
+            // Check building collision
+            let buildingBlocked = false;
+            for (const building of buildings) {
+                if (newX < building.x + building.width && newX + 16 > building.x &&
+                    newY < building.y + building.height && newY + 24 > building.y) {
+                    buildingBlocked = true;
+                    break;
+                }
+            }
+            
+            if (buildingBlocked) {
+                ws.send(JSON.stringify({ 
+                    type: 'error', 
+                    message: 'Cannot move there - blocked by building',
+                    x: playerData.x,
+                    y: playerData.y 
+                }));
+                return;
+            }
+
+            // Update position and round to integers
+            playerData.x = Math.round(newX);
+            playerData.y = Math.round(newY);
+            if (data?.direction) playerData.direction = data.direction;
+            playerData.isMoving = !!data?.isMoving;
 
             // Mark dirty for batched tick; don't broadcast immediately
             playerData._dirty = true;
@@ -1029,22 +1177,37 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
         case 'talk_response': {
             // Bot sending a talk response to a player
             if (!playerData.name) return;
+            
             const target = players.get(data?.targetId);
-            if (target?.ws.readyState === WebSocket.OPEN) {
-                target.ws.send(JSON.stringify({
-                    type: 'talk_response',
-                    fromId: playerId,
-                    fromName: playerData.name,
-                    text: data?.text?.slice(0, 500)
-                }));
+            
+            // Check if target exists and is still connected
+            if (!target || target.ws.readyState !== WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
+                return;
             }
+            
+            // Check distance (within 96 pixels)
+            const distance = Math.sqrt(Math.pow(target.x - playerData.x, 2) + Math.pow(target.y - playerData.y, 2));
+            if (distance > 96) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
+                return;
+            }
+            
+            const sanitizedText = sanitizeText(data?.text?.slice(0, 500));
+            
+            target.ws.send(JSON.stringify({
+                type: 'talk_response',
+                fromId: playerId,
+                fromName: playerData.name,
+                text: sanitizedText
+            }));
             break;
         }
 
         case 'chat': {
             if (!playerData.name) return;
             
-            const message = data?.message?.slice(0, 500);
+            const message = sanitizeText(data?.message?.slice(0, 500));
             if (!message) return;
 
             broadcast({
@@ -1068,9 +1231,26 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 .filter(p => p.distance < 200)
                 .sort((a, b) => a.distance - b.distance);
 
+            // Determine island
+            const tileX = Math.floor(playerData.x / 16);
+            const tileY = Math.floor(playerData.y / 16);
+            const terrain = (terrainData.terrainMap[tileY]?.[tileX] === 0) ? 'land' : 'water';
+            let island = null;
+            for (const isl of terrainData.islands) {
+                const dx = tileX - isl.x, dy = tileY - isl.y;
+                if (Math.sqrt(dx*dx + dy*dy) <= isl.size + 2) { island = isl; break; }
+            }
+            const nearbyBuildings = buildings.filter(b => {
+                const cx = b.x + b.width/2, cy = b.y + b.height/2;
+                return Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2)) < 150;
+            }).map(b => ({ name: b.name, type: b.type, x: b.x, y: b.y, distance: Math.round(Math.sqrt(Math.pow(b.x - playerData.x, 2) + Math.pow(b.y - playerData.y, 2))) }));
+
             ws.send(JSON.stringify({
                 type: 'surroundings',
                 position: { x: playerData.x, y: playerData.y },
+                terrain,
+                island: island ? { id: terrainData.islands.indexOf(island), x: island.x, y: island.y, size: island.size } : null,
+                nearbyBuildings,
                 nearbyPlayers: nearby
             }));
             break;
@@ -1097,6 +1277,11 @@ function sanitizeName(name) {
         .replace(/[^\w\s-]/g, '')
         .trim()
         .slice(0, 20) || null;
+}
+
+function sanitizeText(text) {
+    if (!text) return null;
+    return String(text).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ============================================

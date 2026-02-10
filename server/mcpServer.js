@@ -323,15 +323,20 @@ server.registerTool('look', {
             .map(p => `  - ${p.name} (${p.species}, ${p.color}) — ${Math.round(p.distance)}px away, at (${p.x}, ${p.y})${p.isBot ? ' [bot]' : ''}`)
             .join('\n');
 
-        // Determine which island based on position (rough mapping)
         const tileX = Math.floor(pos.x / 16);
         const tileY = Math.floor(pos.y / 16);
+        const terrain = result.terrain || 'unknown';
+        const island = result.island;
+        const buildings = (result.nearbyBuildings || []).map(b => `  - ${b.name} (${b.type}) — ${b.distance}px away`).join('\n');
 
         return {
             content: [{
                 type: 'text',
                 text: [
                     `📍 Position: (${pos.x}, ${pos.y}) — tile (${tileX}, ${tileY})`,
+                    `🗺️ Terrain: ${terrain}${island ? ` — Island #${island.id}` : ' — open water'}`,
+                    '',
+                    buildings ? 'Nearby buildings:\n' + buildings : 'No buildings nearby',
                     '',
                     'Nearby players:',
                     nearby || '  (nobody nearby)',
@@ -451,13 +456,12 @@ server.registerTool('interact', {
     }
 
     try {
-        // Use last talk request target if none specified
-        const target = targetId || bridge.lastTalkResponse?.fromId;
-        if (!target) {
+        // Require explicit targetId - remove fallback
+        if (!targetId) {
             return {
                 content: [{
                     type: 'text',
-                    text: '❌ No one has talked to you yet. Wait for a player to approach and press SPACE, or specify a targetId.'
+                    text: '❌ No targetId specified. Specify the player ID to respond to.'
                 }],
                 isError: true
             };
@@ -465,10 +469,10 @@ server.registerTool('interact', {
 
         bridge.send({
             command: 'talk_response',
-            data: { targetId: target, text }
+            data: { targetId: targetId, text }
         });
 
-        const targetName = bridge.lastTalkResponse?.fromName || target;
+        const targetName = bridge.lastTalkResponse?.fromName || targetId;
         return {
             content: [{
                 type: 'text',
@@ -523,11 +527,14 @@ server.registerTool('status', {
     description: 'Check your current character status — position, species, connection state.',
     inputSchema: {}
 }, async () => {
+    const speciesEmoji = { lobster: '🦞', crab: '🦀', shrimp: '🦐', mantis_shrimp: '🌈', hermit_crab: '🐚' };
+    const emoji = speciesEmoji[bridge.species] || '🦀';
+    
     return {
         content: [{
             type: 'text',
             text: [
-                `🦀 Character Status`,
+                `${emoji} Character Status`,
                 `  Connected: ${bridge.connected ? '✅' : '❌'}`,
                 `  In game: ${bridge.joined ? '✅' : '❌'}`,
                 `  Name: ${bridge.playerName || '(not joined)'}`,
