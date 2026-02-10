@@ -4780,6 +4780,7 @@ class Game {
             'campfire':         { collisionW: 1, collisionH: 1 },
             'log_pile':         { collisionW: 1, collisionH: 1 },
             'buoy':             { collisionW: 1, collisionH: 1 },
+            'bush':             { collisionW: 1, collisionH: 1 },
         };
         
         let marked = 0;

@@ -27,7 +27,7 @@ class DecorationLoader {
         bush: {
             path: 'assets/sprites/decorations/plant_2.png',
             width: 24, height: 23,
-            collision: null
+            collision: { width: 18, height: 12, offsetY: 11 }
         },
         bush_flower: {
             path: 'assets/sprites/decorations/plant_11.png',
