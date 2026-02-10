@@ -618,6 +618,20 @@ class WelcomeScreen {
             this.overlay.style.display = 'none';
         }
         
+        // Clear the overlay backdrop so it doesn't block the game canvas
+        this.setOverlayBackdrop('transparent');
+        
+        // Hide the retro frame art and enter fullscreen mode (game fills the screen)
+        const frameArt = document.getElementById('frame-art');
+        if (frameArt) frameArt.style.display = 'none';
+        document.body.classList.add('fullscreen-mode');
+        
+        // Make screen-overlay non-blocking
+        const screenOverlay = document.getElementById('screen-overlay');
+        if (screenOverlay) {
+            screenOverlay.style.pointerEvents = 'none';
+        }
+        
         // Show the game container (was hidden by mode selection screen)
         this.setGameVisibility(true);
         

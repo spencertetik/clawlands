@@ -399,6 +399,18 @@ class Game {
     startSpectatorMode() {
         console.log(`👁️ Spectator mode: watching "${this.spectateTarget}"`);
         
+        // Hide retro frame art and go fullscreen — spectator needs the full canvas
+        const frameArt = document.getElementById('frame-art');
+        if (frameArt) frameArt.style.display = 'none';
+        document.body.classList.add('fullscreen-mode');
+        
+        // Clear any overlay backdrop that might block the canvas
+        const screenOverlay = document.getElementById('screen-overlay');
+        if (screenOverlay) {
+            screenOverlay.style.background = 'transparent';
+            screenOverlay.style.pointerEvents = 'none';
+        }
+        
         // Show splash screen immediately (hides ugly world generation)
         this._showSpectatorSplash();
         
@@ -621,7 +633,7 @@ class Game {
         `;
         overlay.innerHTML = `
             <div style="font-size: 11px; color: #8a7068; text-transform: uppercase; letter-spacing: 2px;">Spectator Mode</div>
-            <div id="spectate-label" style="font-size: 16px; font-weight: bold; color: #e8d5cc; margin: 4px 0;">Looking for: ${this.spectateTarget}...</div>
+            <div id="spectate-label" style="font-size: 16px; font-weight: bold; color: #e8d5cc; margin: 4px 0;">Looking for ${this.spectateTarget === '*' ? 'AI agent' : this.spectateTarget}...</div>
             <div id="spectate-status" style="font-size: 11px; color: #c43a24;">Searching...</div>
         `;
         document.body.appendChild(overlay);
