@@ -2730,6 +2730,9 @@ class Game {
         // Create interior furniture decorations
         this.decorations = this.createInteriorFurniture(interiorConfig);
         
+        // Apply permanent interior editor data (from EditorInteriorData.js)
+        this.applyInteriorEditorData(building);
+        
         // Load any saved editor changes for this interior
         if (this.mapEditor) {
             this.mapEditor.loadEditsForLocation(
@@ -4871,6 +4874,47 @@ class Game {
         }
         
         console.log(`🗺️ Editor map data applied: ${placed} placed, ${deleted} deleted`);
+    }
+
+    // Apply permanent interior editor data when entering a building
+    applyInteriorEditorData(building) {
+        if (typeof EDITOR_INTERIOR_DATA === 'undefined') return;
+        
+        const key = `interior_${building.type}_${building.x}_${building.y}`;
+        const items = EDITOR_INTERIOR_DATA[key];
+        if (!items || items.length === 0) return;
+        
+        let placed = 0;
+        for (const item of items) {
+            // Check for duplicates
+            const exists = this.decorations.some(d =>
+                d.x === item.x && d.y === item.y && d.type === item.type
+            );
+            if (exists) continue;
+            
+            // Get definition and sprite from interior loader
+            const def = InteriorLoader.FURNITURE[item.type] || InteriorLoader.FLOORS?.[item.type];
+            const sprite = this.interiorLoader?.getSprite(item.type);
+            
+            const isGroundItem = item.ground === true || (def && def.ground === true);
+            
+            this.decorations.push({
+                x: item.x,
+                y: item.y,
+                type: item.type,
+                width: def?.width || 16,
+                height: def?.height || 16,
+                sprite: sprite || null,
+                layer: isGroundItem ? CONSTANTS.LAYER.GROUND : CONSTANTS.LAYER.GROUND_DECORATION,
+                ground: isGroundItem,
+                editorPlaced: true
+            });
+            placed++;
+        }
+        
+        if (placed > 0) {
+            console.log(`🏠 Interior editor data applied: ${placed} items for ${key}`);
+        }
     }
 
     // Fill diagonal gaps at path corners/junctions
