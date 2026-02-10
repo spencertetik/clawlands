@@ -20,7 +20,25 @@ const BOT_KEY = process.env.BOT_KEY || 'ffabec20bd46be6666b614807d839ed7';
 // Generate terrain for collision + pathfinding
 const { terrainMap, islands } = generateTerrain();
 const buildings = generateBuildings(terrainMap, islands);
-console.log(`🗺️  Terrain loaded: ${islands.length} islands, ${buildings.length} buildings`);
+
+// Load bush collision from EditorMapData (matches client bush fence collision)
+const editorMapData = require(path.join(__dirname, '..', 'client', 'js', 'data', 'EditorMapData.js'));
+const bushCollisionBoxes = [];
+if (editorMapData.placements && editorMapData.placements.bush) {
+    for (const [bx, by] of editorMapData.placements.bush) {
+        // Bush sprite: 24x23, collision centered on sprite (matching client centerY logic)
+        // Collision tile = tile containing center of bush
+        const centerX = bx + 12;  // 24/2
+        const centerY = by + 11.5; // 23/2
+        const col = Math.floor(centerX / TILE_SIZE);
+        const row = Math.floor(centerY / TILE_SIZE);
+        bushCollisionBoxes.push({
+            x: col * TILE_SIZE, y: row * TILE_SIZE,
+            width: TILE_SIZE, height: TILE_SIZE
+        });
+    }
+}
+console.log(`🗺️  Terrain loaded: ${islands.length} islands, ${buildings.length} buildings, ${bushCollisionBoxes.length} bush fences`);
 
 // Building collision check — player box (16x24) vs building rects
 // Uses pixel-based collision matching the client's CollisionSystem
@@ -36,9 +54,20 @@ function collidesWithBuilding(px, py, pw = 16, ph = 24) {
     return false;
 }
 
-// Combined walkability check: terrain + buildings
+// Bush fence collision check
+function collidesWithBush(px, py, pw = 16, ph = 24) {
+    for (const b of bushCollisionBoxes) {
+        if (px + pw > b.x && px < b.x + b.width &&
+            py + ph > b.y && py < b.y + b.height) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Combined walkability check: terrain + buildings + bush fences
 function canMoveTo(px, py) {
-    return isBoxWalkable(terrainMap, px, py) && !collidesWithBuilding(px, py);
+    return isBoxWalkable(terrainMap, px, py) && !collidesWithBuilding(px, py) && !collidesWithBush(px, py);
 }
 
 // Island info with names (sorted by size like the client does)

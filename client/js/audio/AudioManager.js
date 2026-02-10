@@ -19,13 +19,13 @@ class AudioManager {
             overworld: 'Harbor Steps',
             inn: 'Safe Point Tavern',
             shop: 'Clockwork Glitch Parade',
-            house: 'Forgotten Shells in Clawlands',
+            house: 'Forgotten Shells in Claw World',
             lighthouse: 'Signal From The Dead Cartridge',
             transition: 'Glitch Between Worlds',
             // Zone-specific overworld tracks
             zone_central: 'Harbor Steps',
             zone_north: 'Signal From The Dead Cartridge',
-            zone_south: 'Forgotten Shells in Clawlands',
+            zone_south: 'Forgotten Shells in Claw World',
             zone_east: 'Clockwork Glitch Parade',
             // Default fallback for unknown buildings
             default: 'Harbor Steps'
