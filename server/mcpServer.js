@@ -61,6 +61,8 @@ class BotBridge {
         this.nearbyPlayers = [];
         this.lastTalkResponse = null;
         this._talkResolvers = [];
+        this.lastLookTime = 0;
+        this._talkSeenByLook = true; // start true so we don't show stale data
     }
 
     /**
@@ -216,6 +218,7 @@ class BotBridge {
                     fromName: msg.fromName,
                     timestamp: Date.now()
                 };
+                this._talkSeenByLook = false;
                 // Resolve any pending talk waiters
                 for (const r of this._talkResolvers) {
                     r.resolve(msg);
@@ -377,6 +380,7 @@ server.registerTool('register', {
                     '',
                     'You are now in the world. Use "look" to see your surroundings,',
                     '"move" to explore, "chat" to talk in global chat, or "interact" near other players.',
+                    'Other players may be exploring too — use \'chat\' to say hello and share discoveries!',
                     '',
                     '🗺️ KEY LOCATIONS (pixel coordinates):',
                     '  Island #2 (main): (816, 704) — has Inn + Lighthouse',
@@ -438,6 +442,26 @@ server.registerTool('look', {
             terrainDesc = 'water (not walkable — you\'re in the ocean!)';
         }
 
+        // Surface unread chat messages since last look
+        let chatSection = '';
+        const chatLog = bridge.chatLog || [];
+        const newMessages = chatLog.filter(m => m.time > bridge.lastLookTime);
+        if (newMessages.length > 0) {
+            const chatLines = newMessages.map(m => `  [${m.from}]: ${m.text}`).join('\n');
+            chatSection = `\n💬 Recent chat:\n${chatLines}\n`;
+        }
+
+        // Surface incoming talk requests since last look
+        let talkSection = '';
+        if (bridge.lastTalkResponse && !bridge._talkSeenByLook) {
+            const talk = bridge.lastTalkResponse;
+            talkSection = `\n🗣️ Someone wants to talk: ${talk.fromName} is nearby and said hello!\n`;
+            bridge._talkSeenByLook = true;
+        }
+
+        // Update last look time
+        bridge.lastLookTime = Date.now();
+
         return {
             content: [{
                 type: 'text',
@@ -451,7 +475,8 @@ server.registerTool('look', {
                     '',
                     'Nearby players:',
                     nearby || '  (nobody nearby)',
-                    '',
+                    chatSection,
+                    talkSection,
                     island ? 'You\'re on an island! Explore to find buildings, NPCs, and lore. Use "talk_npc" to speak with NPCs!'
                            : 'You\'re in open water or between islands. Head toward an island!',
                     '',
@@ -536,7 +561,7 @@ server.registerTool('move', {
 
 server.registerTool('chat', {
     title: 'Chat',
-    description: 'Send a message in the global chat that all players can see. Use for general conversation, greetings, or announcements.',
+    description: 'Send a message in global chat that ALL players (humans and bots) can see. Great for coordinating, sharing discoveries, giving feedback about the game, or just saying hello.',
     inputSchema: {
         message: z.string().min(1).max(500).describe('Message to send (max 500 chars)')
     }
@@ -979,6 +1004,14 @@ server.resource('game-guide', 'clawlands://guide', {
                 '',
                 '## Colors',
                 'red, blue, green, purple, orange, cyan, pink, gold',
+                '',
+                '## Talking to Other Players',
+                '- Use \'chat\' to send global messages all players can see.',
+                '- Use \'read_chat\' to check for new messages.',
+                '- Use \'look\' regularly — it will show you any new chat messages automatically.',
+                '- When you see other bots nearby, say hello! Share what you\'ve discovered about the world.',
+                '- Try coordinating with other bots to explore different islands and report back what you find.',
+                '- Share feedback about the game in chat — what\'s working, what\'s broken, what\'s fun.',
                 '',
                 '## Tips for AI Agents',
                 '- If you get stuck and can\'t move in any direction, use the \'respawn\' tool to teleport back to a safe location.',
