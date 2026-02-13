@@ -200,14 +200,10 @@ function generateFromEditorData() {
     
     // Process decorations for collision
     const decorations = data.decorations || [];
-    const decorationLoader = DecorationLoader ? new DecorationLoader() : null;
-    
-    // Mark decoration collisions on collision map
-    if (decorationLoader) {
-        markDecorationCollisions(collisionMap, decorations, decorationLoader);
-    }
     
     // Mark bridge tiles as walkable (override water collision)
+    // Don't mark decoration collisions on the collision map - handle them separately
+    // in the collision detection to match client behavior exactly
     markBridgesWalkable(collisionMap, decorations);
     
     // Compute islands from terrain data
@@ -279,60 +275,15 @@ function generateProceduralTerrain() {
 }
 
 /**
- * Mark decoration collisions on the collision map (matches client logic)
+ * Mark decoration collisions on the collision map (DISABLED)
+ * 
+ * This approach was incorrect - it modified the base collision map with decoration data,
+ * but the client keeps terrain and decoration collision separate.
+ * Decorations are handled in ServerCollisionSystem.checkDecorationCollision instead.
  */
 function markDecorationCollisions(collisionMap, decorations, decorationLoader) {
-    let marked = 0;
-    
-    for (const decor of decorations) {
-        // Skip ground decorations (paths, etc.)
-        if (decor.ground || decor.layer === 0) continue;
-        
-        // Skip path tiles specifically
-        if (decor.type === 'dirt_path' || decor.type === 'cobblestone_path') continue;
-        
-        // Get collision definition
-        let collisionDef = decor.collision || null;
-        if (!collisionDef) {
-            const def = decorationLoader.getDefinition(decor.type);
-            collisionDef = def?.collision || null;
-        }
-        
-        if (!collisionDef) continue;
-        
-        // Calculate collision tiles (matches client markDecorationCollisions)
-        const decoWidth = decor.width || TILE_SIZE;
-        const decoHeight = decor.height || TILE_SIZE;
-        const collisionWidth = collisionDef.width || decoWidth;
-        const collisionHeight = collisionDef.height || decoHeight;
-        
-        if (collisionWidth <= 0 || collisionHeight <= 0) continue;
-        
-        const offsetX = collisionDef.offsetX || Math.round((decoWidth - collisionWidth) / 2);
-        const offsetY = collisionDef.offsetY || Math.max(0, decoHeight - collisionHeight);
-        const baseX = (decor.x || 0) + offsetX;
-        const baseY = (decor.y || 0) + offsetY;
-        
-        const startCol = Math.floor(baseX / TILE_SIZE);
-        const endCol = Math.floor((baseX + collisionWidth - 1) / TILE_SIZE);
-        const startRow = Math.floor(baseY / TILE_SIZE);
-        const endRow = Math.floor((baseY + collisionHeight - 1) / TILE_SIZE);
-        
-        for (let row = startRow; row <= endRow; row++) {
-            if (!collisionMap[row]) continue;
-            for (let col = startCol; col <= endCol; col++) {
-                if (col < 0 || col >= collisionMap[row].length) continue;
-                if (collisionMap[row][col] !== 1) {
-                    collisionMap[row][col] = 1; // Mark as solid
-                    marked++;
-                }
-            }
-        }
-    }
-    
-    if (marked > 0) {
-        console.log(`🚧 Marked ${marked} decoration collision tiles`);
-    }
+    // DISABLED - decorations handled separately in collision system
+    console.log('🚧 Decoration collision handled separately in collision system');
 }
 
 /**
