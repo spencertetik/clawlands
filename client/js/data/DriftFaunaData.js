@@ -145,3 +145,18 @@ const COMBAT_ITEM_DEFS = {
         value: 12
     }
 };
+
+// Support both browser globals and Node/CommonJS requires
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        DRIFT_FAUNA_TYPES,
+        DRIFT_FAUNA_SPAWN_TABLE,
+        COMBAT_ITEM_DEFS
+    };
+}
+
+if (typeof window !== 'undefined') {
+    window.DRIFT_FAUNA_TYPES = DRIFT_FAUNA_TYPES;
+    window.DRIFT_FAUNA_SPAWN_TABLE = DRIFT_FAUNA_SPAWN_TABLE;
+    window.COMBAT_ITEM_DEFS = COMBAT_ITEM_DEFS;
+}

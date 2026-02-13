@@ -66,6 +66,9 @@ class DriftFauna extends Entity {
 
         // Particle effects on death
         this.particles = [];
+
+        // Network control flag (server-authoritative enemies)
+        this.networkControlled = false;
     }
 
     // Generate a movement pattern for Looplings
@@ -78,6 +81,26 @@ class DriftFauna extends Entity {
                 { dx: -1, dy: 0, duration: 400 },
                 { dx: 0, dy: -1, duration: 400 }
             ],
+        ];
+        return patterns[Math.floor(Math.random() * patterns.length)];
+    }
+
+    updateNetworkControlled(deltaTime) {
+        const dt = deltaTime;
+        const dtMs = dt * 1000;
+        this.attackTimer = Math.max(0, this.attackTimer - dtMs);
+        this.pulseTimer += dtMs;
+        this.updateParticles(dt);
+
+        if (this.state === 'hurt') {
+            this.updateHurt(dt);
+        } else if (this.state === 'dying') {
+            this.updateDying(dt);
+        } else if (this.state === 'dissolved') {
+            // allow particles to finish
+            this.updateParticles(dt);
+        }
+    }
             // Triangle pattern
             [
                 { dx: 1, dy: 0, duration: 500 },
@@ -97,6 +120,11 @@ class DriftFauna extends Entity {
 
     update(deltaTime, player, collisionSystem) {
         if (this.state === 'dissolved') return;
+
+        if (this.networkControlled) {
+            this.updateNetworkControlled(deltaTime);
+            return;
+        }
 
         const dt = deltaTime; // deltaTime is already in seconds
 

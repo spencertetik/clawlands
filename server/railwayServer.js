@@ -18,14 +18,16 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } = require('./terrainMap');
+const { ServerCollisionSystem, getCharacterCollisionBox } = require('./serverCollisionSystem');
+const { EnemyManager } = require('./enemy/EnemyManager');
 
 // ============================================
 // Configuration
 // ============================================
 
 const PORT = process.env.PORT || 3000;
-const WORLD_PIXEL_WIDTH = WORLD_WIDTH * TILE_SIZE;  // 200 * 16 = 3200
-const WORLD_PIXEL_HEIGHT = WORLD_HEIGHT * TILE_SIZE; // 200 * 16 = 3200
+let WORLD_PIXEL_WIDTH = WORLD_WIDTH * TILE_SIZE;  // Will be updated after terrain generation
+let WORLD_PIXEL_HEIGHT = WORLD_HEIGHT * TILE_SIZE; // Will be updated after terrain generation
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k => k);
 
@@ -33,9 +35,20 @@ const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k
 // Terrain Generation
 // ============================================
 
-// Generate terrain data - same seed as client
+// Generate terrain data - matches client exactly
 const terrainData = generateTerrain();
-const buildings = generateBuildings(terrainData.terrainMap, terrainData.islands);
+const buildings = generateBuildings(terrainData);
+
+// Update world pixel dimensions based on actual terrain data
+WORLD_PIXEL_WIDTH = terrainData.width * TILE_SIZE;
+WORLD_PIXEL_HEIGHT = terrainData.height * TILE_SIZE;
+
+// Initialize server-side collision system
+const serverCollision = new ServerCollisionSystem(terrainData);
+serverCollision.setBuildings(buildings);
+serverCollision.setDecorations(terrainData.decorations || []);
+
+console.log(`🗺️ World loaded: ${terrainData.width}×${terrainData.height} tiles, ${buildings.length} buildings, ${(terrainData.decorations || []).length} decorations`);
 
 // ============================================
 // NPC Data (mirrors client StoryNPCData placements)
@@ -115,6 +128,9 @@ for (const placement of storyNPCPlacements) {
 }
 
 console.log(`🧑 Placed ${npcs.length} story NPCs on the server`);
+
+// Add NPCs to collision system for bot collision checks
+serverCollision.setNPCs(npcs);
 
 // Rate limiting config
 const RATE_LIMIT = {
@@ -255,6 +271,7 @@ function hashToken(token) {
 const players = new Map();  // id -> { ws, name, x, y, species, color, facing, isBot }
 const rateLimits = new Map();  // ip -> { count, resetTime }
 const botRegRateLimits = new Map();  // ip -> { count, resetTime } for bot registration
+let enemyManager = null;
 
 function checkRateLimit(ip) {
     const now = Date.now();
@@ -335,7 +352,7 @@ function findSafeSpawn(island) {
         const tryY = (island.y + offsetTilesY) * 16;
         
         // Must be walkable terrain
-        if (!isBoxWalkable(terrainData.terrainMap, tryX, tryY)) continue;
+        if (!isBoxWalkable(terrainData, tryX, tryY)) continue;
         
         // Must be clear of buildings (32px clearance)
         let tooClose = false;
@@ -352,7 +369,7 @@ function findSafeSpawn(island) {
         let openDirs = 0;
         for (const [dx, dy] of [[16,0],[-16,0],[0,16],[0,-16]]) {
             const nx = tryX + dx, ny = tryY + dy;
-            if (isBoxWalkable(terrainData.terrainMap, nx, ny)) {
+            if (isBoxWalkable(terrainData, nx, ny)) {
                 let buildingClear = true;
                 for (const building of buildings) {
                     if (nx < building.x + building.width && nx + 16 > building.x &&
@@ -375,7 +392,7 @@ function findSafeSpawn(island) {
         const offsetTilesY = Math.floor(Math.random() * (island.size * 2)) - island.size;
         const tryX = (island.x + offsetTilesX) * 16;
         const tryY = (island.y + offsetTilesY) * 16;
-        if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) {
+        if (isBoxWalkable(terrainData, tryX, tryY)) {
             return { x: tryX, y: tryY };
         }
     }
@@ -410,6 +427,18 @@ function broadcastNearby(message, sourceId, sourceX, sourceY) {
         }
     });
 }
+
+enemyManager = new EnemyManager({
+    players,
+    buildings,
+    collisionSystem: serverCollision,
+    terrainData,
+    worldWidth: WORLD_PIXEL_WIDTH,
+    worldHeight: WORLD_PIXEL_HEIGHT,
+    maxEnemies: 8,
+    broadcast: (message) => broadcast(message)
+});
+enemyManager.start();
 
 function getPlayerList() {
     return Array.from(players.entries())
@@ -802,7 +831,8 @@ wss.on('connection', async (ws, req) => {
         facing: 'down',
         isBot,
         isAlive: true,
-        rateLimit: { count: 0, resetTime: Date.now() + RATE_LIMIT.windowMs }
+        rateLimit: { count: 0, resetTime: Date.now() + RATE_LIMIT.windowMs },
+        lastKnownLocation: 'outdoor'
     };
 
     // Track pong responses for keepalive
@@ -966,7 +996,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 ws.send(JSON.stringify({
                     type: 'joined',
                     player: { id: playerId, name, spectator: true },
-                    players: getPlayerList().filter(p => p.id !== playerId)
+                    players: getPlayerList().filter(p => p.id !== playerId),
+                    enemies: enemyManager ? enemyManager.getSnapshot() : []
                 }));
                 // Don't broadcast player_joined — spectators are invisible
                 break;
@@ -983,6 +1014,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
             playerData.name = name;
             playerData.species = msg.species || 'lobster';
             playerData.color = msg.color || 'red';
+            playerData.tokens = playerData.tokens || 0;
+            playerData.shellIntegrity = playerData.shellIntegrity || 100;
             
             // Randomize spawn point on main island (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
@@ -1019,7 +1052,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
                     x: playerData.x,
                     y: playerData.y
                 },
-                players: getPlayerList().filter(p => p.id !== playerId)
+                players: getPlayerList().filter(p => p.id !== playerId),
+                enemies: enemyManager ? enemyManager.getSnapshot() : []
             }));
 
             // Notify others (ensure isBot flag is explicitly set)
@@ -1048,45 +1082,41 @@ async function handleMessage(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
-            // Check terrain collision
-            if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
-                // Position blocked, keep old position
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
-                    message: 'Cannot move there - blocked by terrain or buildings',
-                    x: playerData.x,
-                    y: playerData.y 
-                }));
-                return;
-            }
-            
-            // Check building collision (inset by 8px, with door zone at bottom-center)
-            let buildingBlocked = false;
-            const DOOR_WIDTH = 16;
-            const INSET = 8;
-            for (const building of buildings) {
-                const bx = building.x + INSET;
-                const by = building.y + INSET;
-                const bw = building.width - INSET * 2;
-                const bh = building.height - INSET * 2;
+            // Check for building exit (only if position actually changed)
+            if (Math.abs(newX - playerData.x) > 1 || Math.abs(newY - playerData.y) > 1) {
+                // Detect if player left a building area by checking if their new position is outside all building bounds
+                const playerCenterX = newX + 8;
+                const playerCenterY = newY + 12;
+                let insideBuilding = false;
+                for (const building of buildings) {
+                    if (playerCenterX >= building.x && playerCenterX < building.x + building.width &&
+                        playerCenterY >= building.y && playerCenterY < building.y + building.height) {
+                        insideBuilding = true;
+                        break;
+                    }
+                }
                 
-                // Check if player is in the door zone (bottom-center of building)
-                const doorX = building.x + (building.width - DOOR_WIDTH) / 2;
-                const inDoorZone = newX + 8 >= doorX && newX + 8 <= doorX + DOOR_WIDTH && 
-                                   newY >= building.y + building.height - INSET;
-                if (inDoorZone) continue; // Allow walking to door
-                
-                if (newX < bx + bw && newX + 16 > bx &&
-                    newY < by + bh && newY + 24 > by) {
-                    buildingBlocked = true;
-                    break;
+                // If player was previously in a building and now isn't, broadcast exit
+                if (!insideBuilding && playerData.lastKnownLocation === 'interior') {
+                    broadcast({
+                        type: 'player_context',
+                        playerId: playerId,
+                        context: {
+                            location: 'outdoor',
+                            buildingType: null,
+                            buildingName: null
+                        }
+                    }, playerId);
+                    playerData.lastKnownLocation = 'outdoor';
                 }
             }
             
-            if (buildingBlocked) {
+            // Check collision using the same footprint hitbox as the client player
+            const hitbox = getCharacterCollisionBox(newX, newY);
+            if (serverCollision.checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height)) {
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by building',
+                    message: 'Cannot move there — blocked by terrain, buildings, decorations, or NPCs',
                     x: playerData.x,
                     y: playerData.y 
                 }));
@@ -1184,6 +1214,12 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 fromName: playerData.name,
                 text: sanitizedText
             }));
+            break;
+        }
+
+        case 'attack': {
+            if (!playerData.name || !enemyManager) return;
+            enemyManager.handleAttack(playerId, { direction: msg.direction, targetId: msg.targetId });
             break;
         }
     }
@@ -1300,44 +1336,12 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
-            // Check terrain collision
-            if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
+            // Check collision using the exact client footprint hitbox
+            const hitbox = getCharacterCollisionBox(newX, newY);
+            if (serverCollision.checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height)) {
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by terrain or buildings',
-                    x: playerData.x,
-                    y: playerData.y 
-                }));
-                return;
-            }
-            
-            // Check building collision (inset by 8px, with door zone at bottom-center)
-            let buildingBlocked = false;
-            const BOT_DOOR_WIDTH = 16;
-            const BOT_INSET = 8;
-            for (const building of buildings) {
-                const bx = building.x + BOT_INSET;
-                const by = building.y + BOT_INSET;
-                const bw = building.width - BOT_INSET * 2;
-                const bh = building.height - BOT_INSET * 2;
-                
-                // Check if player is in the door zone (bottom-center of building)
-                const doorX = building.x + (building.width - BOT_DOOR_WIDTH) / 2;
-                const inDoorZone = newX + 8 >= doorX && newX + 8 <= doorX + BOT_DOOR_WIDTH && 
-                                   newY >= building.y + building.height - BOT_INSET;
-                if (inDoorZone) continue; // Allow walking to door
-                
-                if (newX < bx + bw && newX + 16 > bx &&
-                    newY < by + bh && newY + 24 > by) {
-                    buildingBlocked = true;
-                    break;
-                }
-            }
-            
-            if (buildingBlocked) {
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
-                    message: 'Cannot move there - blocked by building',
+                    message: 'Cannot move there — blocked by terrain, buildings, decorations, or NPCs',
                     x: playerData.x,
                     y: playerData.y 
                 }));
@@ -1467,6 +1471,10 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 .filter(n => n.distance < 400)
                 .sort((a, b) => a.distance - b.distance);
 
+            const nearbyEnemies = enemyManager
+                ? enemyManager.getNearbyEnemies(playerData.x, playerData.y, 450)
+                : [];
+
             ws.send(JSON.stringify({
                 type: 'surroundings',
                 position: { x: playerData.x, y: playerData.y },
@@ -1474,7 +1482,8 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 island: island ? { id: terrainData.islands.indexOf(island), x: island.x, y: island.y, size: island.size } : null,
                 nearbyBuildings,
                 nearbyPlayers: nearby,
-                nearbyNPCs
+                nearbyNPCs,
+                nearbyEnemies
             }));
             break;
         }
@@ -1566,6 +1575,20 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                         y: nearestBuilding.y
                     }
                 }));
+
+                // Update player's location state
+                playerData.lastKnownLocation = 'interior';
+                
+                // Broadcast context change to all connected players (for spectators)
+                broadcast({
+                    type: 'player_context',
+                    playerId: playerId,
+                    context: {
+                        location: 'interior',
+                        buildingType: nearestBuilding.type,
+                        buildingName: nearestBuilding.name
+                    }
+                }, playerId);
             } else {
                 const errMsg = nearestBuilding
                     ? `No building within range. Nearest: ${nearestBuilding.name} (${nearestBuilding.type}) — ${Math.round(nearestDist)}px away. Walk closer and try again.`
@@ -1612,63 +1635,27 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
                 return;
             }
-
-            // Initialize combat stats if not present
-            if (playerData.shellIntegrity == null) playerData.shellIntegrity = 100;
-            if (playerData.tokens == null) playerData.tokens = 0;
-            if (!playerData.inventory) playerData.inventory = [];
-
-            // 20% chance of finding a Drift Fauna nearby
-            const enemyFound = Math.random() < 0.20;
-
-            if (!enemyFound) {
-                ws.send(JSON.stringify({
-                    type: 'attack_result',
-                    hit: false,
-                    message: 'No enemies in range. Drift Fauna roam the wilds between buildings.'
-                }));
+            if (!enemyManager) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Combat unavailable' }));
                 return;
             }
 
-            // Enemy found — deal random damage
-            const enemyNames = ['Drift Fauna', 'Spiny Drifter', 'Kelp Lurker', 'Tide Crawler', 'Barnacle Beast'];
-            const enemyName = enemyNames[Math.floor(Math.random() * enemyNames.length)];
-            const damage = Math.floor(Math.random() * 15) + 5; // 5-19 damage
-            const tokensEarned = Math.floor(Math.random() * 7) + 2; // 2-8 tokens
-
-            // 30% chance bot takes damage back
-            let damageTaken = 0;
-            if (Math.random() < 0.30) {
-                damageTaken = Math.floor(Math.random() * 10) + 3; // 3-12 damage
-                playerData.shellIntegrity = Math.max(0, playerData.shellIntegrity - damageTaken);
-            }
-
-            playerData.tokens += tokensEarned;
-
-            // Check if bot died
-            let respawned = false;
-            if (playerData.shellIntegrity <= 0) {
-                // Respawn at island center
-                const mainIsland = terrainData.islands[0];
-                const spawn = findSafeSpawn(mainIsland);
-                playerData.x = spawn.x;
-                playerData.y = spawn.y;
-                playerData.shellIntegrity = 100;
-                playerData._dirty = true;
-                respawned = true;
-            }
-
+            const result = enemyManager.handleAttack(playerId, data || {});
             ws.send(JSON.stringify({
                 type: 'attack_result',
-                hit: true,
-                enemy: enemyName,
-                damage,
-                tokensEarned,
-                damageTaken,
-                shellIntegrity: playerData.shellIntegrity,
-                totalTokens: playerData.tokens,
-                respawned,
-                position: respawned ? { x: playerData.x, y: playerData.y } : undefined
+                hit: result.hit,
+                enemy: result.enemy,
+                enemyId: result.enemyId,
+                damage: result.damage || 0,
+                enemyHealth: result.enemyHealth,
+                enemyDead: result.enemyDead,
+                tokensEarned: result.tokensEarned || 0,
+                damageTaken: 0,
+                shellIntegrity: result.shellIntegrity || playerData.shellIntegrity || 100,
+                totalTokens: result.totalTokens || playerData.tokens || 0,
+                respawned: false,
+                position: { x: playerData.x, y: playerData.y },
+                message: result.message || (result.hit ? 'Hit!' : 'No enemies in range')
             }));
             break;
         }

@@ -68,6 +68,14 @@ class CombatSystem {
         // Kill stats (persisted)
         this.statsKey = 'clawlands_combat_stats';
         this.stats = this.loadStats();
+
+        // Multiplayer integration
+        this.serverEnemies = new Map(); // enemyId -> RemoteEnemy from server
+        this.isMultiplayer = false;
+
+        // Multiplayer integration
+        this.multiplayerClient = null;
+        this.multiplayerEnemies = new Map(); // enemyId -> enemy data
     }
 
     update(deltaTime) {
@@ -102,7 +110,7 @@ class CombatSystem {
                 }
             }
 
-            // Update enemies
+            // Update local enemies (single-player mode)
             for (let i = this.enemies.length - 1; i >= 0; i--) {
                 const enemy = this.enemies[i];
                 if (!enemy) { this.enemies.splice(i, 1); continue; }
@@ -167,6 +175,35 @@ class CombatSystem {
                 }
             }
 
+            // Update multiplayer enemies (network-controlled)
+            if (this.isMultiplayerActive()) {
+                const toRemove = [];
+                for (const [id, enemy] of this.multiplayerEnemies) {
+                    if (!enemy) { 
+                        toRemove.push(id); 
+                        continue; 
+                    }
+
+                    try {
+                        enemy.update(dt, this.game.player, this.game.collisionSystem);
+                    } catch (enemyErr) {
+                        console.warn('Multiplayer enemy update error, removing:', enemyErr);
+                        toRemove.push(id);
+                        continue;
+                    }
+
+                    // Clean up dissolved enemies
+                    if (enemy.state === 'dissolved' && (!enemy.particles || enemy.particles.length === 0)) {
+                        toRemove.push(id);
+                    }
+                }
+
+                // Remove dead multiplayer enemies
+                for (const id of toRemove) {
+                    this.multiplayerEnemies.delete(id);
+                }
+            }
+
             // Clear pending resolve when enemy is fully gone
             if (this.pendingResolve && (!this.resolveUI || !this.resolveUI.isVisible) &&
                 (this.pendingResolve.state === 'dissolved' || !this.enemies.includes(this.pendingResolve))) {
@@ -179,7 +216,8 @@ class CombatSystem {
             }
 
             // Spawn enemies (with initial delay and spawn protection)
-            if (this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor' && this.spawnProtectionTimer <= 0) {
+            // Only spawn locally if not connected to multiplayer server
+            if (!this.isMultiplayerActive() && this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor' && this.spawnProtectionTimer <= 0) {
                 this.spawnTimer += dtMs;
                 if (this.spawnTimer >= this.spawnInterval) {
                     this.spawnTimer = 0;
@@ -235,40 +273,17 @@ class CombatSystem {
         // Spawn slash visual
         this.spawnSlashEffect(player, hitbox);
 
-        // Check hits against all enemies
-        let hitAny = false;
-        for (const enemy of this.enemies) {
-            if (!enemy.isAlive()) continue;
-
-            if (this.checkHitboxCollision(hitbox, enemy.getBounds())) {
-                // Calculate knockback direction
-                const dx = enemy.position.x - player.position.x;
-                const dy = enemy.position.y - player.position.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                const knockDir = { x: dx / dist, y: dy / dist };
-
-                const hit = enemy.takeDamage(weapon.damage, knockDir);
-                if (hit) {
-                    hitAny = true;
-
-                    // Play hit sound
-                    if (this.game.sfx) {
-                        this.game.sfx.play('enemy_hit');
-                    }
-
-                    // Spawn damage number
-                    this.damageNumbers.push({
-                        x: enemy.position.x + enemy.width / 2,
-                        y: enemy.position.y - 5,
-                        text: `-${weapon.damage}`,
-                        life: 0.8,
-                        vy: -30
-                    });
-
-                    // Small screen shake on hit
-                    this.triggerShake(2, 100);
-                }
+        // Handle attack differently for multiplayer vs single-player
+        if (this.isMultiplayerActive()) {
+            // Send attack to server - server will handle hit detection and broadcast results
+            if (this.multiplayerClient && typeof this.multiplayerClient.sendAttack === 'function') {
+                this.multiplayerClient.sendAttack({
+                    direction: player.direction || 'down'
+                });
             }
+        } else {
+            // Local single-player attack handling
+            this.handleLocalAttack(hitbox, weapon, player);
         }
 
         this.attackActiveFrame = false;
@@ -423,10 +438,21 @@ class CombatSystem {
         const player = this.game.player;
         let nearbyEnemy = false;
 
+        // Check local enemies
         for (const enemy of this.enemies) {
             if (enemy.isAlive() && enemy.distanceTo(player) < enemy.aggroRange) {
                 nearbyEnemy = true;
                 break;
+            }
+        }
+
+        // Check multiplayer enemies
+        if (!nearbyEnemy && this.multiplayerEnemies) {
+            for (const enemy of this.multiplayerEnemies.values()) {
+                if (enemy.isAlive() && enemy.distanceTo(player) < enemy.aggroRange) {
+                    nearbyEnemy = true;
+                    break;
+                }
             }
         }
 
@@ -578,11 +604,20 @@ class CombatSystem {
     render(renderer) {
         if (!renderer) return;
         
-        // Render enemies (they add themselves to ENTITIES layer)
+        // Render local enemies (single-player mode)
         for (const enemy of this.enemies) {
             try {
                 if (enemy) enemy.render(renderer);
             } catch (e) { console.warn('Enemy render error:', e); }
+        }
+
+        // Render multiplayer enemies
+        if (this.multiplayerEnemies) {
+            for (const enemy of this.multiplayerEnemies.values()) {
+                try {
+                    if (enemy) enemy.render(renderer);
+                } catch (e) { console.warn('Multiplayer enemy render error:', e); }
+            }
         }
 
         const self = this;
@@ -1037,5 +1072,165 @@ class CombatSystem {
         // Coin center mark
         ctx.fillRect(x+3, y+2, 2, 4);
         ctx.restore();
+    }
+
+    // ============================================
+    // Multiplayer Integration
+    // ============================================
+
+    setMultiplayerClient(client) {
+        this.multiplayerClient = client;
+        if (client) {
+            client.setEnemyDelegate(this);
+        }
+    }
+
+    isMultiplayerActive() {
+        return this.multiplayerClient && this.multiplayerClient.connected;
+    }
+
+    handleLocalAttack(hitbox, weapon, player) {
+        // Local single-player attack handling (original code)
+        let hitAny = false;
+        for (const enemy of this.enemies) {
+            if (!enemy.isAlive()) continue;
+
+            if (this.checkHitboxCollision(hitbox, enemy.getBounds())) {
+                // Calculate knockback direction
+                const dx = enemy.position.x - player.position.x;
+                const dy = enemy.position.y - player.position.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const knockDir = { x: dx / dist, y: dy / dist };
+
+                const hit = enemy.takeDamage(weapon.damage, knockDir);
+                if (hit) {
+                    hitAny = true;
+
+                    // Play hit sound
+                    if (this.game.sfx) {
+                        this.game.sfx.play('enemy_hit');
+                    }
+
+                    // Spawn damage number
+                    this.damageNumbers.push({
+                        x: enemy.position.x + enemy.width / 2,
+                        y: enemy.position.y - 5,
+                        text: `-${weapon.damage}`,
+                        life: 0.8,
+                        vy: -30
+                    });
+
+                    // Small screen shake on hit
+                    this.triggerShake(2, 100);
+                }
+            }
+        }
+    }
+
+    // Multiplayer enemy event handlers
+    handleEnemySnapshot(enemies) {
+        // Clear existing multiplayer enemies
+        this.multiplayerEnemies.clear();
+
+        // Create DriftFauna instances for each server enemy
+        for (const enemyData of enemies) {
+            this.createMultiplayerEnemy(enemyData);
+        }
+    }
+
+    handleEnemySpawn(enemyData) {
+        console.log(`Enemy spawned: ${enemyData.type} at ${enemyData.x}, ${enemyData.y}`);
+        this.createMultiplayerEnemy(enemyData);
+    }
+
+    handleEnemyMove(enemyData) {
+        const enemy = this.multiplayerEnemies.get(enemyData.id);
+        if (enemy) {
+            // Update position smoothly
+            enemy.position.x = enemyData.x;
+            enemy.position.y = enemyData.y;
+            enemy.state = enemyData.state || enemy.state;
+        }
+    }
+
+    handleEnemyDamage(msg) {
+        const enemy = this.multiplayerEnemies.get(msg.enemyId);
+        if (enemy) {
+            const oldHealth = enemy.shellIntegrity;
+            enemy.shellIntegrity = Math.max(0, msg.health || 0);
+            
+            // Visual feedback for damage
+            enemy.state = 'hurt';
+            enemy.hurtTimer = 0;
+            enemy.renderColor = '#ffffff';
+
+            // Play sound and effects
+            if (this.game.sfx) {
+                this.game.sfx.play('enemy_hit');
+            }
+
+            // Spawn damage number
+            const damage = oldHealth - enemy.shellIntegrity;
+            if (damage > 0) {
+                this.damageNumbers.push({
+                    x: enemy.position.x + enemy.width / 2,
+                    y: enemy.position.y - 5,
+                    text: `-${damage}`,
+                    life: 0.8,
+                    vy: -30
+                });
+            }
+
+            // Screen shake for local player hits
+            if (msg.attackerId === (this.multiplayerClient?.playerId)) {
+                this.triggerShake(2, 100);
+            }
+        }
+    }
+
+    handleEnemyDeath(msg) {
+        const enemy = this.multiplayerEnemies.get(msg.enemyId);
+        if (enemy) {
+            enemy.state = 'dying';
+            enemy.dyingTimer = 0;
+
+            // Play death sound
+            if (this.game.sfx) {
+                this.game.sfx.play('enemy_death');
+            }
+
+            // Remove from map after death animation
+            setTimeout(() => {
+                this.multiplayerEnemies.delete(msg.enemyId);
+            }, 1000);
+        }
+    }
+
+    createMultiplayerEnemy(enemyData) {
+        if (!enemyData || !enemyData.id || !enemyData.type) return;
+
+        const typeData = window.DRIFT_FAUNA_TYPES && window.DRIFT_FAUNA_TYPES[enemyData.type];
+        if (!typeData) {
+            console.warn(`Unknown enemy type: ${enemyData.type}`);
+            return;
+        }
+
+        const enemy = new DriftFauna(enemyData.x, enemyData.y, typeData);
+        enemy.networkControlled = true;
+        enemy.shellIntegrity = enemyData.health || typeData.shellIntegrity;
+        enemy.maxShellIntegrity = enemyData.maxHealth || typeData.shellIntegrity;
+        enemy.serverId = enemyData.id;
+        enemy.state = enemyData.state || 'wandering';
+
+        this.multiplayerEnemies.set(enemyData.id, enemy);
+    }
+
+    // Duplicate render method removed - handled in main render method above
+
+    // Get total enemy count (local + multiplayer)
+    getEnemyCount() {
+        const localAlive = this.enemies.filter(e => e.isAlive()).length;
+        const multiplayerAlive = Array.from(this.multiplayerEnemies.values()).filter(e => e.isAlive()).length;
+        return localAlive + multiplayerAlive;
     }
 }

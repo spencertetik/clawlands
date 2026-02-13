@@ -298,9 +298,16 @@ class DecorationLoader {
         return types[Math.floor(Math.random() * types.length)];
     }
 
-    // Load all decoration sprites
+    // Load all decoration sprites (browser only)
     async load() {
         if (this.loadPromise) return this.loadPromise;
+
+        // In Node.js environment, skip image loading but mark as loaded
+        if (typeof window === 'undefined' || typeof Image === 'undefined') {
+            this.loaded = true;
+            this.loadPromise = Promise.resolve();
+            return this.loadPromise;
+        }
 
         this.loadPromise = new Promise((resolve) => {
             const decorTypes = Object.keys(DecorationLoader.DECORATIONS);
@@ -378,4 +385,8 @@ class DecorationLoader {
 // Make available globally
 if (typeof window !== 'undefined') {
     window.DecorationLoader = DecorationLoader;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = DecorationLoader;
 }

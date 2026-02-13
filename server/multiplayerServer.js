@@ -5,13 +5,20 @@
 
 const WebSocket = require('ws');
 const http = require('http');
+const EnemyManager = require('./EnemyManager');
 
 const PORT = process.env.PORT || 3003;
 
 class MultiplayerServer {
     constructor() {
-        this.players = new Map(); // odplayerId -> { ws, data }
+        this.players = new Map(); // playerId -> { ws, data }
         this.nextPlayerId = 1;
+
+        this.enemyManager = new EnemyManager({
+            broadcast: (message, excludeId) => this.broadcast(message, excludeId),
+            getPlayers: () => this.players
+        });
+        this.enemyManager.start();
     }
 
     start() {
@@ -56,7 +63,11 @@ class MultiplayerServer {
                     x: 0,
                     y: 0,
                     direction: 'south',
-                    isMoving: false
+                    isMoving: false,
+                    location: 'outdoor',
+                    buildingType: null,
+                    buildingName: null,
+                    isIndoors: false
                 }
             });
 
@@ -72,6 +83,10 @@ class MultiplayerServer {
                 type: 'players',
                 players: this.getAllPlayers()
             }));
+
+            if (this.enemyManager) {
+                this.enemyManager.sendInitialState(ws);
+            }
 
             ws.on('message', (data) => {
                 try {
@@ -156,6 +171,25 @@ class MultiplayerServer {
                 }, playerId);
                 break;
 
+            case 'context': {
+                const context = {
+                    location: msg.location || 'outdoor',
+                    buildingType: msg.buildingType || null,
+                    buildingName: msg.buildingName || null
+                };
+                player.data.location = context.location;
+                player.data.buildingType = context.buildingType;
+                player.data.buildingName = context.buildingName;
+                player.data.isIndoors = context.location === 'interior';
+
+                this.broadcast({
+                    type: 'player_context',
+                    playerId,
+                    context
+                }, playerId);
+                break;
+            }
+
             case 'say':
                 // Chat message
                 console.log(`💬 ${player.data.name}: ${msg.text}`);
@@ -174,6 +208,31 @@ class MultiplayerServer {
                     playerId: playerId,
                     action: msg.action
                 }, playerId);
+                break;
+
+            case 'attack':
+                if (!player.data.name) {
+                    player.ws.send(JSON.stringify({ type: 'attack', hit: false, message: 'Join first.' }));
+                    break;
+                }
+                if (msg.direction) {
+                    player.data.direction = msg.direction;
+                }
+                const result = this.enemyManager.handleAttack(playerId, {
+                    direction: msg.direction,
+                    weapon: msg.weapon,
+                    targetEnemyIds: msg.targetEnemyIds
+                });
+                player.ws.send(JSON.stringify({
+                    type: 'attack',
+                    hit: result.hit,
+                    enemyId: result.enemyId,
+                    enemyName: result.enemyName,
+                    damage: result.damage,
+                    enemyShellIntegrity: result.shellIntegrity,
+                    defeated: result.defeated,
+                    message: result.message
+                }));
                 break;
 
             case 'ping':

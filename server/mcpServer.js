@@ -63,6 +63,7 @@ class BotBridge {
         this._talkResolvers = [];
         this.lastLookTime = 0;
         this._talkSeenByLook = true; // start true so we don't show stale data
+        this.enemies = new Map();
     }
 
     /**
@@ -257,7 +258,77 @@ class BotBridge {
             case 'player_left':
                 // Track world events (could be useful for situational awareness)
                 break;
+
+            case 'enemy_spawn':
+                this._upsertEnemies(msg.enemies || []);
+                break;
+
+            case 'enemy_move':
+                this._upsertEnemies(msg.enemies || []);
+                break;
+
+            case 'enemy_damage':
+                this._applyEnemyDamage(msg);
+                break;
+
+            case 'enemy_death':
+                this._markEnemyDead(msg.enemyId, msg.playerId);
+                break;
         }
+    }
+
+    _upsertEnemies(enemyList) {
+        const now = Date.now();
+        for (const enemy of enemyList) {
+            if (!enemy || !enemy.id) continue;
+            const existing = this.enemies.get(enemy.id) || {};
+            this.enemies.set(enemy.id, {
+                ...existing,
+                ...enemy,
+                lastSeen: now
+            });
+        }
+    }
+
+    _applyEnemyDamage(msg) {
+        if (!msg || !msg.enemyId) return;
+        const existing = this.enemies.get(msg.enemyId) || {};
+        this.enemies.set(msg.enemyId, {
+            ...existing,
+            shellIntegrity: msg.shellIntegrity,
+            maxShellIntegrity: msg.maxShellIntegrity || existing.maxShellIntegrity,
+            lastSeen: Date.now(),
+            state: msg.shellIntegrity <= 0 ? 'dead' : 'hurt',
+            lastHitBy: msg.playerId
+        });
+    }
+
+    _markEnemyDead(enemyId, playerId) {
+        if (!enemyId) return;
+        const existing = this.enemies.get(enemyId) || {};
+        this.enemies.set(enemyId, {
+            ...existing,
+            shellIntegrity: 0,
+            state: 'dead',
+            defeatedBy: playerId,
+            lastSeen: Date.now()
+        });
+    }
+
+    getNearbyEnemies(radius = 256) {
+        const pos = this.position || { x: 0, y: 0 };
+        const nearby = [];
+        for (const enemy of this.enemies.values()) {
+            if (!enemy || enemy.state === 'dead') continue;
+            const dx = (enemy.x || 0) - pos.x;
+            const dy = (enemy.y || 0) - pos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= radius) {
+                nearby.push({ ...enemy, distance: dist });
+            }
+        }
+        nearby.sort((a, b) => a.distance - b.distance);
+        return nearby;
     }
 
     _resolvePending(result, isError = false) {
@@ -434,6 +505,16 @@ server.registerTool('look', {
         // NPC list
         const npcList = (result.nearbyNPCs || []).map(n => `  - ${n.name} [id: ${n.id}] (${n.species}, ${n.faction}) — ${n.distance}px away at (${n.x}, ${n.y})`).join('\n');
 
+        // Enemy list (prefer live server data, fall back to WebSocket cache)
+        const rawEnemies = (result.nearbyEnemies && result.nearbyEnemies.length)
+            ? result.nearbyEnemies
+            : (bridge.getNearbyEnemies ? bridge.getNearbyEnemies(256) : []);
+        const enemyList = rawEnemies.map(e => {
+            const hpCurrent = e.shellIntegrity ?? e.health ?? '?';
+            const hpMax = e.maxShellIntegrity ?? e.maxHealth ?? '?';
+            return `  - ${e.name || 'Drift Fauna'} [id: ${e.id}] — ${Math.round(e.distance || 0)}px away (${hpCurrent}/${hpMax} HP) at (${e.x}, ${e.y})`;
+        }).join('\n');
+
         // Terrain description
         let terrainDesc = terrain;
         if (island) {
@@ -472,6 +553,8 @@ server.registerTool('look', {
                     buildingList ? `🏠 Nearby buildings:\n${buildingList}` : 'No buildings within 150px. Try moving to an island center.',
                     '',
                     npcList ? `🧑 Nearby NPCs:\n${npcList}` : 'No NPCs nearby.',
+                    '',
+                    enemyList ? `⚔️ Nearby Drift Fauna:\n${enemyList}` : 'No hostile Drift Fauna in range.',
                     '',
                     'Nearby players:',
                     nearby || '  (nobody nearby)',
@@ -921,67 +1004,65 @@ server.registerTool('inventory', {
 
 server.registerTool('attack', {
     title: 'Attack',
-    description: 'Attack in your facing direction. Drift Fauna roam the wilds between buildings — you have a chance of encountering one when you attack. Defeating enemies earns tokens but you may take damage. If your shell integrity reaches 0%, you respawn at the island center.',
-    inputSchema: {}
-}, async () => {
+    description: 'Attack in your facing direction. Optionally pass an enemy ID (from "look") to focus your strike on that specific Drift Fauna. Defeating enemies earns tokens but you may take damage. If your shell integrity reaches 0%, you respawn at the island center.',
+    inputSchema: {
+        enemyId: z.string().optional().describe('Optional enemy ID (from look output) to target. If omitted, swing blindly in your facing direction.')
+    }
+}, async ({ enemyId }) => {
     if (!bridge.joined) {
         return { content: [{ type: 'text', text: '❌ Not in game. Use "register" first.' }], isError: true };
     }
 
     try {
-        const result = await bridge.sendCommand('attack');
-
+        const payload = {};
+        if (enemyId) {
+            payload.enemyId = enemyId;
+            payload.targetEnemyIds = [enemyId];
+        }
+        const result = await bridge.sendCommand('attack', payload);
         if (!result.hit) {
+            const explanation = result.message || 'No enemies reacted to your attack.';
             return {
                 content: [{
                     type: 'text',
-                    text: `⚔️ ${result.message}`
+                    text: `⚠️ ${explanation}`
                 }]
             };
         }
 
-        // Enemy flavor text based on name
-        const enemyFlavors = {
-            'tide crawler': 'A Tide Crawler lunges from the shallows!',
-            'drift jelly': 'A shimmering Drift Jelly pulses toward you!',
-            'shell snapper': 'A Shell Snapper clacks its massive claws!',
-            'barnacle beast': 'A Barnacle Beast lurches from the rocks!',
-            'reef lurker': 'A Reef Lurker erupts from beneath the sand!',
-        };
-        const enemyLower = (result.enemy || '').toLowerCase();
-        const flavorIntro = enemyFlavors[enemyLower] || `A ${result.enemy} attacks!`;
-
-        // Damage context — how impactful was the hit?
-        let damageContext;
-        if (result.tokensEarned > 0) {
-            damageContext = `You strike for ${result.damage} damage, defeating it instantly.`;
-        } else {
-            damageContext = `You strike for ${result.damage} damage — took a chunk out of it!`;
+        const enemyName = result.enemyName || result.enemy || 'Drift Fauna';
+        const lines = [];
+        lines.push(`⚔️ Hit ${enemyName} (${result.enemyId || 'unknown id'}) for ${result.damage || 0} damage.`);
+        const enemyHealth = (typeof result.enemyShellIntegrity === 'number')
+            ? result.enemyShellIntegrity
+            : (typeof result.enemyHealth === 'number' ? result.enemyHealth : null);
+        if (enemyHealth !== null) {
+            if (enemyHealth > 0) {
+                lines.push(`   • Remaining health: ${enemyHealth}`);
+            } else {
+                lines.push('   • Enemy dissolved!');
+            }
         }
-
-        let text = `⚔️ ${flavorIntro} ${damageContext}`;
-
-        if (result.tokensEarned > 0) {
-            text += ` Earned ${result.tokensEarned} tokens.`;
+        if (result.tokensEarned) {
+            const totalTokens = typeof result.totalTokens === 'number' ? result.totalTokens : null;
+            const totalSuffix = totalTokens !== null ? ` (total ${totalTokens})` : '';
+            lines.push(`💰 Tokens earned: ${result.tokensEarned}${totalSuffix}`);
         }
-
-        text += ` Shell integrity: ${result.shellIntegrity}%.`;
-
-        if (result.damageTaken > 0) {
-            text += `\nThe ${result.enemy} snaps back, dealing ${result.damageTaken} damage to your shell!`;
+        const playerShell = (typeof result.shellIntegrity === 'number')
+            ? result.shellIntegrity
+            : (typeof result.shellIntegrityPercent === 'number' ? result.shellIntegrityPercent : null);
+        if (playerShell !== null) {
+            lines.push(`🛡️ Shell integrity: ${playerShell}%`);
         }
-
-        if (result.respawned) {
-            text += `\n💀 Shell shattered! Respawned at (${result.position.x}, ${result.position.y}) with full integrity.`;
+        if (result.position) {
+            lines.push(`📍 Position: (${result.position.x}, ${result.position.y})`);
         }
-
-        text += `\n💰 Total tokens: ${result.totalTokens}`;
-        text += `\n(Tip: Stronger enemies lurk further from buildings.)`;
+        lines.push('Tip: Stronger enemies spawn further from safe buildings.');
 
         return {
             content: [{
                 type: 'text',
-                text
+                text: lines.join('\n')
             }]
         };
     } catch (e) {

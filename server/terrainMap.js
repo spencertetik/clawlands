@@ -1,18 +1,39 @@
 /**
- * terrainMap.js — Generates the same deterministic terrain as the client
+ * terrainMap.js — Generates the same collision data as the client
  * 
- * Replicates WorldMap.createClawlandsArchipelago() with identical RNG,
- * island grid, island placement, and bridge network so server-side bots
- * can check collision against the real world.
- * 
- * Seed must match client: Game.js uses seed 12345 passed as option,
- * but WorldMap config defaults seed to options.seed ?? 42.
- * Game.js passes { seed: 12345 } → config.seed = 12345.
+ * Now uses EditorMapData.js to load the actual terrain and decoration data
+ * that the client uses, ensuring perfect collision alignment between
+ * server-side bots and client players.
  */
 
-const WORLD_WIDTH = 200;
-const WORLD_HEIGHT = 200;
+let WORLD_WIDTH = 200;
+let WORLD_HEIGHT = 200;
 const TILE_SIZE = 16;
+
+// Try to load client modules and editor data
+let EDITOR_MAP_DATA = null;
+let DecorationLoader = null;
+let Building = null;
+let CONSTANTS = null;
+
+try {
+    EDITOR_MAP_DATA = require('../client/js/data/EditorMapData.js');
+    DecorationLoader = require('../client/js/core/DecorationLoader.js');
+    Building = require('../client/js/world/Building.js');
+    CONSTANTS = require('../client/js/shared/Constants.js');
+} catch (e) {
+    console.warn('⚠️ Could not load client modules:', e.message);
+    console.warn('⚠️ Falling back to procedural terrain generation');
+}
+
+if (!CONSTANTS) {
+    CONSTANTS = {
+        CHARACTER_WIDTH: 16,
+        CHARACTER_HEIGHT: 24,
+        CHARACTER_COLLISION_WIDTH: 12,
+        CHARACTER_COLLISION_HEIGHT: 12
+    };
+}
 
 function createRng(seed) {
     let state = seed >>> 0;
@@ -148,11 +169,80 @@ function createBridgeNetwork(terrainMap, islands, bridgeChance) {
 }
 
 /**
- * Generate the full terrain map matching the client's world.
- * Returns { terrainMap, islands, width, height }
- * terrainMap[row][col]: 0 = land, 1 = water
+ * Generate terrain and collision data matching the client's world.
+ * Returns { terrainMap, collisionMap, decorations, islands, width, height }
+ * 
+ * If EditorMapData is available, uses that data exactly.
+ * Otherwise falls back to procedural generation.
  */
 function generateTerrain() {
+    if (EDITOR_MAP_DATA && EDITOR_MAP_DATA.terrainMap) {
+        console.log('🗺️ Loading terrain from EditorMapData.js');
+        return generateFromEditorData();
+    } else {
+        console.log('🌊 Generating procedural terrain (editor data not available)');
+        return generateProceduralTerrain();
+    }
+}
+
+/**
+ * Generate terrain from editor map data (matches client exactly)
+ */
+function generateFromEditorData() {
+    const data = EDITOR_MAP_DATA;
+    
+    // Update world dimensions from editor data
+    WORLD_WIDTH = data.terrainWidth || 200;
+    WORLD_HEIGHT = data.terrainHeight || 200;
+    
+    // Convert flat terrain array to 2D if needed
+    let terrainMap;
+    if (Array.isArray(data.terrainMap) && !Array.isArray(data.terrainMap[0])) {
+        terrainMap = [];
+        for (let r = 0; r < WORLD_HEIGHT; r++) {
+            terrainMap.push(data.terrainMap.slice(r * WORLD_WIDTH, r * WORLD_WIDTH + WORLD_WIDTH));
+        }
+    } else {
+        terrainMap = data.terrainMap;
+    }
+    
+    // Create collision map starting with terrain (1 = water/solid, 0 = land/walkable)
+    const collisionMap = terrainMap.map(row => [...row]);
+    
+    // Process decorations for collision
+    const decorations = data.decorations || [];
+    
+    // Mark bridge tiles as walkable (override water collision)
+    // Don't mark decoration collisions on the collision map - handle them separately
+    // in the collision detection to match client behavior exactly
+    markBridgesWalkable(collisionMap, decorations);
+    
+    // Compute islands from terrain data
+    const islands = computeIslandsFromTerrain(terrainMap);
+    
+    console.log(`✅ Loaded editor terrain: ${WORLD_WIDTH}×${WORLD_HEIGHT}, ${decorations.length} decorations, ${islands.length} islands`);
+    
+    return {
+        terrainMap,
+        collisionMap,
+        decorations,
+        islands,
+        width: WORLD_WIDTH,
+        height: WORLD_HEIGHT,
+        tileSize: TILE_SIZE,
+        worldMap: {
+            terrainMap,
+            collisionLayer: collisionMap,
+            width: WORLD_WIDTH,
+            height: WORLD_HEIGHT
+        }
+    };
+}
+
+/**
+ * Generate procedural terrain (fallback when editor data unavailable)
+ */
+function generateProceduralTerrain() {
     const config = {
         seed: 12345,
         islandCount: 10,
@@ -175,29 +265,192 @@ function generateTerrain() {
     }
     createBridgeNetwork(terrainMap, islands, config.bridgeChance);
 
-    return { terrainMap, islands, width: WORLD_WIDTH, height: WORLD_HEIGHT, tileSize: TILE_SIZE };
+    // For procedural, collision map is same as terrain map
+    const collisionMap = terrainMap.map(row => [...row]);
+
+    return {
+        terrainMap,
+        collisionMap,
+        decorations: [],
+        islands,
+        width: WORLD_WIDTH,
+        height: WORLD_HEIGHT,
+        tileSize: TILE_SIZE,
+        worldMap: {
+            terrainMap,
+            collisionLayer: collisionMap,
+            width: WORLD_WIDTH,
+            height: WORLD_HEIGHT
+        }
+    };
 }
 
 /**
- * Check if a pixel position is walkable (on land).
- * x, y are in PIXEL coordinates (not tile).
+ * Mark decoration collisions on the collision map (DISABLED)
+ * 
+ * This approach was incorrect - it modified the base collision map with decoration data,
+ * but the client keeps terrain and decoration collision separate.
+ * Decorations are handled in ServerCollisionSystem.checkDecorationCollision instead.
  */
-function isWalkable(terrainMap, px, py) {
+function markDecorationCollisions(collisionMap, decorations, decorationLoader) {
+    // DISABLED - decorations handled separately in collision system
+    console.log('🚧 Decoration collision handled separately in collision system');
+}
+
+/**
+ * Mark bridge tiles as walkable (matches client fixBridgeCollision)
+ */
+function markBridgesWalkable(collisionMap, decorations) {
+    let bridgesFixed = 0;
+    
+    for (const decor of decorations) {
+        // Check if this decoration is a bridge
+        const isBridge = decor.type === 'bridge_wood_v' || 
+                       decor.type === 'bridge_wood_h' || 
+                       (decor.bridge === true) ||
+                       (decor.type && decor.type.includes('bridge'));
+        
+        if (isBridge) {
+            const width = decor.width || TILE_SIZE;
+            const height = decor.height || TILE_SIZE;
+            const startCol = Math.floor(decor.x / TILE_SIZE);
+            const endCol = Math.floor((decor.x + width - 1) / TILE_SIZE);
+            const startRow = Math.floor(decor.y / TILE_SIZE);
+            const endRow = Math.floor((decor.y + height - 1) / TILE_SIZE);
+            
+            // Force all bridge tiles to be walkable
+            for (let row = startRow; row <= endRow; row++) {
+                if (row >= 0 && row < collisionMap.length) {
+                    for (let col = startCol; col <= endCol; col++) {
+                        if (col >= 0 && col < collisionMap[row].length) {
+                            collisionMap[row][col] = 0; // Walkable
+                            bridgesFixed++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (bridgesFixed > 0) {
+        console.log(`🌉 Fixed ${bridgesFixed} bridge tiles as walkable`);
+    }
+}
+
+/**
+ * Compute islands from terrain data by finding land clusters
+ */
+function computeIslandsFromTerrain(terrainMap) {
+    const visited = new Set();
+    const islands = [];
+    
+    for (let row = 0; row < terrainMap.length; row++) {
+        for (let col = 0; col < terrainMap[row].length; col++) {
+            if (terrainMap[row][col] === 0 && !visited.has(`${col},${row}`)) {
+                // Found unvisited land, flood fill to find island
+                const island = floodFillIsland(terrainMap, col, row, visited);
+                if (island.size >= 5) { // Only count significant islands
+                    islands.push(island);
+                }
+            }
+        }
+    }
+    
+    // Sort by size (largest first) to match client ordering
+    islands.sort((a, b) => b.size - a.size);
+    
+    // Assign IDs
+    islands.forEach((island, index) => {
+        island.id = index;
+    });
+    
+    return islands;
+}
+
+/**
+ * Flood fill to find an island's bounds and center
+ */
+function floodFillIsland(terrainMap, startCol, startRow, visited) {
+    const stack = [{col: startCol, row: startRow}];
+    const tiles = [];
+    let minCol = startCol, maxCol = startCol;
+    let minRow = startRow, maxRow = startRow;
+    
+    while (stack.length > 0) {
+        const {col, row} = stack.pop();
+        const key = `${col},${row}`;
+        
+        if (visited.has(key)) continue;
+        if (row < 0 || row >= terrainMap.length) continue;
+        if (col < 0 || col >= terrainMap[row].length) continue;
+        if (terrainMap[row][col] !== 0) continue; // Not land
+        
+        visited.add(key);
+        tiles.push({col, row});
+        
+        minCol = Math.min(minCol, col);
+        maxCol = Math.max(maxCol, col);
+        minRow = Math.min(minRow, row);
+        maxRow = Math.max(maxRow, row);
+        
+        // Add neighbors
+        for (const [dc, dr] of [[0,1], [0,-1], [1,0], [-1,0]]) {
+            stack.push({col: col + dc, row: row + dr});
+        }
+    }
+    
+    const centerCol = Math.floor((minCol + maxCol) / 2);
+    const centerRow = Math.floor((minRow + maxRow) / 2);
+    const size = Math.max(maxCol - minCol, maxRow - minRow);
+    
+    return {
+        x: centerCol,
+        y: centerRow,
+        size: size,
+        tiles: tiles.length,
+        bounds: { minCol, maxCol, minRow, maxRow }
+    };
+}
+
+/**
+ * Check if a pixel position is walkable.
+ * x, y are in PIXEL coordinates (not tile).
+ * Uses collision map (0 = walkable, 1 = blocked).
+ */
+function isWalkable(collisionData, px, py) {
+    // Handle both old format (terrainMap only) and new format (with collisionMap)
+    const collisionMap = collisionData.collisionMap || collisionData;
+    const width = collisionData.width || WORLD_WIDTH;
+    const height = collisionData.height || WORLD_HEIGHT;
+    
     const col = Math.floor(px / TILE_SIZE);
     const row = Math.floor(py / TILE_SIZE);
-    if (row < 0 || row >= WORLD_HEIGHT || col < 0 || col >= WORLD_WIDTH) return false;
-    return terrainMap[row][col] === 0;
+    if (row < 0 || row >= height || col < 0 || col >= width) return false;
+    return collisionMap[row] && collisionMap[row][col] === 0;
 }
 
 /**
- * Check if a 16x24 collision box at (px, py) is fully on land.
- * Checks all four corners of the collision box.
+ * Check if a character collision box is fully walkable.
+ * Uses collision map and checks all corners of the box.
  */
-function isBoxWalkable(terrainMap, px, py, w = 16, h = 24) {
-    return isWalkable(terrainMap, px, py) &&
-           isWalkable(terrainMap, px + w - 1, py) &&
-           isWalkable(terrainMap, px, py + h - 1) &&
-           isWalkable(terrainMap, px + w - 1, py + h - 1);
+function isBoxWalkable(collisionData, px, py, w, h) {
+    let testX = px;
+    let testY = py;
+    let width = typeof w === 'number' ? w : null;
+    let height = typeof h === 'number' ? h : null;
+
+    // If no explicit width/height provided, use the player's footprint hitbox
+    if (width === null || height === null) {
+        width = CONSTANTS.CHARACTER_COLLISION_WIDTH || CONSTANTS.CHARACTER_WIDTH;
+        height = CONSTANTS.CHARACTER_COLLISION_HEIGHT || CONSTANTS.CHARACTER_HEIGHT;
+        testX = px + (CONSTANTS.CHARACTER_WIDTH - width) / 2;
+        testY = py + (CONSTANTS.CHARACTER_HEIGHT - height);
+    }
+
+    return isWalkable(collisionData, testX, testY) &&
+           isWalkable(collisionData, testX + width - 1, testY) &&
+           isWalkable(collisionData, testX, testY + height - 1) &&
+           isWalkable(collisionData, testX + width - 1, testY + height - 1);
 }
 
 /**
@@ -235,11 +488,129 @@ function findBuildingLocation(terrainMap, island, width, height, placedPositions
 }
 
 /**
- * Generate building collision rectangles matching the client exactly.
- * Returns array of { x, y, width, height, type, name } in PIXEL coords.
- * Also marks building tiles as unwalkable in terrainMap (optional).
+ * Generate buildings matching the client exactly.
+ * Uses editor data when available, falls back to procedural generation.
+ * Returns array of Building instances or building objects.
  */
-function generateBuildings(terrainMap, islands) {
+function generateBuildings(worldData) {
+    if (EDITOR_MAP_DATA && EDITOR_MAP_DATA.buildings) {
+        console.log('🏠 Loading buildings from EditorMapData.js');
+        return generateBuildingsFromEditor(EDITOR_MAP_DATA.buildings);
+    } else {
+        console.log('🏗️ Generating procedural buildings');
+        return generateProceduralBuildings(worldData.terrainMap || worldData.collisionMap, worldData.islands);
+    }
+}
+
+/**
+ * Generate buildings from editor data (matches client exactly)
+ */
+function generateBuildingsFromEditor(buildingData) {
+    const buildings = [];
+    
+    for (const entry of buildingData) {
+        if (!entry || typeof entry.type !== 'string') continue;
+        
+        const x = typeof entry.x === 'number' ? entry.x : 0;
+        const y = typeof entry.y === 'number' ? entry.y : 0;
+        
+        // Try to create Building instance if class is available
+        let building;
+        if (Building && typeof Building === 'function') {
+            try {
+                building = new Building(x, y, entry.type, null);
+                if (entry.name) building.name = entry.name;
+                if (typeof entry.width === 'number') building.width = entry.width;
+                if (typeof entry.height === 'number') building.height = entry.height;
+            } catch (e) {
+                console.warn(`⚠️ Could not create Building instance: ${e.message}`);
+                building = null;
+            }
+        }
+        
+        // Fallback to plain object if Building class not available
+        if (!building) {
+            const spriteSizes = {
+                inn: { w: 96, h: 72 },
+                shop: { w: 72, h: 55 },
+                lighthouse: { w: 48, h: 96 },
+                house: { w: 48, h: 48 },
+                temple: { w: 64, h: 80 },
+                market: { w: 96, h: 64 }
+            };
+            
+            const defaultSize = spriteSizes[entry.type] || { w: 48, h: 48 };
+            building = {
+                x: x,
+                y: y,
+                width: entry.width || defaultSize.w,
+                height: entry.height || defaultSize.h,
+                type: entry.type,
+                name: entry.name || `${entry.type}`,
+                // Add collision method for compatibility
+                checkCollision: function(pointX, pointY) {
+                    return simpleBuildingCollisionCheck(this, pointX, pointY);
+                }
+            };
+        }
+        
+        buildings.push(building);
+    }
+    
+    console.log(`✅ Loaded ${buildings.length} buildings from editor data`);
+    return buildings;
+}
+
+/**
+ * Simple building collision check for fallback objects
+ */
+function simpleBuildingCollisionCheck(building, pointX, pointY) {
+    // Check if point is within building bounds
+    if (pointX < building.x || pointX >= building.x + building.width ||
+        pointY < building.y || pointY >= building.y + building.height) {
+        return false; // Outside building
+    }
+
+    // Calculate door zone (simplified)
+    const doorWidth = getBuildingDoorWidth(building.type);
+    const doorHeight = 20;
+    const doorOffsetX = getBuildingDoorOffsetX(building.type, building.width, doorWidth);
+    const doorOffsetY = getBuildingDoorOffsetY(building.type);
+    
+    const doorX = building.x + doorOffsetX;
+    const doorY = building.y + building.height - doorHeight - doorOffsetY;
+
+    // Check if point is within the door (no collision there)
+    if (pointX >= doorX && pointX < doorX + doorWidth &&
+        pointY >= doorY && pointY < doorY + doorHeight) {
+        return false; // In doorway, no collision
+    }
+
+    return true; // Inside building but not in door = collision
+}
+
+/**
+ * Helper functions for door calculations
+ */
+function getBuildingDoorWidth(type) {
+    const widths = { 'inn': 16, 'shop': 12, 'house': 10, 'lighthouse': 10, 'dock': 16, 'temple': 14, 'market': 16 };
+    return widths[type] || 12;
+}
+
+function getBuildingDoorOffsetX(type, buildingWidth, doorWidth) {
+    const offsets = { 'inn': 40, 'shop': 42, 'house': 19, 'lighthouse': 19, 'dock': 16, 'temple': 24, 'market': 40 };
+    return offsets[type] || Math.floor((buildingWidth - doorWidth) / 2);
+}
+
+function getBuildingDoorOffsetY(type) {
+    const offsets = { 'inn': 0, 'shop': 0, 'house': 1, 'lighthouse': 5, 'dock': 0, 'temple': 0, 'market': 0 };
+    return offsets[type] || 0;
+}
+
+/**
+ * Generate procedural buildings (fallback)
+ */
+function generateProceduralBuildings(terrainMap, islands) {
     // Fixed sprite sizes (must match client assets)
     const spriteSizes = {
         inn: { w: 96, h: 72 },
@@ -267,9 +638,15 @@ function generateBuildings(terrainMap, islands) {
     ];
 
     const sortedIslands = [...islands].sort((a, b) => b.size - a.size);
-    const mainIsland = sortedIslands[0];
     const buildings = [];
     const placedPositions = [];
+
+    if (sortedIslands.length === 0) {
+        console.warn('⚠️ No islands found for building placement');
+        return buildings;
+    }
+
+    const mainIsland = sortedIslands[0];
 
     // Place main island buildings
     for (const config of mainBuildings) {
@@ -279,12 +656,24 @@ function generateBuildings(terrainMap, islands) {
         const pos = findBuildingLocation(terrainMap, mainIsland, tw, th + 2, placedPositions);
         if (pos) {
             placedPositions.push({ col: pos.col, row: pos.row, width: tw, height: th + 2 });
-            buildings.push({
-                x: pos.col * TILE_SIZE, y: pos.row * TILE_SIZE,
-                width: sz.w, height: sz.h,
-                tileCol: pos.col, tileRow: pos.row, tilesW: tw, tilesH: th,
-                type: config.type, name: config.name
-            });
+            
+            const building = {
+                x: pos.col * TILE_SIZE,
+                y: pos.row * TILE_SIZE,
+                width: sz.w,
+                height: sz.h,
+                tileCol: pos.col,
+                tileRow: pos.row,
+                tilesW: tw,
+                tilesH: th,
+                type: config.type,
+                name: config.name,
+                checkCollision: function(pointX, pointY) {
+                    return simpleBuildingCollisionCheck(this, pointX, pointY);
+                }
+            };
+            
+            buildings.push(building);
         }
     }
 
@@ -303,12 +692,24 @@ function generateBuildings(terrainMap, islands) {
             const pos = findBuildingLocation(terrainMap, island, tw, th + 2, islandPlaced);
             if (pos) {
                 islandPlaced.push({ col: pos.col, row: pos.row, width: tw, height: th + 2 });
-                buildings.push({
-                    x: pos.col * TILE_SIZE, y: pos.row * TILE_SIZE,
-                    width: sz.w, height: sz.h,
-                    tileCol: pos.col, tileRow: pos.row, tilesW: tw, tilesH: th,
-                    type: config.type, name: config.name
-                });
+                
+                const building = {
+                    x: pos.col * TILE_SIZE,
+                    y: pos.row * TILE_SIZE,
+                    width: sz.w,
+                    height: sz.h,
+                    tileCol: pos.col,
+                    tileRow: pos.row,
+                    tilesW: tw,
+                    tilesH: th,
+                    type: config.type,
+                    name: config.name,
+                    checkCollision: function(pointX, pointY) {
+                        return simpleBuildingCollisionCheck(this, pointX, pointY);
+                    }
+                };
+                
+                buildings.push(building);
             }
         }
     }
@@ -316,4 +717,12 @@ function generateBuildings(terrainMap, islands) {
     return buildings;
 }
 
-module.exports = { generateTerrain, generateBuildings, isWalkable, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT };
+module.exports = { 
+    generateTerrain, 
+    generateBuildings, 
+    isWalkable, 
+    isBoxWalkable, 
+    TILE_SIZE, 
+    get WORLD_WIDTH() { return WORLD_WIDTH; },
+    get WORLD_HEIGHT() { return WORLD_HEIGHT; }
+};

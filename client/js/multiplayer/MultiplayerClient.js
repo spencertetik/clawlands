@@ -15,6 +15,9 @@ class MultiplayerClient {
         this.maxReconnectAttempts = 50;
         this.lastSentPosition = { x: 0, y: 0 };
         this.positionSendInterval = null;
+        this._pendingContexts = new Map();
+        this.enemyDelegate = null;
+        this.serverEnemies = new Map(); // enemyId -> RemoteEnemy
     }
 
     connect() {
@@ -77,6 +80,10 @@ class MultiplayerClient {
         }
     }
 
+    setEnemyDelegate(delegate) {
+        this.enemyDelegate = delegate;
+    }
+
     handleMessage(msg) {
         switch (msg.type) {
             case 'welcome':
@@ -91,6 +98,9 @@ class MultiplayerClient {
             case 'joined':
                 console.log('✅ Joined multiplayer world!');
                 this.startPositionSync();
+                if (this.game && typeof this.game.broadcastPlayerContext === 'function') {
+                    this.game.broadcastPlayerContext();
+                }
                 // Add existing players
                 if (msg.players) {
                     msg.players.forEach(p => {
@@ -98,6 +108,9 @@ class MultiplayerClient {
                             this.addRemotePlayer(p);
                         }
                     });
+                }
+                if (Array.isArray(msg.enemies) && this.enemyDelegate?.handleEnemySnapshot) {
+                    this.enemyDelegate.handleEnemySnapshot(msg.enemies);
                 }
                 break;
 
@@ -173,6 +186,33 @@ class MultiplayerClient {
                 // Could animate actions for remote players
                 break;
 
+            case 'player_context':
+                this._applyRemoteContext(msg.playerId, msg.context || {});
+                break;
+
+            case 'enemy_spawn':
+                this.handleEnemySpawn(msg.enemies || []);
+                break;
+
+            case 'enemy_move':
+                this.handleEnemyMove(msg.enemies || []);
+                break;
+
+            case 'enemy_damage':
+                this.handleEnemyDamage(msg);
+                break;
+
+            case 'enemy_death':
+                this.handleEnemyDeath(msg);
+                break;
+
+            case 'attack':
+                // Server attack response (for MCP bots)
+                if (this.game.combatSystem?.handleServerAttackResult) {
+                    this.game.combatSystem.handleServerAttackResult(msg);
+                }
+                break;
+
             case 'pong':
                 // Latency check response
                 break;
@@ -189,6 +229,15 @@ class MultiplayerClient {
                 isMoving: !!p.m
             });
         }
+    }
+
+    _applyRemoteContext(playerId, context = {}) {
+        const remote = this.remotePlayers.get(playerId);
+        if (remote) {
+            remote.updateContext(context);
+            return;
+        }
+        this._pendingContexts.set(playerId, context);
     }
 
     join() {
@@ -242,6 +291,20 @@ class MultiplayerClient {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(msg));
         }
+    }
+
+    sendPlayerContext(context) {
+        this.send({
+            type: 'context',
+            ...context
+        });
+    }
+
+    sendAttack(payload = {}) {
+        this.send({
+            type: 'attack',
+            ...payload
+        });
     }
 
     startPositionSync() {
@@ -299,6 +362,11 @@ class MultiplayerClient {
         console.log(`   Total remote players will be: ${this.remotePlayers.size + 1}`);
         const remote = new RemotePlayer(this.game, data);
         this.remotePlayers.set(data.id, remote);
+        const pendingContext = this._pendingContexts.get(data.id);
+        if (pendingContext) {
+            remote.updateContext(pendingContext);
+            this._pendingContexts.delete(data.id);
+        }
     }
 
     removeRemotePlayer(playerId) {
@@ -321,13 +389,18 @@ class MultiplayerClient {
         this.remotePlayers.forEach(player => {
             player.update(deltaTime);
         });
+
+        // Update all server enemies (interpolation)
+        this.serverEnemies.forEach(enemy => {
+            enemy.update(deltaTime);
+        });
     }
 
     render(ctx, camera) {
         // Debug: log render count occasionally
         if (!this._renderLogCount) this._renderLogCount = 0;
-        if (this._renderLogCount < 3 && this.remotePlayers.size > 0) {
-            console.log(`🎨 Rendering ${this.remotePlayers.size} remote players`);
+        if (this._renderLogCount < 3 && (this.remotePlayers.size > 0 || this.serverEnemies.size > 0)) {
+            console.log(`🎨 Rendering ${this.remotePlayers.size} remote players, ${this.serverEnemies.size} server enemies`);
             this._renderLogCount++;
         }
         
@@ -335,6 +408,65 @@ class MultiplayerClient {
         this.remotePlayers.forEach(player => {
             player.render(ctx, camera);
         });
+
+        // Render all server enemies
+        this.serverEnemies.forEach(enemy => {
+            if (this.game.renderer) {
+                enemy.render(this.game.renderer);
+            }
+        });
+    }
+
+    handleEnemySpawn(enemies) {
+        for (const enemyData of enemies) {
+            if (!enemyData || !enemyData.id) continue;
+            console.log(`🦾 Enemy spawned: ${enemyData.name} (${enemyData.id}) at (${enemyData.x}, ${enemyData.y})`);
+            
+            const enemy = new RemoteEnemy(this.game, enemyData);
+            this.serverEnemies.set(enemyData.id, enemy);
+            
+            // Notify combat system about server enemy
+            if (this.game.combatSystem?.addServerEnemy) {
+                this.game.combatSystem.addServerEnemy(enemy);
+            }
+        }
+    }
+
+    handleEnemyMove(enemies) {
+        for (const enemyData of enemies) {
+            if (!enemyData || !enemyData.id) continue;
+            const enemy = this.serverEnemies.get(enemyData.id);
+            if (enemy) {
+                enemy.updatePosition(enemyData.x, enemyData.y);
+            }
+        }
+    }
+
+    handleEnemyDamage(msg) {
+        if (!msg.enemyId) return;
+        const enemy = this.serverEnemies.get(msg.enemyId);
+        if (enemy) {
+            enemy.takeDamage(msg.shellIntegrity, msg.maxShellIntegrity);
+        }
+    }
+
+    handleEnemyDeath(msg) {
+        if (!msg.enemyId) return;
+        const enemy = this.serverEnemies.get(msg.enemyId);
+        if (enemy) {
+            enemy.die();
+        }
+        // Remove from map after short delay for death animation
+        setTimeout(() => {
+            this.serverEnemies.delete(msg.enemyId);
+            if (this.game.combatSystem?.removeServerEnemy) {
+                this.game.combatSystem.removeServerEnemy(msg.enemyId);
+            }
+        }, 1000);
+    }
+
+    getServerEnemies() {
+        return Array.from(this.serverEnemies.values());
     }
 
     disconnect() {
@@ -343,7 +475,11 @@ class MultiplayerClient {
             this.ws.close();
             this.ws = null;
         }
+        if (this.enemyDelegate?.handleEnemySnapshot) {
+            this.enemyDelegate.handleEnemySnapshot([]);
+        }
         this.remotePlayers.clear();
+        this.serverEnemies.clear();
     }
 }
 
@@ -366,6 +502,10 @@ class RemotePlayer {
         this.direction = data.direction || 'south';
         this.isMoving = false;
         
+        this.currentLocation = data.location || 'outdoor';
+        this.currentBuildingType = data.buildingType || null;
+        this.currentBuildingName = data.buildingName || null;
+        
         // Sprites for each direction (will be hue-shifted)
         this.sprites = {};
         this.rawSprites = {}; // Original unshifted sprites
@@ -376,6 +516,14 @@ class RemotePlayer {
         
         this.speechText = null;
         this.speechTimer = 0;
+        
+        // Mock stats for spectator mode (TODO: get from server)
+        this.health = 80 + Math.floor(Math.random() * 20); // Random health 80-100
+        this.maxHealth = 100;
+        this.tokens = Math.floor(Math.random() * 1000); // Random tokens 0-1000
+        this.kills = Math.floor(Math.random() * 25); // Random kills 0-25
+        this.faction = this.isBot ? ['Iron Shell', 'Tide Runners', 'Deep Current', 'None'][Math.floor(Math.random() * 4)] : 'None';
+        this.inventory = this.generateMockInventory();
         
         this.loadSprites();
     }
@@ -392,6 +540,29 @@ class RemotePlayer {
             'pink': 320
         };
         return colorMap[colorName?.toLowerCase()] || 0;
+    }
+
+    generateMockInventory() {
+        // Generate mock inventory items for display
+        const itemPool = [
+            'Shell Fragment', 'Brine Crystal', 'Seaweed', 'Pearl', 'Coral',
+            'Driftwood', 'Sea Glass', 'Barnacle', 'Kelp Wrap', 'Sand Dollar',
+            'Tide Pool Water', 'Sea Salt', 'Starfish', 'Anemone', 'Crab Claw'
+        ];
+        
+        const inventory = [];
+        const itemCount = Math.floor(Math.random() * 6); // 0-5 items
+        
+        for (let i = 0; i < itemCount; i++) {
+            const item = itemPool[Math.floor(Math.random() * itemPool.length)];
+            const count = Math.floor(Math.random() * 5) + 1; // 1-5 quantity
+            inventory.push({
+                name: item,
+                count: count
+            });
+        }
+        
+        return inventory;
     }
 
     loadSprites() {
@@ -759,12 +930,216 @@ class RemotePlayer {
         });
     }
 
+    updateContext(context = {}) {
+        const newLocation = context.location || this.currentLocation || 'outdoor';
+        const newBuildingType = Object.prototype.hasOwnProperty.call(context, 'buildingType') ? context.buildingType : this.currentBuildingType;
+        const newBuildingName = Object.prototype.hasOwnProperty.call(context, 'buildingName') ? context.buildingName : this.currentBuildingName;
+
+        const locationChanged = newLocation !== this.currentLocation || newBuildingType !== this.currentBuildingType;
+
+        this.currentLocation = newLocation;
+        this.currentBuildingType = newBuildingType ?? null;
+        this.currentBuildingName = newBuildingName ?? null;
+
+        if (locationChanged && this.game && this.game.spectatePlayer === this && typeof this.game._onSpectatedPlayerContextChange === 'function') {
+            this.game._onSpectatedPlayerContextChange();
+        }
+    }
+
     destroy() {
         // Cleanup
         this.sprite = null;
     }
 }
 
+/**
+ * RemoteEnemy - Represents a server-managed enemy in the world
+ */
+class RemoteEnemy {
+    constructor(game, data) {
+        this.game = game;
+        this.id = data.id;
+        this.type = data.type;
+        this.name = data.name;
+        this.x = data.x;
+        this.y = data.y;
+        this.width = data.width || 10;
+        this.height = data.height || 10;
+        this.shellIntegrity = data.shellIntegrity;
+        this.maxShellIntegrity = data.maxShellIntegrity;
+        this.state = data.state || 'idle';
+        this.zoneId = data.zoneId;
+
+        // Visual properties
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.isDead = false;
+        this.deathTimer = 0;
+        this.flashTimer = 0;
+
+        // Get type data for rendering
+        this.typeData = window.DRIFT_FAUNA_TYPES?.[this.type] || window.DRIFT_FAUNA_TYPES?.SKITTER;
+        if (this.typeData) {
+            this.color = this.typeData.color;
+            this.flashColor = this.typeData.flashColor;
+            this.aiType = this.typeData.aiType;
+        } else {
+            this.color = '#8b1a1a';
+            this.flashColor = '#ff4444';
+            this.aiType = 'skitter';
+        }
+    }
+
+    updatePosition(x, y) {
+        this.targetX = x;
+        this.targetY = y;
+    }
+
+    takeDamage(newHealth, maxHealth) {
+        this.shellIntegrity = newHealth;
+        this.maxShellIntegrity = maxHealth;
+        this.flashTimer = 200; // Flash for 200ms
+    }
+
+    die() {
+        this.isDead = true;
+        this.state = 'dying';
+        this.deathTimer = 0;
+    }
+
+    update(deltaTime) {
+        const dt = deltaTime;
+        const dtMs = dt * 1000;
+
+        // Smooth interpolation to target position
+        const speed = 0.3; // Interpolation factor
+        this.x += (this.targetX - this.x) * speed;
+        this.y += (this.targetY - this.y) * speed;
+
+        // Update flash timer
+        if (this.flashTimer > 0) {
+            this.flashTimer = Math.max(0, this.flashTimer - dtMs);
+        }
+
+        // Update death timer
+        if (this.isDead) {
+            this.deathTimer += dtMs;
+        }
+    }
+
+    render(renderer) {
+        if (!renderer || this.deathTimer > 600) return; // Don't render after 600ms death timer
+
+        const x = Math.floor(this.x);
+        const y = Math.floor(this.y);
+        const w = this.width;
+        const h = this.height;
+        const self = this;
+
+        // Add enemy to ENTITIES layer
+        renderer.addToLayer(CONSTANTS.LAYER.ENTITIES, (ctx) => {
+            ctx.save();
+
+            // Death fade
+            if (self.isDead) {
+                ctx.globalAlpha = Math.max(0, 1 - (self.deathTimer / 600));
+            }
+
+            // Flash when taking damage
+            const isFlashing = self.flashTimer > 0 && Math.floor(self.flashTimer / 100) % 2 === 0;
+            const renderColor = isFlashing ? self.flashColor : self.color;
+
+            // Render based on AI type (simplified versions of client rendering)
+            switch (self.aiType) {
+                case 'skitter':
+                    self.renderSkitter(ctx, x, y, w, h, renderColor);
+                    break;
+                case 'haze':
+                    self.renderHaze(ctx, x, y, w, h, renderColor);
+                    break;
+                case 'loop':
+                    self.renderLoopling(ctx, x, y, w, h, renderColor);
+                    break;
+                default:
+                    self.renderDefault(ctx, x, y, w, h, renderColor);
+            }
+
+            // Health bar (only when damaged)
+            if (self.shellIntegrity < self.maxShellIntegrity && !self.isDead) {
+                const barWidth = w + 4;
+                const barHeight = 2;
+                const barX = x - 2;
+                const barY = y - 4;
+                const healthPct = self.shellIntegrity / self.maxShellIntegrity;
+
+                ctx.fillStyle = '#1a0000';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+                ctx.fillStyle = healthPct > 0.5 ? '#cc3333' : healthPct > 0.25 ? '#cc6600' : '#cc0000';
+                ctx.fillRect(barX, barY, barWidth * healthPct, barHeight);
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
+            }
+
+            ctx.restore();
+        });
+    }
+
+    renderSkitter(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+        // Simple skitter representation
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x + 2, y + 2, 2, 2); // Eyes
+    }
+
+    renderHaze(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.globalAlpha *= 0.7; // Semi-transparent
+        ctx.fillRect(x, y, w, h);
+    }
+
+    renderLoopling(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+        // Simple spikes
+        ctx.fillStyle = '#666';
+        ctx.fillRect(x - 1, y + h/2, 2, 1);
+        ctx.fillRect(x + w - 1, y + h/2, 2, 1);
+    }
+
+    renderDefault(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+    }
+
+    // Compatibility with DriftFauna interface
+    isAlive() {
+        return !this.isDead && this.shellIntegrity > 0;
+    }
+
+    distanceTo(entity) {
+        if (!entity || !entity.position) return Infinity;
+        const dx = entity.position.x + (entity.width || 0) / 2 - (this.x + this.width / 2);
+        const dy = entity.position.y + (entity.height || 0) / 2 - (this.y + this.height / 2);
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    getBounds() {
+        return {
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height
+        };
+    }
+
+    destroy() {
+        // Cleanup
+    }
+}
+
 // Export for use
 window.MultiplayerClient = MultiplayerClient;
 window.RemotePlayer = RemotePlayer;
+window.RemoteEnemy = RemoteEnemy;
