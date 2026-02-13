@@ -5100,7 +5100,8 @@ class Game {
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
         
-        // Player collision with NPCs is handled in the collision system
+        // Push away from overlapping NPCs after generation to avoid spawn overlaps
+        this.pushPlayerAwayFromNPCs();
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
         console.log(`✨ Created ${this.waygates.length} waygates, stability engine: ${this.stabilityEngine ? 'yes' : 'no'}`);
@@ -6358,6 +6359,72 @@ class Game {
         } catch (e) {
             console.error('isPositionSafe error:', e);
             return false;
+        }
+    }
+
+    // Maintain gentle separation if the player and a walking NPC overlap
+    pushPlayerAwayFromNPCs() {
+        if (!this.npcs || !this.player) return;
+        if (this.currentLocation !== 'outdoor') return;
+
+        const playerBox = this.player.getCollisionBox ? this.player.getCollisionBox() : {
+            x: this.player.position.x,
+            y: this.player.position.y,
+            width: this.player.width,
+            height: this.player.height
+        };
+
+        for (const npc of this.npcs) {
+            if (!npc) continue;
+            const npcBox = npc.getCollisionBox ? npc.getCollisionBox() : {
+                x: npc.position.x,
+                y: npc.position.y,
+                width: npc.width,
+                height: npc.height
+            };
+
+            const overlapping = !(
+                playerBox.x + playerBox.width <= npcBox.x ||
+                playerBox.x >= npcBox.x + npcBox.width ||
+                playerBox.y + playerBox.height <= npcBox.y ||
+                playerBox.y >= npcBox.y + npcBox.height
+            );
+
+            if (!overlapping) continue;
+
+            let dx = (playerBox.x + playerBox.width / 2) - (npcBox.x + npcBox.width / 2);
+            let dy = (playerBox.y + playerBox.height / 2) - (npcBox.y + npcBox.height / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 0.001) {
+                dx = 1;
+                dy = 0;
+            } else {
+                dx /= dist;
+                dy /= dist;
+            }
+
+            const pushStrength = 1.5; // gentle nudge each frame
+            const pushX = this.player.position.x + dx * pushStrength;
+            const pushY = this.player.position.y + dy * pushStrength;
+
+            // Only move if the push position is still on walkable ground
+            const canPushX = !this.collisionSystem || !this.collisionSystem.isTileSolid(
+                Math.floor(pushX / CONSTANTS.TILE_SIZE),
+                Math.floor(this.player.position.y / CONSTANTS.TILE_SIZE)
+            );
+            const canPushY = !this.collisionSystem || !this.collisionSystem.isTileSolid(
+                Math.floor(this.player.position.x / CONSTANTS.TILE_SIZE),
+                Math.floor(pushY / CONSTANTS.TILE_SIZE)
+            );
+
+            if (canPushX) {
+                this.player.position.x = pushX;
+                playerBox.x = this.player.getCollisionBox ? this.player.getCollisionBox().x : pushX;
+            }
+            if (canPushY) {
+                this.player.position.y = pushY;
+                playerBox.y = this.player.getCollisionBox ? this.player.getCollisionBox().y : pushY;
+            }
         }
     }
 
