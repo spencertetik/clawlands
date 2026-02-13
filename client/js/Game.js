@@ -120,7 +120,8 @@ class Game {
         // NPCs (active for current map)
         this.npcs = [];
         this.outdoorNPCs = [];
-        this.blockerState = {};
+        this.blockerState = this.loadBridgeBlockerState();
+        this.bridgeCollisionBlockers = {};
         
         // Decorations (plants, shells, rocks)
         this.decorations = [];
@@ -2248,6 +2249,27 @@ class Game {
         }
     }
 
+    // Persist bridge guard blockers so cleared bridges stay open across sessions
+    loadBridgeBlockerState() {
+        try {
+            const saved = localStorage.getItem('clawlands_bridge_blockers');
+            if (!saved) return {};
+            const data = JSON.parse(saved);
+            return data && typeof data === 'object' ? data : {};
+        } catch (e) {
+            console.warn('Failed to load bridge blocker state:', e);
+            return {};
+        }
+    }
+
+    saveBridgeBlockerState() {
+        try {
+            localStorage.setItem('clawlands_bridge_blockers', JSON.stringify(this.blockerState));
+        } catch (e) {
+            console.warn('Failed to save bridge blocker state:', e);
+        }
+    }
+
     // Pick up a world item and add to inventory
     pickupWorldItem(worldItem) {
         if (!worldItem || worldItem.collected) return;
@@ -3823,19 +3845,32 @@ class Game {
             });
             if (!connection) continue;
 
-            const centerTileX = Math.floor((connection.island1.x + connection.island2.x) / 2);
-            const centerTileY = Math.floor((connection.island1.y + connection.island2.y) / 2);
+            // Get the precise midpoint tile of the bridge path
+            const midpointTile = this.getBridgeMidpointTile(connection);
+            if (!midpointTile) continue;
+
+            const centerTileX = midpointTile.x;
+            const centerTileY = midpointTile.y;
             const centerWorldX = centerTileX * tileSize + tileSize / 2;
             const centerWorldY = centerTileY * tileSize + tileSize / 2;
 
+            // Center the guard on the bridge midpoint
             const blockedX = centerWorldX - CONSTANTS.CHARACTER_WIDTH / 2;
             const blockedY = centerWorldY - CONSTANTS.CHARACTER_HEIGHT;
 
             const dirX = connection.island2.x - connection.island1.x;
             const dirY = connection.island2.y - connection.island1.y;
             const magnitude = Math.hypot(dirX, dirY) || 1;
-            const perpX = -dirY / magnitude;
-            const perpY = dirX / magnitude;
+            const normDirX = dirX / magnitude;
+            const normDirY = dirY / magnitude;
+
+            // Build collision blocker tiles on both sides of the bridge
+            const blockerTiles = this.buildBridgeBlockerTiles(centerTileX, centerTileY, normDirX, normDirY);
+            this.registerBridgeCollisionBlockers(config.id, blockerTiles);
+
+            // Find a clear position to move guard to when quest is completed
+            const perpX = -normDirY;
+            const perpY = normDirX;
             const offsetTiles = config.sideOffsetTiles ?? 2;
 
             const candidateCenters = [
@@ -3876,6 +3911,11 @@ class Game {
                 npc.position.y = npc.clearPosition.y;
                 npc.homePosition = { ...npc.clearPosition };
                 npc.dialog = config.dialog.cleared;
+                // Ensure collision blockers are deactivated for completed quests
+                this.setBridgeCollisionBlockersActive(config.id, false);
+            } else {
+                // Activate collision blockers for active guards
+                this.setBridgeCollisionBlockersActive(config.id, true);
             }
 
             this.loadNPCSprite(npc);
@@ -3912,6 +3952,7 @@ class Game {
             if (inventory.hasItem(requirement.itemId, requirement.quantity)) {
                 inventory.removeItem(requirement.itemId, requirement.quantity);
                 this.blockerState[config.id] = { cleared: true };
+                this.saveBridgeBlockerState(); // Save state to localStorage
                 this.moveBridgeBlockerAside(npc);
                 if (this.continuitySystem) {
                     this.continuitySystem.addContinuity(4, `bridge_blocker_${config.id}`);
@@ -3930,13 +3971,108 @@ class Game {
         showDialog(config.dialog.cleared || npc.dialog);
     }
 
-    moveBridgeBlockerAside(npc) {
-        if (!npc || !npc.clearPosition) return;
-        npc.position.x = npc.clearPosition.x;
-        npc.position.y = npc.clearPosition.y;
-        npc.homePosition = { ...npc.clearPosition };
-        npc.dialog = npc.blockerDialog?.cleared || npc.dialog;
+
+moveBridgeBlockerAside(npc) {
+    if (!npc || !npc.clearPosition) return;
+    npc.position.x = npc.clearPosition.x;
+    npc.position.y = npc.clearPosition.y;
+    npc.homePosition = { ...npc.clearPosition };
+    npc.dialog = npc.blockerDialog?.cleared || npc.dialog;
+    if (npc.blockerId) {
+        this.setBridgeCollisionBlockersActive(npc.blockerId, false);
     }
+}
+
+getBridgeMidpointTile(connection) {
+    if (!connection || !connection.island1 || !connection.island2) return null;
+    const island1 = connection.island1;
+    const island2 = connection.island2;
+    const dx = island2.x - island1.x;
+    const dy = island2.y - island1.y;
+    const steps = Math.max(Math.abs(dx), Math.abs(dy));
+    if (steps === 0) {
+        return { x: Math.floor(island1.x), y: Math.floor(island1.y) };
+    }
+    const pathTiles = [];
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const col = Math.floor(island1.x + dx * t);
+        const row = Math.floor(island1.y + dy * t);
+        if (this.worldMap?.terrainMap?.[row]?.[col] === 0) {
+            pathTiles.push({ x: col, y: row });
+        }
+    }
+    if (pathTiles.length === 0) {
+        return {
+            x: Math.floor((island1.x + island2.x) / 2),
+            y: Math.floor((island1.y + island2.y) / 2)
+        };
+    }
+    return pathTiles[Math.floor(pathTiles.length / 2)];
+}
+
+buildBridgeBlockerTiles(centerTileX, centerTileY, dirX, dirY) {
+    if (!this.worldMap?.terrainMap) return [];
+    const tiles = [];
+    const seen = new Set();
+    const orientation = Math.abs(dirX) >= Math.abs(dirY) ? 'horizontal' : 'vertical';
+    const span = 2;
+    const pushTile = (x, y) => {
+        if (typeof x !== 'number' || typeof y !== 'number') return;
+        const row = this.worldMap.terrainMap[y];
+        if (!row || row[x] !== 0) return;
+        const key = `${x},${y}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        tiles.push({ x, y });
+    };
+    for (let step = -span; step <= span; step++) {
+        if (orientation === 'horizontal') {
+            const col = centerTileX + step;
+            pushTile(col, centerTileY - 1);
+            pushTile(col, centerTileY + 1);
+        } else {
+            const row = centerTileY + step;
+            pushTile(centerTileX - 1, row);
+            pushTile(centerTileX + 1, row);
+        }
+    }
+    return tiles;
+}
+
+registerBridgeCollisionBlockers(blockerId, tiles) {
+    if (!this.bridgeCollisionBlockers) {
+        this.bridgeCollisionBlockers = {};
+    }
+    if (!Array.isArray(tiles)) {
+        this.bridgeCollisionBlockers[blockerId] = [];
+        return;
+    }
+    const entries = tiles.map(tile => ({
+        x: tile.x,
+        y: tile.y,
+        originalValue: this.worldMap?.collisionLayer?.[tile.y]?.[tile.x] ?? 0
+    }));
+    this.bridgeCollisionBlockers[blockerId] = entries;
+}
+
+setBridgeCollisionBlockersActive(blockerId, active) {
+    if (!this.bridgeCollisionBlockers || !this.worldMap?.collisionLayer) return;
+    const entries = this.bridgeCollisionBlockers[blockerId];
+    if (!entries || entries.length === 0) return;
+    for (const entry of entries) {
+        const row = entry.y;
+        const col = entry.x;
+        const collisionRow = this.worldMap.collisionLayer[row];
+        if (!collisionRow) continue;
+        if (active) {
+            collisionRow[col] = 1;
+        } else {
+            const original = entry.originalValue ?? 0;
+            collisionRow[col] = original;
+        }
+    }
+}
 
     // Create decorations (plants, shells, rocks) on islands
     createDecorations(islands) {
@@ -4414,6 +4550,7 @@ class Game {
             ['I', 'Inventory'],
             ['L', 'Quest Log'],
             ['M', 'Toggle Music'],
+            ['R', 'Respawn (beta)'],
         ];
 
         const lineH = 16;

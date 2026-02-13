@@ -174,12 +174,12 @@ class DecorationLoader {
         treasure_chest: {
             path: 'assets/sprites/decorations/decor_1.png',
             width: 27, height: 28,
-            collision: { width: 22, height: 14, offsetY: 14 }
+            collision: { width: 22, height: 14, offsetY: 2 }
         },
         treasure_chest2: {
             path: 'assets/sprites/decorations/decor_2.png',
             width: 28, height: 28,
-            collision: { width: 22, height: 14, offsetY: 14 }
+            collision: { width: 22, height: 14, offsetY: 2 }
         },
         lobster_statue: {
             path: 'assets/sprites/decorations/decor_4.png',
