@@ -422,7 +422,7 @@ function getPlayerList() {
             x: p.x,
             y: p.y,
             facing: p.facing || 'down',
-            isBot: p.isBot
+            isBot: !!p.isBot  // Ensure boolean for cross-endpoint consistency
         }));
 }
 
@@ -1006,7 +1006,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 }
             }
 
-            console.log(`${playerData.isBot ? '🤖' : '👤'} ${name} joined`);
+            console.log(`${playerData.isBot ? '🤖' : '👤'} ${name} joined (broadcasting to ${players.size - 1} other clients)`);
 
             // Send joined confirmation with all players
             ws.send(JSON.stringify({
@@ -1022,7 +1022,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 players: getPlayerList().filter(p => p.id !== playerId)
             }));
 
-            // Notify others
+            // Notify others (ensure isBot flag is explicitly set)
             broadcast({
                 type: 'player_joined',
                 player: {
@@ -1032,7 +1032,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
                     color: playerData.color,
                     x: playerData.x,
                     y: playerData.y,
-                    isBot: playerData.isBot || false
+                    isBot: !!playerData.isBot  // Ensure boolean, not undefined
                 }
             }, playerId);
             break;
@@ -1237,7 +1237,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             
             players.set(playerId, playerData);
 
-            console.log(`🤖 ${name} joined`);
+            console.log(`🤖 ${name} joined (broadcasting to ${players.size - 1} game clients)`);
 
             ws.send(JSON.stringify({
                 type: 'joined',
@@ -1251,9 +1251,18 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 players: getPlayerList().filter(p => p.id !== playerId)
             }));
 
+            // Ensure bot is visible to all game clients
             broadcast({
                 type: 'player_joined',
-                player: { id: playerId, name, species: playerData.species, color: playerData.color, x: playerData.x, y: playerData.y, isBot: true }
+                player: { 
+                    id: playerId, 
+                    name, 
+                    species: playerData.species, 
+                    color: playerData.color, 
+                    x: playerData.x, 
+                    y: playerData.y, 
+                    isBot: true  // Explicit bot flag for game clients
+                }
             }, playerId);
             break;
         }
