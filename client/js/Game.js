@@ -983,33 +983,8 @@ class Game {
             npc.update(deltaTime, this.collisionSystem);
         }
 
-        // Maintain gentle separation between moving characters so they don't overlap
-        this.pushPlayerAwayFromNPCs();
 
-        // Stuck detection: if player is on a solid tile, nudge to nearest passable tile
-        if (this.player && this.collisionSystem && this.currentLocation === 'outdoor') {
-            const px = this.player.position.x;
-            const py = this.player.position.y;
-            const tileX = Math.floor(px / CONSTANTS.TILE_SIZE);
-            const tileY = Math.floor(py / CONSTANTS.TILE_SIZE);
-            if (this.collisionSystem.isTileSolid(tileX, tileY)) {
-                // Player is ON a solid tile — search outward for a passable tile
-                for (let r = 1; r <= 5; r++) {
-                    let escaped = false;
-                    for (let dy = -r; dy <= r && !escaped; dy++) {
-                        for (let dx = -r; dx <= r && !escaped; dx++) {
-                            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // Only check ring
-                            if (!this.collisionSystem.isTileSolid(tileX + dx, tileY + dy)) {
-                                this.player.position.x = (tileX + dx) * CONSTANTS.TILE_SIZE + 4;
-                                this.player.position.y = (tileY + dy) * CONSTANTS.TILE_SIZE + 4;
-                                escaped = true;
-                            }
-                        }
-                    }
-                    if (escaped) break;
-                }
-            }
-        }
+        // Stuck detection removed — collision is pre-movement blocking only
 
         // Update world items and check for pickups (every 0.15s for performance)
         // Don't pick up items until welcome screen is dismissed
