@@ -260,6 +260,22 @@ class DecorationLoader {
             width: 24, height: 20,
             collision: null,
             ground: true
+        },
+        
+        // === BRIDGES ===
+        bridge_wood_v: {
+            path: 'assets/sprites/decorations/bridge_wood_v.png',
+            width: 16, height: 32,
+            collision: null,
+            ground: true,
+            bridge: true
+        },
+        bridge_wood_h: {
+            path: 'assets/sprites/decorations/bridge_wood_h.png',
+            width: 32, height: 16,
+            collision: null,
+            ground: true,
+            bridge: true
         }
     };
 

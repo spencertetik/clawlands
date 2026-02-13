@@ -30,6 +30,33 @@ class Game {
             maxIslandSize: 28,
             bridgeChance: 0.9  // More bridges between islands
         });
+        if (typeof EDITOR_MAP_DATA !== 'undefined' && EDITOR_MAP_DATA.terrainMap) {
+            const flat = EDITOR_MAP_DATA.terrainMap;
+            const w = EDITOR_MAP_DATA.terrainWidth || 200;
+            const h = EDITOR_MAP_DATA.terrainHeight || 200;
+            // Convert flat 1D array to 2D grid if needed
+            if (Array.isArray(flat) && !Array.isArray(flat[0])) {
+                const grid = [];
+                for (let r = 0; r < h; r++) {
+                    grid.push(flat.slice(r * w, r * w + w));
+                }
+                this.worldMap.terrainMap = grid;
+            } else {
+                this.worldMap.terrainMap = flat;
+            }
+            if (EDITOR_MAP_DATA.terrainWidth) this.worldMap.width = w;
+            if (EDITOR_MAP_DATA.terrainHeight) this.worldMap.height = h;
+            // Re-run auto-tiler on editor terrain for smooth transitions
+            const autoTiler = new AutoTiler();
+            const tiledLayer = autoTiler.autoTileLayer(this.worldMap.terrainMap, w, h);
+            this.worldMap.groundLayer = this.worldMap.createEmptyLayer();
+            for (let row = 0; row < h; row++) {
+                for (let col = 0; col < w; col++) {
+                    this.worldMap.setTile(this.worldMap.groundLayer, col, row, tiledLayer[row][col]);
+                }
+            }
+            console.log('✅ Re-auto-tiled editor terrain for smooth transitions');
+        }
         this.outdoorMap = this.worldMap;
 
         this.worldWidth = worldTilesWide * CONSTANTS.TILE_SIZE;
@@ -1159,9 +1186,11 @@ class Game {
         
         // Update minimap (outdoor only)
         if (this.minimap && this.currentLocation === 'outdoor') {
-            const remotes = this.multiplayerClient ? Array.from(this.multiplayerClient.remotePlayers.values()) : [];
-            this.minimap.update(deltaTime, this.player, this.npcs, this.buildings, this.waygates, remotes);
-            this.minimap.render();
+            try {
+                const remotes = this.multiplayerClient ? Array.from(this.multiplayerClient.remotePlayers.values()) : [];
+                this.minimap.update(deltaTime, this.player, this.npcs, this.buildings, this.waygates, remotes);
+                this.minimap.render();
+            } catch (e) { /* minimap error won't block game render */ }
         }
         
         // Update footstep effects
@@ -4839,8 +4868,11 @@ class Game {
             }
         }
         
-        // Generate town layouts: cobblestone plazas, roads connecting buildings
-        this.generatePaths(sortedIslands);
+        // Only generate procedural paths if editor map data has no decorations
+        if (typeof EDITOR_MAP_DATA === 'undefined' || !EDITOR_MAP_DATA.decorations || EDITOR_MAP_DATA.decorations.length === 0) {
+            // Generate town layouts: cobblestone plazas, roads connecting buildings
+            this.generatePaths(sortedIslands);
+        }
 
         // Apply any editor overrides (currently clean slate)
         this.applyEditorMapData();
@@ -4848,7 +4880,8 @@ class Game {
         // Mark collision for ALL solid decorations
         this.markDecorationCollisions();
 
-        // Build auto-tiled path layer from dirt_path decoration positions
+        // Build auto-tiled path layer from dirt_path/cobblestone_path decoration positions
+        // (runs for both procedural and editor maps — editor paths need transitions too)
         this.buildPathTileLayer();
 
         this.outdoorBuildings = [...this.buildings];
@@ -5152,8 +5185,40 @@ class Game {
         if (typeof EDITOR_MAP_DATA === 'undefined') return;
         
         const data = EDITOR_MAP_DATA;
-        let placed = 0;
+        let decorationPlaced = 0;
+        let buildingsPlaced = 0;
         let deleted = 0;
+        
+        if (!Array.isArray(this.decorations)) this.decorations = [];
+        if (!Array.isArray(this.buildings)) this.buildings = [];
+        if (!Array.isArray(this.signs)) this.signs = [];
+        
+        const decorationKey = (type, x, y) => `${type}:${x}:${y}`;
+        const buildingKey = (type, x, y) => `${type}:${x}:${y}`;
+        const existingDecorationKeys = new Set(this.decorations.map(d => decorationKey(d.type, d.x, d.y)));
+        const existingBuildingKeys = new Set(this.buildings.map(b => buildingKey(b.type, b.x, b.y)));
+        const addDecorations = (items) => {
+            if (!Array.isArray(items) || !this.decorationLoader) return 0;
+            let count = 0;
+            for (const item of items) {
+                if (!item || typeof item.type !== 'string') continue;
+                const x = typeof item.x === 'number' ? item.x : 0;
+                const y = typeof item.y === 'number' ? item.y : 0;
+                const key = decorationKey(item.type, x, y);
+                if (existingDecorationKeys.has(key)) continue;
+                const decor = this.decorationLoader.createDecoration(item.type, x, y);
+                if (!decor) continue;
+                existingDecorationKeys.add(key);
+                decor.editorPlaced = item.editorPlaced === undefined ? true : item.editorPlaced;
+                if (item.layer !== undefined) decor.layer = item.layer;
+                if (item.width !== undefined) decor.width = item.width;
+                if (item.height !== undefined) decor.height = item.height;
+                if (item.ground !== undefined) decor.ground = item.ground;
+                this.decorations.push(decor);
+                count++;
+            }
+            return count;
+        };
         
         // First: remove deleted decorations
         if (data.deleted && data.deleted.length > 0) {
@@ -5167,29 +5232,60 @@ class Game {
                 }
                 return true;
             });
-        }
-        
-        // Then: add editor-placed items
-        if (data.placements) {
-            for (const [type, coords] of Object.entries(data.placements)) {
-                for (const [x, y] of coords) {
-                    // Check for duplicates
-                    const exists = this.decorations.some(d => 
-                        d.x === x && d.y === y && d.type === type
-                    );
-                    if (exists) continue;
-                    
-                    // Create decoration using the loader
-                    const decor = this.decorationLoader.createDecoration(type, x, y);
-                    if (decor) {
-                        this.decorations.push(decor);
-                        placed++;
-                    }
+            if (deleted > 0) {
+                existingDecorationKeys.clear();
+                for (const decor of this.decorations) {
+                    existingDecorationKeys.add(decorationKey(decor.type, decor.x, decor.y));
                 }
             }
         }
         
-        console.log(`🗺️ Editor map data applied: ${placed} placed, ${deleted} deleted`);
+        decorationPlaced += addDecorations(data.decorations);
+        decorationPlaced += addDecorations(data.editorPlaced);
+        
+        if (Array.isArray(data.buildings) && data.buildings.length > 0) {
+            // Clear procedural buildings/signs so only editor buildings remain
+            this.buildings = [];
+            this.signs = [];
+            this.collisionSystem.clearBuildings();
+            existingBuildingKeys.clear();
+            const tileSize = CONSTANTS.TILE_SIZE;
+            for (const entry of data.buildings) {
+                if (!entry || typeof entry.type !== 'string') continue;
+                const x = typeof entry.x === 'number' ? entry.x : 0;
+                const y = typeof entry.y === 'number' ? entry.y : 0;
+                const key = buildingKey(entry.type, x, y);
+                if (existingBuildingKeys.has(key)) continue;
+                const sprite = this.assetLoader?.getImage(`building_${entry.type}_base`) || null;
+                const building = new Building(x, y, entry.type, sprite);
+                if (entry.name) building.name = entry.name;
+                building.editorPlaced = entry.editorPlaced === undefined ? true : entry.editorPlaced;
+                if (typeof entry.width === 'number') building.width = entry.width;
+                if (typeof entry.height === 'number') building.height = entry.height;
+                if (entry.width !== undefined || entry.height !== undefined) {
+                    building.doorOffsetX = building.getDoorOffsetX();
+                    building.doorOffsetY = building.getDoorOffsetY();
+                }
+                this.buildings.push(building);
+                this.collisionSystem.addBuilding(building);
+                const col = Math.floor(x / tileSize);
+                const row = Math.floor(y / tileSize);
+                const tilesW = Math.ceil(building.width / tileSize);
+                const tilesH = Math.ceil(building.height / tileSize);
+                if (this.worldMap?.clearDecorationRect) {
+                    this.worldMap.clearDecorationRect(col, row, tilesW, tilesH);
+                }
+                if (typeof Sign !== 'undefined') {
+                    const signX = building.x + building.width + 4;
+                    const signY = building.y + building.height - tileSize;
+                    this.signs.push(new Sign(signX, signY, building.name));
+                }
+                existingBuildingKeys.add(key);
+                buildingsPlaced++;
+            }
+        }
+        
+        console.log(`🗺️ Editor map data applied: ${decorationPlaced} decorations, ${buildingsPlaced} buildings, ${deleted} deleted`);
     }
 
     // Apply permanent interior editor data when entering a building

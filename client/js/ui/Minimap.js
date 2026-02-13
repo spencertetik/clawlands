@@ -171,7 +171,7 @@ class Minimap {
         ctx.fillRect(0, 0, size, size);
         
         // Draw pre-rendered map texture
-        if (this.mapTexture) {
+        if (this.mapTexture && this.mapTexture.width > 0 && this.mapTexture.height > 0) {
             ctx.drawImage(this.mapTexture, 0, 0, size, size);
         }
         
