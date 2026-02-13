@@ -983,54 +983,8 @@ class Game {
             npc.update(deltaTime, this.collisionSystem);
         }
 
-        // Continuously push player away from NPCs (gentle nudge each frame)
-        // Uses a small collision core so player can get close but not overlap
-        // IMPORTANT: check collision before pushing to avoid pushing into walls/water
-        if (this.player && this.npcs && this.currentLocation === 'outdoor') {
-            for (const npc of this.npcs) {
-                const playerBox = this.player.getCollisionBox ? this.player.getCollisionBox() : {
-                    x: this.player.position.x,
-                    y: this.player.position.y,
-                    width: this.player.width,
-                    height: this.player.height
-                };
-                const npcBox = npc.getCollisionBox ? npc.getCollisionBox() : {
-                    x: npc.position.x + 3,
-                    y: npc.position.y + 4,
-                    width: npc.width - 6,
-                    height: npc.height - 6
-                };
-                const overlapping = !(
-                    playerBox.x + playerBox.width <= npcBox.x || playerBox.x >= npcBox.x + npcBox.width ||
-                    playerBox.y + playerBox.height <= npcBox.y || playerBox.y >= npcBox.y + npcBox.height
-                );
-                if (overlapping) {
-                    const npcCX = npcBox.x + npcBox.width / 2;
-                    const npcCY = npcBox.y + npcBox.height / 2;
-                    const plCX = playerBox.x + playerBox.width / 2;
-                    const plCY = playerBox.y + playerBox.height / 2;
-                    let dx = plCX - npcCX;
-                    let dy = plCY - npcCY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 0.1) { dx = 1; dy = 0; } else { dx /= dist; dy /= dist; }
-                    const px = this.player.position.x;
-                    const py = this.player.position.y;
-                    // Check if push destination is valid before moving
-                    const pushX = px + dx * 1.5;
-                    const pushY = py + dy * 1.5;
-                    const canPushX = !this.collisionSystem || !this.collisionSystem.isTileSolid(
-                        Math.floor(pushX / CONSTANTS.TILE_SIZE),
-                        Math.floor(py / CONSTANTS.TILE_SIZE)
-                    );
-                    const canPushY = !this.collisionSystem || !this.collisionSystem.isTileSolid(
-                        Math.floor(px / CONSTANTS.TILE_SIZE),
-                        Math.floor(pushY / CONSTANTS.TILE_SIZE)
-                    );
-                    if (canPushX) this.player.position.x = pushX;
-                    if (canPushY) this.player.position.y = pushY;
-                }
-            }
-        }
+        // Collision with NPCs is now handled purely in the collision system 
+        // No push/repel forces - player simply stops when hitting solid objects
 
         // Stuck detection: if player is on a solid tile, nudge to nearest passable tile
         if (this.player && this.collisionSystem && this.currentLocation === 'outdoor') {
@@ -1936,10 +1890,6 @@ class Game {
         // NPC interaction
         const npc = this.findNearbyNPC();
         if (npc) {
-            if (npc.isBridgeBlocker) {
-                this.handleBridgeBlockerInteraction(npc);
-                return;
-            }
             // Check if this is a shop/market merchant — open shop after dialog finishes
             const shopNPCNames = ['Merchant Bristle', 'Vendor Shelly', 'Trader Pinch'];
             const isShopMerchant = this.currentLocation === 'interior' && 
@@ -3642,7 +3592,7 @@ class Game {
 
         // Now spawn Story NPCs and bridge blockers at specific locations
         this.createStoryNPCs(islands);
-        this.createBridgeBlockerNPCs(islands);
+        this.createBridgeGuardNPCs(islands);
     }
     
     // Create Story NPCs (named characters with unique dialogue trees)
@@ -3744,84 +3694,51 @@ class Game {
         console.log(`📖 Created ${storyNPCCount} story NPCs`);
     }
 
-    // Create NPCs that block bridge chokepoints until tasks are complete
-    createBridgeBlockerNPCs(islands) {
+    // Create bridge guard NPCs (now just standing there, no collision blocking)
+    createBridgeGuardNPCs(islands) {
         if (!islands || islands.length === 0) return;
         if (!this.worldMap.bridgeConnections || this.worldMap.bridgeConnections.length === 0) return;
 
         const tileSize = CONSTANTS.TILE_SIZE;
-        const blockerConfigs = [
+        const guardConfigs = [
             {
-                id: 'bridge_guard_port_to_molthaven',
                 name: 'Tidewatch Warden',
                 species: 'lobster',
                 hueShift: 12,
                 connection: [0, 1],
-                requirement: { itemId: 'coral_fragment', quantity: 3, label: 'Coral Fragments' },
-                dialog: {
-                    blocked: [
-                        'Hold there, Drift-In.',
-                        'Molthaven bridge is closed until the lashings are reinforced.',
-                        'Bring me 3 Coral Fragments so I can brace the ropes.'
-                    ],
-                    ready: [
-                        'Good. These coral spines will grip the beams.',
-                        'Stay close while I set them.'
-                    ],
-                    cleared: [
-                        'Bridge is steady now. Keep your shell low if the wind howls.'
-                    ]
-                }
+                dialog: [
+                    'Welcome to the Molthaven bridge.',
+                    'Keep your shell low if the wind howls.',
+                    'The bridges are reinforced now. Safe travels.'
+                ]
             },
             {
-                id: 'bridge_guard_molthaven_to_ironreef',
                 name: 'Molthaven Sentinel',
                 species: 'crab',
                 hueShift: 180,
                 connection: [1, 2],
-                requirement: { itemId: 'iron_nugget', quantity: 2, label: 'Iron Nuggets' },
-                dialog: {
-                    blocked: [
-                        'Iron Reef passage is restricted.',
-                        'The scholars demand reinforced railings before anyone crosses.',
-                        'Fetch me 2 Iron Nuggets so I can plate the supports.'
-                    ],
-                    ready: [
-                        'Solid metal. Exactly what I needed.',
-                        'Hold fast—this takes a steady claw.'
-                    ],
-                    cleared: [
-                        'Railings are bolted. Report back if you spot any stress cracks.'
-                    ]
-                }
+                dialog: [
+                    'Iron Reef passage is open.',
+                    'The railings are strong and well-bolted.',
+                    'Report back if you spot any stress cracks.'
+                ]
             },
             {
-                id: 'bridge_guard_ironreef_to_deepcoil',
                 name: 'Deepcoil Sentinel',
                 species: 'mantis_shrimp',
                 hueShift: 310,
                 connection: [2, 3],
-                requirement: { itemId: 'ancient_shell', quantity: 1, label: 'Ancient Shell' },
-                dialog: {
-                    blocked: [
-                        'Deepcoil Isle is sealed to the unproven.',
-                        'The Chronicle wards are brittle from the storm.',
-                        'Bring me an Ancient Shell so I can scribe a new ward and let you pass.'
-                    ],
-                    ready: [
-                        'The shell hums with memory. Perfect.',
-                        'Stand back while I etch the sigils.'
-                    ],
-                    cleared: [
-                        'The ward holds. Thread carefully among the archives.'
-                    ]
-                }
+                dialog: [
+                    'The way to Deepcoil Isle is clear.',
+                    'The Chronicle wards hold strong.',
+                    'Thread carefully among the archives.'
+                ]
             }
         ];
 
-        let blockerCount = 0;
+        let guardCount = 0;
 
-        for (const config of blockerConfigs) {
+        for (const config of guardConfigs) {
             const connection = this.worldMap.bridgeConnections.find(conn => {
                 const indexes = [conn.island1Index, conn.island2Index];
                 return indexes.includes(config.connection[0]) && indexes.includes(config.connection[1]);
@@ -3833,115 +3750,51 @@ class Game {
             const centerWorldX = centerTileX * tileSize + tileSize / 2;
             const centerWorldY = centerTileY * tileSize + tileSize / 2;
 
-            const blockedX = centerWorldX - CONSTANTS.CHARACTER_WIDTH / 2;
-            const blockedY = centerWorldY - CONSTANTS.CHARACTER_HEIGHT;
-
+            // Find a position to the side of the bridge for the guard
             const dirX = connection.island2.x - connection.island1.x;
             const dirY = connection.island2.y - connection.island1.y;
             const magnitude = Math.hypot(dirX, dirY) || 1;
             const perpX = -dirY / magnitude;
             const perpY = dirX / magnitude;
-            const offsetTiles = config.sideOffsetTiles ?? 2;
+            const offsetTiles = 2;
 
             const candidateCenters = [
                 { x: centerWorldX + perpX * offsetTiles * tileSize, y: centerWorldY + perpY * offsetTiles * tileSize },
                 { x: centerWorldX - perpX * offsetTiles * tileSize, y: centerWorldY - perpY * offsetTiles * tileSize }
             ];
 
-            let clearCenter = { x: centerWorldX, y: centerWorldY };
+            let guardCenter = { x: centerWorldX, y: centerWorldY };
             for (const candidate of candidateCenters) {
                 const tileX = Math.floor(candidate.x / tileSize);
                 const tileY = Math.floor(candidate.y / tileSize);
                 if (this.worldMap.terrainMap?.[tileY]?.[tileX] === 0) {
-                    clearCenter = candidate;
+                    guardCenter = candidate;
                     break;
                 }
             }
 
-            const clearX = clearCenter.x - CONSTANTS.CHARACTER_WIDTH / 2;
-            const clearY = clearCenter.y - CONSTANTS.CHARACTER_HEIGHT;
+            const guardX = guardCenter.x - CONSTANTS.CHARACTER_WIDTH / 2;
+            const guardY = guardCenter.y - CONSTANTS.CHARACTER_HEIGHT;
 
-            const npc = new NPC(blockedX, blockedY, config.name, config.dialog.blocked, config.species);
-            npc.isBridgeBlocker = true;
-            npc.blockerId = config.id;
-            npc.blockerConfig = config;
-            npc.blockerRequirement = config.requirement;
-            npc.blockerDialog = config.dialog;
+            const npc = new NPC(guardX, guardY, config.name, config.dialog, config.species);
             npc.canWander = false;
-            npc.homePosition = { x: blockedX, y: blockedY };
-            npc.blockedPosition = { x: blockedX, y: blockedY };
-            npc.clearPosition = { x: clearX, y: clearY };
+            npc.homePosition = { x: guardX, y: guardY };
             if (typeof config.hueShift === 'number') {
                 npc.hueShift = config.hueShift;
             }
 
-            const blockerState = this.blockerState[config.id];
-            if (blockerState?.cleared) {
-                npc.position.x = npc.clearPosition.x;
-                npc.position.y = npc.clearPosition.y;
-                npc.homePosition = { ...npc.clearPosition };
-                npc.dialog = config.dialog.cleared;
-            }
-
             this.loadNPCSprite(npc);
             this.npcs.push(npc);
-            blockerCount++;
-            console.log(`  🛡️ Bridge blocker ${config.name} guarding ${config.connection.join(' ↔ ')}`);
+            guardCount++;
+            console.log(`  🛡️ Bridge guard ${config.name} at ${config.connection.join(' ↔ ')}`);
         }
 
-        if (blockerCount > 0) {
-            console.log(`🚧 Added ${blockerCount} bridge blockers`);
+        if (guardCount > 0) {
+            console.log(`👮 Added ${guardCount} bridge guards`);
         }
     }
 
-    handleBridgeBlockerInteraction(npc) {
-        if (!npc || !npc.blockerConfig || !this.dialogSystem) return;
-
-        const config = npc.blockerConfig;
-        const requirement = npc.blockerRequirement;
-        const inventory = this.inventorySystem;
-        const state = this.blockerState[config.id] || { cleared: false };
-
-        const showDialog = (lines) => {
-            if (!lines || lines.length === 0) return;
-            this.sfx.play('dialog_open');
-            this.dialogSystem.show(lines);
-        };
-
-        if (!state.cleared) {
-            if (!requirement || !inventory) {
-                showDialog(config.dialog.blocked);
-                return;
-            }
-
-            if (inventory.hasItem(requirement.itemId, requirement.quantity)) {
-                inventory.removeItem(requirement.itemId, requirement.quantity);
-                this.blockerState[config.id] = { cleared: true };
-                this.moveBridgeBlockerAside(npc);
-                if (this.continuitySystem) {
-                    this.continuitySystem.addContinuity(4, `bridge_blocker_${config.id}`);
-                }
-                const successLines = [
-                    ...(config.dialog.ready || []),
-                    ...(config.dialog.cleared || [])
-                ];
-                showDialog(successLines.length ? successLines : config.dialog.cleared);
-            } else {
-                showDialog(config.dialog.blocked);
-            }
-            return;
-        }
-
-        showDialog(config.dialog.cleared || npc.dialog);
-    }
-
-    moveBridgeBlockerAside(npc) {
-        if (!npc || !npc.clearPosition) return;
-        npc.position.x = npc.clearPosition.x;
-        npc.position.y = npc.clearPosition.y;
-        npc.homePosition = { ...npc.clearPosition };
-        npc.dialog = npc.blockerDialog?.cleared || npc.dialog;
-    }
+    // Bridge blocker functions removed - guards are now just regular NPCs
 
     // Create decorations (plants, shells, rocks) on islands
     createDecorations(islands) {
@@ -5247,8 +5100,7 @@ class Game {
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
         
-        // Push player away from any overlapping NPCs
-        this.pushPlayerAwayFromNPCs();
+        // Player collision with NPCs is handled in the collision system
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
         console.log(`✨ Created ${this.waygates.length} waygates, stability engine: ${this.stabilityEngine ? 'yes' : 'no'}`);
@@ -6509,74 +6361,7 @@ class Game {
         }
     }
 
-    // Push player away from any overlapping NPCs after spawn
-    pushPlayerAwayFromNPCs() {
-        if (!this.npcs || !this.player) return;
-        
-        const px = this.player.position.x;
-        const py = this.player.position.y;
-        const pw = this.player.width;
-        const ph = this.player.height;
-        const tileSize = CONSTANTS.TILE_SIZE;
-        
-        for (const npc of this.npcs) {
-            const overlapping = !(
-                px + pw <= npc.position.x || px >= npc.position.x + npc.width ||
-                py + ph <= npc.position.y || py >= npc.position.y + npc.height
-            );
-            
-            if (overlapping) {
-                // Calculate direction away from NPC center
-                const npcCenterX = npc.position.x + npc.width / 2;
-                const npcCenterY = npc.position.y + npc.height / 2;
-                const playerCenterX = px + pw / 2;
-                const playerCenterY = py + ph / 2;
-                
-                let dx = playerCenterX - npcCenterX;
-                let dy = playerCenterY - npcCenterY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                // Normalize, default to pushing right if exactly overlapping
-                if (dist < 0.1) { dx = 1; dy = 0; }
-                else { dx /= dist; dy /= dist; }
-                
-                // Push player 2 tiles away from NPC
-                const pushDist = tileSize * 2;
-                let newX = px + dx * pushDist;
-                let newY = py + dy * pushDist;
-                
-                // Verify the pushed position is safe (temporarily remove NPC check to avoid recursion)
-                const npcsBackup = this.npcs;
-                this.npcs = [];
-                const safe = this.isPositionSafe(newX + pw / 2, newY + ph / 2);
-                this.npcs = npcsBackup;
-                
-                if (safe) {
-                    this.player.position.x = newX;
-                    this.player.position.y = newY;
-                    console.log(`🏃 Pushed player away from NPC "${npc.name}" by ${pushDist}px`);
-                    return;
-                } else {
-                    // Try 8 cardinal/diagonal directions
-                    for (let angle = 0; angle < 8; angle++) {
-                        const rad = (angle / 8) * Math.PI * 2;
-                        const testX = px + Math.cos(rad) * pushDist;
-                        const testY = py + Math.sin(rad) * pushDist;
-                        this.npcs = [];
-                        const testSafe = this.isPositionSafe(testX + pw / 2, testY + ph / 2);
-                        this.npcs = npcsBackup;
-                        if (testSafe) {
-                            this.player.position.x = testX;
-                            this.player.position.y = testY;
-                            console.log(`🏃 Pushed player away from NPC "${npc.name}" (direction ${angle})`);
-                            return;
-                        }
-                    }
-                    console.warn(`⚠️ Could not push player away from NPC "${npc.name}" — no safe direction found`);
-                }
-            }
-        }
-    }
+    // Push/repel mechanics removed - collision is now simple blocking
 
     // Find a suitable spawn location for the player on an island
     findPlayerSpawnLocation(islands) {
