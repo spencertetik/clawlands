@@ -275,10 +275,19 @@ class CombatSystem {
 
         // Handle attack differently for multiplayer vs single-player
         if (this.isMultiplayerActive()) {
-            // Send attack to server - server will handle hit detection and broadcast results
+            // Send attack to server - calculate potential targets for better responsiveness
+            const targetEnemyIds = [];
+            for (const enemy of this.serverEnemies.values()) {
+                if (enemy.isAlive() && this.checkHitboxCollision(hitbox, enemy.getBounds())) {
+                    targetEnemyIds.push(enemy.id);
+                }
+            }
+            
             if (this.multiplayerClient && typeof this.multiplayerClient.sendAttack === 'function') {
                 this.multiplayerClient.sendAttack({
-                    direction: player.direction || 'down'
+                    direction: player.direction || 'down',
+                    weapon: weapon,
+                    targetEnemyIds: targetEnemyIds
                 });
             }
         } else {
@@ -446,10 +455,10 @@ class CombatSystem {
             }
         }
 
-        // Check multiplayer enemies
-        if (!nearbyEnemy && this.multiplayerEnemies) {
-            for (const enemy of this.multiplayerEnemies.values()) {
-                if (enemy.isAlive() && enemy.distanceTo(player) < enemy.aggroRange) {
+        // Check server enemies  
+        if (!nearbyEnemy && this.serverEnemies) {
+            for (const enemy of this.serverEnemies.values()) {
+                if (enemy.isAlive() && enemy.distanceTo(player) < (enemy.aggroRange || 80)) {
                     nearbyEnemy = true;
                     break;
                 }
@@ -989,7 +998,11 @@ class CombatSystem {
 
     // Get enemy count for debug/stats
     getEnemyCount() {
-        return this.enemies.filter(e => e.isAlive()).length;
+        if (this.isMultiplayerActive()) {
+            return Array.from(this.serverEnemies.values()).filter(e => e.isAlive()).length;
+        } else {
+            return this.enemies.filter(e => e.isAlive()).length;
+        }
     }
 
     // Track a kill (tokens awarded via ResolveUI based on player's choice)
@@ -1080,13 +1093,82 @@ class CombatSystem {
 
     setMultiplayerClient(client) {
         this.multiplayerClient = client;
+        console.log('🎮 CombatSystem: Multiplayer client set');
+        
         if (client) {
-            client.setEnemyDelegate(this);
+            // Clear local enemies when connecting to multiplayer
+            if (client.connected) {
+                console.log('🎮 Clearing local enemies for multiplayer mode');
+                this.enemies = [];
+                this.pendingResolve = null;
+                if (this.resolveUI?.isVisible) {
+                    this.resolveUI.hide();
+                }
+            }
+            
+            // Set up enemy delegate if the method exists
+            if (typeof client.setEnemyDelegate === 'function') {
+                client.setEnemyDelegate(this);
+            }
         }
     }
 
     isMultiplayerActive() {
         return this.multiplayerClient && this.multiplayerClient.connected;
+    }
+
+    addServerEnemy(enemy) {
+        if (enemy && enemy.id) {
+            this.serverEnemies.set(enemy.id, enemy);
+            console.log(`🦾 Added server enemy: ${enemy.name} (${enemy.id})`);
+        }
+    }
+
+    removeServerEnemy(enemyId) {
+        if (this.serverEnemies.has(enemyId)) {
+            this.serverEnemies.delete(enemyId);
+            console.log(`🪦 Removed server enemy: ${enemyId}`);
+        }
+    }
+
+    getServerEnemies() {
+        return Array.from(this.serverEnemies.values());
+    }
+
+    getAllEnemies() {
+        // Return local enemies in single player, server enemies in multiplayer
+        if (this.isMultiplayerActive()) {
+            return this.getServerEnemies();
+        } else {
+            return this.enemies;
+        }
+    }
+
+    handleServerAttackResult(msg) {
+        // Handle attack result from server
+        if (msg.hit) {
+            console.log(`⚔️ Server attack hit: ${msg.enemyName || 'Enemy'} for ${msg.damage || 0} damage`);
+            
+            // Play hit sound
+            if (this.game.sfx) {
+                this.game.sfx.play('enemy_hit');
+            }
+
+            // Spawn damage number if we know the enemy
+            const enemy = this.serverEnemies.get(msg.enemyId);
+            if (enemy) {
+                this.damageNumbers.push({
+                    x: enemy.x + enemy.width / 2,
+                    y: enemy.y - 5,
+                    text: `-${msg.damage || 0}`,
+                    life: 0.8,
+                    vy: -30
+                });
+            }
+
+            // Small screen shake on hit
+            this.triggerShake(2, 100);
+        }
     }
 
     handleLocalAttack(hitbox, weapon, player) {
@@ -1229,8 +1311,10 @@ class CombatSystem {
 
     // Get total enemy count (local + multiplayer)
     getEnemyCount() {
-        const localAlive = this.enemies.filter(e => e.isAlive()).length;
-        const multiplayerAlive = Array.from(this.multiplayerEnemies.values()).filter(e => e.isAlive()).length;
-        return localAlive + multiplayerAlive;
+        if (this.isMultiplayerActive()) {
+            return Array.from(this.serverEnemies.values()).filter(e => e.isAlive()).length;
+        } else {
+            return this.enemies.filter(e => e.isAlive()).length;
+        }
     }
 }

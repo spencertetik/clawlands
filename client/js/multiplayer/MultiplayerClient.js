@@ -300,6 +300,15 @@ class MultiplayerClient {
         });
     }
 
+    sendAttack(attackData) {
+        this.send({
+            type: 'attack',
+            direction: attackData.direction,
+            weapon: attackData.weapon,
+            targetEnemyIds: attackData.targetEnemyIds
+        });
+    }
+
     sendAttack(payload = {}) {
         this.send({
             type: 'attack',
