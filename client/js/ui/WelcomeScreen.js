@@ -1542,7 +1542,11 @@ class WelcomeScreen {
             enterBtn.style.boxShadow = 'none';
         };
         enterBtn.onclick = () => {
-            const name = nameInput.value.trim() || 'Unnamed Agent';
+            let name = nameInput.value.trim();
+            if (!name) {
+                name = this.getRandomCrustaceanName();
+                nameInput.value = name;
+            }
             this.finalize(this.currentConfig, name);
         };
         buttonsRow.appendChild(enterBtn);
@@ -1556,6 +1560,22 @@ class WelcomeScreen {
         overlay.appendChild(this.container);
         requestAnimationFrame(() => this.fitToScreen());
         this.renderPreview();
+    }
+
+    getRandomCrustaceanName() {
+        const prefixes = [
+            'Barnacle', 'Captain', 'Coral', 'Admiral', 'Sandy', 'Salty', 'Crusty',
+            'Drift', 'Reef', 'Tide', 'Shell', 'Brine', 'Kelp', 'Anchor',
+            'Harbor', 'Pearl', 'Claw', 'Pinch', 'Snapper', 'Bubbles'
+        ];
+        const suffixes = [
+            'McShell', 'Clawsworth', 'Pincherton', 'Shellsworth', 'Tidecaller',
+            'Reefwalker', 'Sandcrawler', 'Wavecrest', 'Deepclaw', 'Shellfire',
+            'Coralcrest', 'Driftwood'
+        ];
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+        const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+        return `${prefix} ${suffix}`;
     }
 
     /**

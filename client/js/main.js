@@ -214,15 +214,17 @@ window.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             game.toggleDebug();
         }
-        // Feedback form (F key)
+        // Feedback form (F key) - only in dev mode
         else if (e.key === 'f' || e.key === 'F') {
             e.preventDefault();
-            if (game && game.feedbackSystem) {
+            if (game && game.feedbackSystem && game.devMode) {
                 if (game.feedbackSystem.isOpen) {
                     game.feedbackSystem.close();
                 } else {
                     game.feedbackSystem.open();
                 }
+            } else if (!game.devMode) {
+                console.log('🛠️ Feedback system requires dev mode (Cmd+Shift+D)');
             }
         }
         // Debug: Hold Shift+R to reset character (clear localStorage)
@@ -280,13 +282,22 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        // Toggle faction UI (F)
-        else if (e.key === 'f' || e.key === 'F') {
+        // Toggle Map Editor (E key) - only in dev mode  
+        else if (e.key === 'e' || e.key === 'E') {
             e.preventDefault();
-            if (game && game.factionUI) {
-                game.factionUI.toggle();
+            if (game && game.mapEditor && game.devMode) {
+                game.mapEditor.toggle();
+            } else if (!game.devMode) {
+                console.log('🛠️ Map Editor requires dev mode (Cmd+Shift+D)');
             }
         }
+        // Toggle faction UI (F) - NOTE: This conflicts with feedback F key above
+        // else if (e.key === 'f' || e.key === 'F') {
+        //     e.preventDefault();
+        //     if (game && game.factionUI) {
+        //         game.factionUI.toggle();
+        //     }
+        // }
     });
 
     // Make game accessible for debugging
@@ -349,5 +360,12 @@ window.addEventListener('DOMContentLoaded', () => {
             return game.getTextState();
         }
         return JSON.stringify({ error: 'Game not ready' });
+    };
+
+    // Dev mode visibility control (called from Game.js)
+    window.updateDevModeVisibility = function(devMode) {
+        // Currently no extra UI to show/hide, but this can be extended
+        // for dev tool buttons, editor panels, etc.
+        console.log(`🛠️ Dev mode UI updated: ${devMode ? 'visible' : 'hidden'}`);
     };
 });

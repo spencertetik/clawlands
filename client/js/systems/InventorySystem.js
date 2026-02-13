@@ -125,6 +125,20 @@ class InventorySystem {
         return this.slots.filter(s => s !== null).length;
     }
     
+    // Get aggregated list of items currently held (total quantity per itemId)
+    getItems() {
+        const itemMap = new Map();
+        for (const slot of this.slots) {
+            if (!slot || !slot.itemId) continue;
+            if (!itemMap.has(slot.itemId)) {
+                itemMap.set(slot.itemId, { itemId: slot.itemId, quantity: 0 });
+            }
+            const entry = itemMap.get(slot.itemId);
+            entry.quantity += slot.quantity;
+        }
+        return Array.from(itemMap.values());
+    }
+    
     // Get a slot by index
     getSlot(index) {
         if (index < 0 || index >= this.maxSlots) return null;

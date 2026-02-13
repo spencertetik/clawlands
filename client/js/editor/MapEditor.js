@@ -193,11 +193,14 @@ class MapEditor {
         `;
         
         document.body.appendChild(this.container);
+        // Ensure the editor stays hidden until explicitly enabled
+        this.container.style.display = 'none';
         
         // Cursor preview element
         this.cursorPreview = document.createElement('div');
         this.cursorPreview.className = 'editor-cursor-preview hidden';
         document.body.appendChild(this.cursorPreview);
+        this.cursorPreview.style.display = 'none';
     }
     
     populateAssets() {
@@ -305,6 +308,8 @@ class MapEditor {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             
             if (e.key === 'e' || e.key === 'E') {
+                // Only allow editor toggle in dev mode
+                if (window.game && !window.game.devMode) return;
                 this.toggle();
                 return;
             }
@@ -533,6 +538,8 @@ class MapEditor {
         this.enabled = !this.enabled;
         this.container.classList.toggle('hidden', !this.enabled);
         this.cursorPreview.classList.toggle('hidden', !this.enabled);
+        this.container.style.display = this.enabled ? '' : 'none';
+        this.cursorPreview.style.display = this.enabled ? '' : 'none';
         
         // Disable/enable player movement
         if (this.game.inputManager) {

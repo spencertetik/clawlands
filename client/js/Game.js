@@ -213,8 +213,10 @@ class Game {
         }
 
         // World visual effects
-        this.redCurrent = typeof RedCurrent !== 'undefined' ? 
-            new RedCurrent(this.worldWidth, this.worldHeight) : null;
+        // DISABLED: Red Current overlay
+        // this.redCurrent = typeof RedCurrent !== 'undefined' ? 
+        //     new RedCurrent(this.worldWidth, this.worldHeight) : null;
+        this.redCurrent = null;
         
         // Special world objects (created after assets load)
         this.waygates = [];
@@ -223,10 +225,11 @@ class Game {
         // Day/night cycle
         this.dayNightCycle = typeof DayNightCycle !== 'undefined' ? new DayNightCycle() : null;
         
-        if (this.redCurrent) {
-            this.redCurrent.setWorldMap(this.worldMap);
-            console.log('🌊 Red Current initialized');
-        }
+        // DISABLED: Red Current initialization
+        // if (this.redCurrent) {
+        //     this.redCurrent.setWorldMap(this.worldMap);
+        //     console.log('🌊 Red Current initialized');
+        // }
         if (this.dayNightCycle) {
             console.log(`🌅 Day/Night cycle initialized (${this.dayNightCycle.getTimePeriodName()})`);
         }
@@ -287,6 +290,9 @@ class Game {
         // Debug mode (off by default, toggle with backtick key, or ?debug=true URL param)
         const urlParams = new URLSearchParams(window.location.search);
         this.debugMode = urlParams.get('debug') === 'true';
+        
+        // Dev mode (developer tools access) - toggle with Cmd+Shift+D / Ctrl+Shift+D
+        this.devMode = false;
         
         // Spectator mode — ?spectate=BotName to follow a remote player
         this.spectateTarget = urlParams.get('spectate');
@@ -864,10 +870,10 @@ class Game {
                 this.minimap.show();
             }
             
-            // Trigger Drift-In effect at player position
-            if (this.redCurrent) {
-                this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
-            }
+            // DISABLED: Trigger Drift-In effect at player position
+            // if (this.redCurrent) {
+            //     this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
+            // }
             
             // Mark game as active — item pickups, interactions etc. now enabled
             this.gameActive = true;
@@ -1118,10 +1124,10 @@ class Game {
             }
         }
         
-        // Update Red Current visual effect (outdoor only)
-        if (this.redCurrent && this.currentLocation === 'outdoor') {
-            this.redCurrent.update(deltaTime);
-        }
+        // DISABLED: Update Red Current visual effect (outdoor only)
+        // if (this.redCurrent && this.currentLocation === 'outdoor') {
+        //     this.redCurrent.update(deltaTime);
+        // }
         
         // Update Waygates (check visibility based on Continuity)
         if (this.waygates && this.continuitySystem) {
@@ -1375,10 +1381,10 @@ class Game {
         // Render decorations (plants, shells, rocks)
         this.renderDecorations();
         
-        // Render Red Current effect (edge glow and particles)
-        if (this.redCurrent && this.currentLocation === 'outdoor') {
-            this.redCurrent.render(this.renderer, this.camera);
-        }
+        // DISABLED: Render Red Current effect (edge glow and particles)
+        // if (this.redCurrent && this.currentLocation === 'outdoor') {
+        //     this.redCurrent.render(this.renderer, this.camera);
+        // }
         
         // Render Waygates (may be invisible if low Continuity)
         if (this.currentLocation === 'outdoor') {
@@ -2572,19 +2578,67 @@ class Game {
         document.body.appendChild(flash);
         setTimeout(() => flash.remove(), 800);
         
-        // Teleport player to destination gate (position below the gate to avoid re-trigger)
-        this.player.position.x = destGate.x + destGate.width / 2 - this.player.width / 2;
-        this.player.position.y = destGate.y + destGate.height + 8; // Below the gate, not inside it
+        // Teleport player to destination gate (prefer walkable tiles south of gate)
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const gateCenterCol = Math.floor((destGate.x + destGate.width / 2) / tileSize);
+        const gateBaseRow = Math.floor((destGate.y + destGate.height) / tileSize);
+        const preferredRow = gateBaseRow + 2; // A couple of tiles south feels like a doorway exit
+        const collisionLayer = this.worldMap?.collisionLayer;
+
+        const isWalkableTile = (col, row) => {
+            if (!collisionLayer) return true;
+            if (row < 0 || row >= collisionLayer.length) return false;
+            if (col < 0 || col >= collisionLayer[row].length) return false;
+            return collisionLayer[row][col] === 0;
+        };
+
+        const findWalkableLandingTile = (startCol, startRow, maxRadius = 10) => {
+            const offsets = [{ dx: 0, dy: 0 }];
+            for (let radius = 1; radius <= maxRadius; radius++) {
+                for (let dy = 0; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+                        offsets.push({ dx, dy });
+                    }
+                }
+                for (let dy = -1; dy >= -radius; dy--) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+                        offsets.push({ dx, dy });
+                    }
+                }
+            }
+
+            for (const offset of offsets) {
+                const candidateCol = startCol + offset.dx;
+                const candidateRow = startRow + offset.dy;
+                if (isWalkableTile(candidateCol, candidateRow)) {
+                    return { col: candidateCol, row: candidateRow };
+                }
+            }
+            return null;
+        };
+
+        const landingTile = findWalkableLandingTile(gateCenterCol, preferredRow, 10);
+        if (landingTile) {
+            this.placePlayerAtTile(landingTile.col, landingTile.row);
+            console.log(`🚶 Waygate landing at tile (${landingTile.col}, ${landingTile.row}) near ${destGate.name}`);
+        } else {
+            // Fallback to original behavior if no walkable tiles were found
+            this.player.position.x = destGate.x + destGate.width / 2 - this.player.width / 2;
+            this.player.position.y = destGate.y + destGate.height + 8;
+            console.warn('⚠️ Waygate landing fallback used (no walkable tiles found nearby)');
+        }
         
         // Snap camera to new position (camera follows player.position on update)
         this.camera.position.x = this.player.position.x - this.camera.viewportWidth / 2;
         this.camera.position.y = this.player.position.y - this.camera.viewportHeight / 2;
         this.camera.clampToWorld();
         
-        // Trigger Drift-In effect at destination
-        if (this.redCurrent) {
-            this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
-        }
+        // DISABLED: Trigger Drift-In effect at destination
+        // if (this.redCurrent) {
+        //     this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
+        // }
         
         // Add continuity for using waygate
         if (this.continuitySystem) {
@@ -4042,6 +4096,11 @@ class Game {
                 e.preventDefault();
                 this.toggleDebug();
             }
+            // Cmd+Shift+D (Mac) / Ctrl+Shift+D (Windows) = toggle dev mode
+            if (key === 'd' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                this.toggleDevMode();
+            }
         });
 
         // Canvas click handler for HUD panel music toggle
@@ -4210,6 +4269,63 @@ class Game {
         const debugElement = document.getElementById('debug-info');
         if (debugElement) {
             debugElement.classList.toggle('hidden');
+        }
+    }
+
+    // Toggle developer mode (enables map editor, feedback, shows dev indicator)
+    toggleDevMode() {
+        this.devMode = !this.devMode;
+        console.log(`🛠️ Dev mode ${this.devMode ? 'ON' : 'OFF'}`);
+        
+        if (this.devMode) {
+            this.showDevModeIndicator();
+        } else {
+            this.hideDevModeIndicator();
+        }
+        
+        // Update map editor button visibility in main.js
+        this.updateDevModeUI();
+    }
+
+    // Show "DEV MODE" indicator
+    showDevModeIndicator() {
+        let indicator = document.getElementById('dev-mode-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'dev-mode-indicator';
+            indicator.textContent = 'DEV MODE';
+            indicator.style.cssText = `
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                background: rgba(255, 0, 0, 0.8);
+                color: white;
+                padding: 8px 12px;
+                font-family: monospace;
+                font-size: 12px;
+                font-weight: bold;
+                z-index: 10000;
+                border-radius: 4px;
+                pointer-events: none;
+            `;
+            document.body.appendChild(indicator);
+        }
+        indicator.style.display = 'block';
+    }
+
+    // Hide dev mode indicator
+    hideDevModeIndicator() {
+        const indicator = document.getElementById('dev-mode-indicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
+
+    // Update dev mode UI elements (called from toggleDevMode)
+    updateDevModeUI() {
+        // This will be called by main.js to show/hide dev tools
+        if (window.updateDevModeVisibility) {
+            window.updateDevModeVisibility(this.devMode);
         }
     }
 
@@ -5285,7 +5401,54 @@ class Game {
             }
         }
         
+        // Fix bridge collision - mark bridge tiles as walkable
+        this.fixBridgeCollision();
+        
         console.log(`🗺️ Editor map data applied: ${decorationPlaced} decorations, ${buildingsPlaced} buildings, ${deleted} deleted`);
+    }
+
+    // Fix bridge collision by marking bridge tiles as walkable
+    // RULE: Bridge decorations MUST override any underlying collision (water, etc)
+    fixBridgeCollision() {
+        if (!Array.isArray(this.decorations) || !this.worldMap?.collisionLayer) return;
+        
+        const tileSize = CONSTANTS.TILE_SIZE;
+        let bridgesFixed = 0;
+        
+        for (const decor of this.decorations) {
+            // Check if this decoration is a bridge - multiple ways to identify
+            const isBridge = decor.type === 'bridge_wood_v' || 
+                           decor.type === 'bridge_wood_h' || 
+                           (decor.bridge === true) ||
+                           (decor.type && decor.type.includes('bridge'));
+            
+            if (isBridge) {
+                // Calculate which tiles this bridge covers - ensure we cover the full area
+                const width = decor.width || tileSize;
+                const height = decor.height || tileSize;
+                const startCol = Math.floor(decor.x / tileSize);
+                const endCol = Math.floor((decor.x + width - 1) / tileSize);
+                const startRow = Math.floor(decor.y / tileSize);
+                const endRow = Math.floor((decor.y + height - 1) / tileSize);
+                
+                // FORCE all bridge tiles to be walkable - NO EXCEPTIONS
+                for (let row = startRow; row <= endRow; row++) {
+                    if (row >= 0 && row < this.worldMap.collisionLayer.length) {
+                        for (let col = startCol; col <= endCol; col++) {
+                            if (col >= 0 && col < this.worldMap.collisionLayer[row].length) {
+                                // Always set to walkable, regardless of what was there before
+                                this.worldMap.collisionLayer[row][col] = 0;
+                                bridgesFixed++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (bridgesFixed > 0) {
+            console.log(`🌉 Bridge collision override: marked ${bridgesFixed} bridge tiles as walkable`);
+        }
     }
 
     // Apply permanent interior editor data when entering a building
@@ -5723,10 +5886,16 @@ class Game {
         if (!islands || islands.length < 2) return;
         
         const tileSize = CONSTANTS.TILE_SIZE;
+        const buildingBufferPx = Math.max(48, tileSize * 3);
         this.waygates = [];
         
+        const terrainMap = this.worldMap?.terrainMap;
+        const collisionLayer = this.worldMap?.collisionLayer;
+        const mapWidth = this.worldMap?.width || terrainMap?.[0]?.length || 0;
+        const mapHeight = this.worldMap?.height || terrainMap?.length || 0;
+        
         // Helper: check if tile is inside or very close to a building
-        const isNearBuilding = (worldX, worldY, margin = 0) => {
+        const isNearBuilding = (worldX, worldY, margin = buildingBufferPx) => {
             for (const building of this.buildings) {
                 const bx = building.x - margin;
                 const by = building.y - margin;
@@ -5739,140 +5908,184 @@ class Game {
             return false;
         };
         
+        const isWithinBounds = (col, row) => {
+            return row >= 0 && row < mapHeight && col >= 0 && col < mapWidth;
+        };
+        
+        const isSandTile = (col, row) => {
+            return terrainMap?.[row]?.[col] === 0;
+        };
+        
+        const isPositionClearOfBuildings = (col, row) => {
+            const worldX = col * tileSize;
+            const worldY = row * tileSize;
+            return !isNearBuilding(worldX, worldY, buildingBufferPx);
+        };
+        
+        const hasClearLandingZone = (col, row, radiusTiles = 5, maxBlockedRatio = 0.1) => {
+            if (!collisionLayer || !terrainMap) return true;
+            let checked = 0;
+            let blocked = 0;
+            for (let dr = -radiusTiles; dr <= radiusTiles; dr++) {
+                for (let dc = -radiusTiles; dc <= radiusTiles; dc++) {
+                    const checkCol = col + dc;
+                    const checkRow = row + dr;
+                    if (!isWithinBounds(checkCol, checkRow)) {
+                        return false;
+                    }
+                    checked++;
+                    const terrainValue = terrainMap?.[checkRow]?.[checkCol];
+                    const collisionValue = collisionLayer?.[checkRow]?.[checkCol];
+                    const isWater = terrainValue !== 0;
+                    const isBlocked = collisionValue && collisionValue !== 0;
+                    if (isWater || isBlocked) {
+                        blocked++;
+                    }
+                }
+            }
+            return checked > 0 && blocked / checked <= maxBlockedRatio;
+        };
+        
+        const collectWaygateCandidates = (island) => {
+            const candidates = [];
+            const searchRadius = Math.ceil(island.size * 0.75);
+            for (let row = Math.max(0, Math.floor(island.y - searchRadius)); row <= Math.min(mapHeight - 1, Math.floor(island.y + searchRadius)); row++) {
+                for (let col = Math.max(0, Math.floor(island.x - searchRadius)); col <= Math.min(mapWidth - 1, Math.floor(island.x + searchRadius)); col++) {
+                    if (!isSandTile(col, row)) continue;
+                    if (!isPositionClearOfBuildings(col, row)) continue;
+                    if (!hasClearLandingZone(col, row)) continue;
+                    const dx = col - island.x;
+                    const dy = row - island.y;
+                    const distanceSq = dx * dx + dy * dy;
+                    candidates.push({ col, row, distanceSq });
+                }
+            }
+            candidates.sort((a, b) => a.distanceSq - b.distanceSq);
+            return candidates;
+        };
+        
         // Helper: remove decorations at a position (waygate replaces them)
+        // Skip editor-placed decorations to prevent holes in editor layouts
         const clearDecorationsAt = (worldX, worldY, clearRadius = 48) => {
             this.decorations = this.decorations.filter(d => {
                 const dx = d.x - worldX;
                 const dy = d.y - worldY;
-                return Math.sqrt(dx*dx + dy*dy) > clearRadius;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                
+                // Skip clearing editor-placed decorations
+                if (d.editorPlaced && distance <= clearRadius) {
+                    return true; // Keep the decoration
+                }
+                
+                return distance > clearRadius;
             });
         };
         
-        // Place Waygates - one on main island, one on remote island
-        const mainIsland = islands[0];
-        const remoteIslands = islands.filter((island, idx) => idx > 0 && island.size >= 10);
-        
-        if (typeof Waygate !== 'undefined') {
-            console.log(`🌀 Attempting to place Waygates... mainIsland: (${mainIsland.x}, ${mainIsland.y}) size: ${mainIsland.size}`);
-            
-            // Place a Waygate on the main island (edge of island)
-            for (let attempt = 0; attempt < 50; attempt++) {
-                const angle = this.seededRandom() * Math.PI * 2;
-                // Use mid-range radius to find open land
-                const radius = mainIsland.size * 0.4 + this.seededRandom() * mainIsland.size * 0.4;
-                
-                const col = Math.floor(mainIsland.x + Math.cos(angle) * radius);
-                const row = Math.floor(mainIsland.y + Math.sin(angle) * radius);
-                
-                // Only check terrain - waygates are magical and can appear through decorations
-                const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
-                
-                if (attempt < 5) {
-                    console.log(`  Attempt ${attempt}: (${col}, ${row}) isLand=${isLand}`);
-                }
-                
-                if (isLand) {
-                    const worldX = col * tileSize;
-                    const worldY = row * tileSize;
-                    
-                    // Only avoid buildings (not decorations)
-                    if (!isNearBuilding(worldX, worldY, 32)) {
-                        // Clear any decorations at this location
-                        clearDecorationsAt(worldX, worldY);
-                        
-                        // Clear collision at waygate location (it's walkable/through-able)
-                        this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
-                        
-                        const waygate = new Waygate(worldX, worldY, 'Port Clawson Waygate');
-                        this.waygates.push(waygate);
-                        console.log(`  ✨ Placed Waygate at (${col}, ${row}) on main island`);
-                        break;
+        // Place Waygates on the two most distant large islands
+        const candidateIslands = islands.filter(island => island.size >= 8);
+        if (typeof Waygate !== 'undefined' && candidateIslands.length >= 2) {
+            let farthestPair = null;
+            let maxDistanceSq = -Infinity;
+            for (let i = 0; i < candidateIslands.length - 1; i++) {
+                for (let j = i + 1; j < candidateIslands.length; j++) {
+                    const a = candidateIslands[i];
+                    const b = candidateIslands[j];
+                    const dx = a.x - b.x;
+                    const dy = a.y - b.y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq > maxDistanceSq) {
+                        maxDistanceSq = distSq;
+                        farthestPair = [a, b];
                     }
                 }
             }
-            
-            // Place a Waygate on a remote island
-            if (remoteIslands.length > 0) {
-                const waygateIsland = remoteIslands[Math.floor(this.seededRandom() * remoteIslands.length)];
-                
-                for (let attempt = 0; attempt < 50; attempt++) {
-                    const angle = this.seededRandom() * Math.PI * 2;
-                    const radius = waygateIsland.size * 0.4 + this.seededRandom() * waygateIsland.size * 0.4;
-                    
-                    const col = Math.floor(waygateIsland.x + Math.cos(angle) * radius);
-                    const row = Math.floor(waygateIsland.y + Math.sin(angle) * radius);
-                    
-                    const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
-                    
-                    if (isLand) {
-                        const worldX = col * tileSize;
-                        const worldY = row * tileSize;
-                        
-                        if (!isNearBuilding(worldX, worldY, 32)) {
-                            clearDecorationsAt(worldX, worldY);
-                            this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
-                            
-                            const waygate = new Waygate(worldX, worldY, 'Ancient Waygate');
-                            this.waygates.push(waygate);
-                            console.log(`  ✨ Placed Waygate at (${col}, ${row}) on remote island`);
-                            break;
-                        }
-                    }
+
+            const placeWaygateOnIsland = (island, name) => {
+                const candidates = collectWaygateCandidates(island);
+                if (candidates.length === 0) {
+                    console.warn(`⚠️ No valid waygate positions found on island for '${name}'.`);
+                    return false;
                 }
+
+                for (const candidate of candidates) {
+                    const { col, row } = candidate;
+                    const worldX = col * tileSize;
+                    const worldY = row * tileSize;
+
+                    clearDecorationsAt(worldX, worldY);
+                    this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
+                    const waygate = new Waygate(worldX, worldY, name);
+                    this.waygates.push(waygate);
+                    console.log(`  ✨ Placed Waygate '${name}' at (${col}, ${row}) with clear radius on island centered at (${island.x}, ${island.y})`);
+                    return true;
+                }
+
+                console.warn(`⚠️ Failed to place Waygate '${name}' despite having candidates.`);
+                return false;
+            };
+
+            if (farthestPair) {
+                console.log(`🌀 Placing Waygates on farthest islands (distance²=${maxDistanceSq.toFixed(2)})`);
+                placeWaygateOnIsland(farthestPair[0], 'Port Clawson Waygate');
+                placeWaygateOnIsland(farthestPair[1], 'Ancient Waygate');
             }
         }
         
         // Create Stability Engine on Iron Reef (island index 2)
         // FIXED position — deterministic, same every session
-        if (typeof StabilityEngine !== 'undefined' && islands.length > 2) {
-            const engineIsland = islands[2]; // Iron Reef
+        if (typeof StabilityEngine !== 'undefined') {
+            // Place Stability Engine on its own small island in open water
+            const engineCol = 93;
+            const engineRow = 95;
             
-            // Fixed offset from island center (north-east edge)
-            // Using deterministic position so it never moves between sessions
-            const fixedAngle = Math.PI * 0.3; // ~54 degrees (NE)
-            const fixedRadius = engineIsland.size * 0.65;
-            const col = Math.floor(engineIsland.x + Math.cos(fixedAngle) * fixedRadius);
-            const row = Math.floor(engineIsland.y - Math.sin(fixedAngle) * fixedRadius);
-            
-            const isLand = this.worldMap.terrainMap?.[row]?.[col] === 0;
-            if (isLand) {
-                const worldX = col * tileSize;
-                const worldY = row * tileSize;
-                
-                clearDecorationsAt(worldX, worldY, 64);
-                // Mark collision tiles for the engine body (4x5 tiles)
-                for (let dr = 0; dr < 5; dr++) {
-                    for (let dc = 0; dc < 4; dc++) {
-                        const cr = row + dr;
-                        const cc = col + dc;
-                        if (cr < this.worldMap.height && cc < this.worldMap.width) {
-                            this.worldMap.setTile(this.worldMap.collisionLayer, cc, cr, 1);
+            // Create a circular island (radius ~6 tiles) around the engine center
+            const islandRadius = 6;
+            for (let dr = -islandRadius; dr <= islandRadius; dr++) {
+                for (let dc = -islandRadius; dc <= islandRadius; dc++) {
+                    const dist = Math.sqrt(dr * dr + dc * dc);
+                    if (dist <= islandRadius) {
+                        const r = engineRow + dr;
+                        const c = engineCol + dc;
+                        if (r >= 0 && r < this.worldMap.height && c >= 0 && c < this.worldMap.width) {
+                            this.worldMap.terrainMap[r][c] = 0; // sand
+                            this.worldMap.setTile(this.worldMap.collisionLayer, c, r, 0); // walkable
                         }
                     }
                 }
-                // Clear the tile directly in front (south) so player can approach
-                if (row + 5 < this.worldMap.height) {
-                    this.worldMap.setTile(this.worldMap.collisionLayer, col + 1, row + 5, 0);
-                    this.worldMap.setTile(this.worldMap.collisionLayer, col + 2, row + 5, 0);
+            }
+            
+            // Re-run AutoTiler to get smooth transitions on the new island
+            const engineAutoTiler = new AutoTiler();
+            const reTiled = engineAutoTiler.autoTileLayer(this.worldMap.terrainMap, this.worldMap.width, this.worldMap.height);
+            for (let r = Math.max(0, engineRow - islandRadius - 2); r <= Math.min(this.worldMap.height - 1, engineRow + islandRadius + 2); r++) {
+                for (let c = Math.max(0, engineCol - islandRadius - 2); c <= Math.min(this.worldMap.width - 1, engineCol + islandRadius + 2); c++) {
+                    this.worldMap.setTile(this.worldMap.groundLayer, c, r, reTiled[r][c]);
                 }
-                
-                this.stabilityEngine = new StabilityEngine(worldX, worldY);
-                console.log(`  ⚙️ Placed Stability Engine at (${col}, ${row}) - Iron Reef (fixed)`);
-            } else {
-                // Fallback: try a few nearby positions
-                for (let attempt = 0; attempt < 20; attempt++) {
-                    const testCol = col + Math.floor((attempt % 5) - 2);
-                    const testRow = row + Math.floor(attempt / 5) - 2;
-                    if (this.worldMap.terrainMap?.[testRow]?.[testCol] === 0) {
-                        const worldX = testCol * tileSize;
-                        const worldY = testRow * tileSize;
-                        clearDecorationsAt(worldX, worldY, 64);
-                        this.stabilityEngine = new StabilityEngine(worldX, worldY);
-                        console.log(`  ⚙️ Placed Stability Engine at (${testCol}, ${testRow}) - Iron Reef (fallback)`);
-                        break;
+            }
+            
+            const worldX = engineCol * tileSize;
+            const worldY = engineRow * tileSize;
+            
+            clearDecorationsAt(worldX, worldY, 80);
+            
+            // Mark collision tiles for the engine body (4x5 tiles)
+            for (let dr = 0; dr < 5; dr++) {
+                for (let dc = 0; dc < 4; dc++) {
+                    const cr = engineRow + dr;
+                    const cc = engineCol + dc;
+                    if (cr < this.worldMap.height && cc < this.worldMap.width) {
+                        this.worldMap.setTile(this.worldMap.collisionLayer, cc, cr, 1);
                     }
                 }
             }
+            // Clear the tile directly in front (south) so player can approach
+            if (engineRow + 5 < this.worldMap.height) {
+                this.worldMap.setTile(this.worldMap.collisionLayer, engineCol + 1, engineRow + 5, 0);
+                this.worldMap.setTile(this.worldMap.collisionLayer, engineCol + 2, engineRow + 5, 0);
+            }
+            
+            this.stabilityEngine = new StabilityEngine(worldX, worldY);
+            console.log(`  ⚙️ Placed Stability Engine at (${engineCol}, ${engineRow}) - own island in open water`);
         }
         
         // Connect Stability Engine to world state
