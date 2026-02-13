@@ -111,12 +111,12 @@ class DecorationLoader {
         rock: {
             path: 'assets/sprites/decorations/beach_10.png',
             width: 20, height: 20,
-            collision: { width: 16, height: 10, offsetY: 10 }
+            collision: { width: 16, height: 10, offsetY: 4 }
         },
         rock2: {
             path: 'assets/sprites/decorations/beach_12.png',
             width: 20, height: 20,
-            collision: { width: 16, height: 10, offsetY: 10 }
+            collision: { width: 16, height: 10, offsetY: 4 }
         },
         rock_small: {
             path: 'assets/sprites/decorations/beach_19.png',
