@@ -14,14 +14,25 @@ const TILE_SIZE = 16;
 let EDITOR_MAP_DATA = null;
 let DecorationLoader = null;
 let Building = null;
+let CONSTANTS = null;
 
 try {
     EDITOR_MAP_DATA = require('../client/js/data/EditorMapData.js');
     DecorationLoader = require('../client/js/core/DecorationLoader.js');
     Building = require('../client/js/world/Building.js');
+    CONSTANTS = require('../client/js/shared/Constants.js');
 } catch (e) {
     console.warn('⚠️ Could not load client modules:', e.message);
     console.warn('⚠️ Falling back to procedural terrain generation');
+}
+
+if (!CONSTANTS) {
+    CONSTANTS = {
+        CHARACTER_WIDTH: 16,
+        CHARACTER_HEIGHT: 24,
+        CHARACTER_COLLISION_WIDTH: 12,
+        CHARACTER_COLLISION_HEIGHT: 12
+    };
 }
 
 function createRng(seed) {
@@ -422,11 +433,24 @@ function isWalkable(collisionData, px, py) {
  * Check if a character collision box is fully walkable.
  * Uses collision map and checks all corners of the box.
  */
-function isBoxWalkable(collisionData, px, py, w = 16, h = 24) {
-    return isWalkable(collisionData, px, py) &&
-           isWalkable(collisionData, px + w - 1, py) &&
-           isWalkable(collisionData, px, py + h - 1) &&
-           isWalkable(collisionData, px + w - 1, py + h - 1);
+function isBoxWalkable(collisionData, px, py, w, h) {
+    let testX = px;
+    let testY = py;
+    let width = typeof w === 'number' ? w : null;
+    let height = typeof h === 'number' ? h : null;
+
+    // If no explicit width/height provided, use the player's footprint hitbox
+    if (width === null || height === null) {
+        width = CONSTANTS.CHARACTER_COLLISION_WIDTH || CONSTANTS.CHARACTER_WIDTH;
+        height = CONSTANTS.CHARACTER_COLLISION_HEIGHT || CONSTANTS.CHARACTER_HEIGHT;
+        testX = px + (CONSTANTS.CHARACTER_WIDTH - width) / 2;
+        testY = py + (CONSTANTS.CHARACTER_HEIGHT - height);
+    }
+
+    return isWalkable(collisionData, testX, testY) &&
+           isWalkable(collisionData, testX + width - 1, testY) &&
+           isWalkable(collisionData, testX, testY + height - 1) &&
+           isWalkable(collisionData, testX + width - 1, testY + height - 1);
 }
 
 /**

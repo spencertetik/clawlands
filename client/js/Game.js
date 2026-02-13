@@ -299,6 +299,7 @@ class Game {
         this.spectateTarget = urlParams.get('spectate');
         this.spectateMode = !!this.spectateTarget;
         this.spectatePlayer = null; // RemotePlayer we're following
+        this._spectatorAudioState = { lastMode: null, lastBuildingType: null, zoneTimer: 0 };
         // (numbered tileset debug feature removed)
 
         // Controls help overlay
@@ -326,6 +327,16 @@ class Game {
         // Multiplayer client
         this.multiplayer = null;
         this.multiplayerEnabled = false;
+
+        // Spectator stats HUD
+        this.spectatorStatsHUD = null;
+        if (typeof SpectatorStatsHUD !== 'undefined') {
+            this.spectatorStatsHUD = new SpectatorStatsHUD(this);
+            // Only show in spectator mode
+            if (!this.spectateMode) {
+                this.spectatorStatsHUD.hide();
+            }
+        }
 
         // Load assets
         this.loadAssets();
@@ -475,6 +486,11 @@ class Game {
         // Show spectator overlay
         this._showSpectatorOverlay();
         
+        // Show spectator stats HUD
+        if (this.spectatorStatsHUD) {
+            this.spectatorStatsHUD.show();
+        }
+        
         // Show minimap in spectator mode
         if (this.minimap) {
             this.minimap.show();
@@ -601,6 +617,9 @@ class Game {
                 if (!stillExists) {
                     console.log(`👁️ Lost spectate target — scanning for reconnect...`);
                     this.spectatePlayer = null;
+                    if (this.spectatorStatsHUD) {
+                        this.spectatorStatsHUD.setPlayer(null);
+                    }
                     this._updateSpectateHUD();
                     const status = document.getElementById('spectate-status');
                     if (status) { status.textContent = 'Reconnecting...'; status.style.color = '#c43a24'; }
@@ -777,13 +796,66 @@ class Game {
         this.camera.setTarget(remote);
         this.camera.lerpSpeed = 0.5;
 
+        this._resetSpectatorAudioState();
+        this._updateSpectatorAudio(0);
+
         // Update HUD
         this._updateSpectateHUD();
+        if (this.spectatorStatsHUD) {
+            this.spectatorStatsHUD.setPlayer(remote);
+        }
 
         // Dismiss splash if still showing
         this._dismissSpectatorSplash();
 
         console.log(`👁️ Now watching: ${remote.name}`);
+    }
+
+    _resetSpectatorAudioState() {
+        if (!this._spectatorAudioState) {
+            this._spectatorAudioState = { lastMode: null, lastBuildingType: null, zoneTimer: 0 };
+            return;
+        }
+        this._spectatorAudioState.lastMode = null;
+        this._spectatorAudioState.lastBuildingType = null;
+        this._spectatorAudioState.zoneTimer = 0;
+    }
+
+    _onSpectatedPlayerContextChange() {
+        this._resetSpectatorAudioState();
+        this._updateSpectatorAudio(0);
+    }
+
+    _updateSpectatorAudio(deltaTime = 0) {
+        if (!this.spectateMode || typeof audioManager === 'undefined') return;
+        if (!this.spectatePlayer) return;
+
+        const state = this._spectatorAudioState || (this._spectatorAudioState = { lastMode: null, lastBuildingType: null, zoneTimer: 0 });
+        const location = this.spectatePlayer.currentLocation || 'outdoor';
+
+        if (location === 'interior') {
+            const buildingType = this.spectatePlayer.currentBuildingType || 'default';
+            if (state.lastMode !== 'interior' || state.lastBuildingType !== buildingType) {
+                audioManager.playForBuilding(buildingType);
+                state.lastMode = 'interior';
+                state.lastBuildingType = buildingType;
+                state.zoneTimer = 0;
+            }
+        } else {
+            const switchedToOutdoor = state.lastMode !== 'outdoor';
+            state.zoneTimer += deltaTime;
+            if (switchedToOutdoor) {
+                audioManager.currentZone = null;
+            }
+            if (state.zoneTimer >= 0.5 || switchedToOutdoor) {
+                state.zoneTimer = 0;
+                state.lastMode = 'outdoor';
+                state.lastBuildingType = null;
+                if (this.spectatePlayer.position) {
+                    audioManager.updateZone(this.spectatePlayer.position.x, this.spectatePlayer.position.y);
+                }
+            }
+        }
     }
 
     // Update the spectator HUD with current state
@@ -907,6 +979,12 @@ class Game {
     // Stop the game loop
     stop() {
         this.running = false;
+        
+        // Clean up spectator stats HUD
+        if (this.spectatorStatsHUD) {
+            this.spectatorStatsHUD.destroy();
+            this.spectatorStatsHUD = null;
+        }
     }
 
     // Main game loop
@@ -962,6 +1040,11 @@ class Game {
                 this.minimap.update(deltaTime, spectatedAsPlayer, this.npcs, this.buildings, this.waygates, filteredRemotes);
                 this.minimap.render();
             }
+            // Update spectator stats HUD with current target
+            if (this.spectatorStatsHUD) {
+                this.spectatorStatsHUD.update(deltaTime, this.spectatePlayer);
+            }
+            this._updateSpectatorAudio(deltaTime);
             return;
         }
 
@@ -2962,6 +3045,12 @@ class Game {
             audioManager.playForBuilding(building.type);
         }
 
+        this.broadcastPlayerContext({
+            location: 'interior',
+            buildingType: building.type || null,
+            buildingName: building.name || null
+        });
+
         // Allow transitions again after a short delay
         setTimeout(() => { this.isTransitioning = false; }, 200);
     }
@@ -3031,8 +3120,27 @@ class Game {
             audioManager.updateZone(this.player.x, this.player.y);
         }
 
+        this.broadcastPlayerContext({
+            location: 'outdoor',
+            buildingType: null,
+            buildingName: null
+        });
+
         // Allow transitions again after a short delay
         setTimeout(() => { this.isTransitioning = false; }, 200);
+    }
+
+    broadcastPlayerContext(overrides = {}) {
+        if (!this.multiplayer || !this.multiplayerEnabled || this.spectateMode) return;
+        const payload = {
+            location: this.currentLocation === 'interior' ? 'interior' : 'outdoor',
+            buildingType: this.currentBuilding?.type || null,
+            buildingName: this.currentBuilding?.name || null,
+            ...overrides
+        };
+        if (typeof this.multiplayer.sendPlayerContext === 'function') {
+            this.multiplayer.sendPlayerContext(payload);
+        }
     }
 
     // Get interior layout based on building type

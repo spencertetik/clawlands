@@ -4,7 +4,7 @@
  */
 
 const { generateTerrain, generateBuildings } = require('./server/terrainMap');
-const { ServerCollisionSystem } = require('./server/serverCollisionSystem');
+const { ServerCollisionSystem, getCharacterCollisionBox } = require('./server/serverCollisionSystem');
 
 async function testCollisionSystem() {
     console.log('🧪 Testing server collision system...');
@@ -31,18 +31,24 @@ async function testCollisionSystem() {
         // Test collision at various points
         console.log('🔍 Testing collision detection...');
         
+        // Helper to check collision using the same footprint hitbox as the client
+        const checkPoint = (x, y) => {
+            const box = getCharacterCollisionBox(x, y);
+            return collision.checkCollision(box.x, box.y, box.width, box.height);
+        };
+
         // Test spawn area (should be walkable)
-        const spawnResult = collision.checkCollision(1288, 1160);
+        const spawnResult = checkPoint(1288, 1160);
         console.log(`   Spawn point (1288, 1160): ${spawnResult ? 'BLOCKED' : 'WALKABLE'}`);
         
         // Test water (should be blocked)
-        const waterResult = collision.checkCollision(100, 100);
+        const waterResult = checkPoint(100, 100);
         console.log(`   Water point (100, 100): ${waterResult ? 'BLOCKED' : 'WALKABLE'}`);
         
         // Test building collision
         if (buildings.length > 0) {
             const building = buildings[0];
-            const buildingResult = collision.checkCollision(building.x + 10, building.y + 10);
+            const buildingResult = checkPoint(building.x + 10, building.y + 10);
             console.log(`   Building interior (${building.x + 10}, ${building.y + 10}): ${buildingResult ? 'BLOCKED' : 'WALKABLE'}`);
         }
         

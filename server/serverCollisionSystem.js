@@ -11,24 +11,7 @@
 // Import client modules (now with Node.js exports)
 const DecorationLoader = require('../client/js/core/DecorationLoader.js');
 const Building = require('../client/js/world/Building.js');
-
-// Constants matching client
-const CONSTANTS = {
-    TILE_SIZE: 16,
-    CHARACTER_WIDTH: 16,
-    CHARACTER_HEIGHT: 24,
-    CHARACTER_COLLISION_WIDTH: 12,
-    CHARACTER_COLLISION_HEIGHT: 12,
-    LAYER: {
-        GROUND: 0,
-        GROUND_DECORATION: 1,
-        BUILDING_BASE: 2,
-        ENTITIES: 3,
-        BUILDING_UPPER: 4,
-        EFFECTS: 5,
-        UI: 6
-    }
-};
+const CONSTANTS = require('../client/js/shared/Constants.js');
 
 class ServerCollisionSystem {
     constructor(worldData) {
@@ -78,7 +61,13 @@ class ServerCollisionSystem {
     }
 
     // Main collision check - matches client CollisionSystem.checkCollision
-    checkCollision(x, y, width = CONSTANTS.CHARACTER_WIDTH, height = CONSTANTS.CHARACTER_HEIGHT, excludeEntity = null) {
+    checkCollision(
+        x,
+        y,
+        width = CONSTANTS.CHARACTER_COLLISION_WIDTH || CONSTANTS.CHARACTER_WIDTH,
+        height = CONSTANTS.CHARACTER_COLLISION_HEIGHT || CONSTANTS.CHARACTER_HEIGHT,
+        excludeEntity = null
+    ) {
         const tileSize = CONSTANTS.TILE_SIZE;
 
         // Get tile coordinates for all corners of the entity
@@ -291,9 +280,27 @@ class ServerCollisionSystem {
     }
 
     // Helper: Check if a box position is walkable
-    isBoxWalkable(x, y, width = CONSTANTS.CHARACTER_WIDTH, height = CONSTANTS.CHARACTER_HEIGHT) {
+    isBoxWalkable(
+        x,
+        y,
+        width = CONSTANTS.CHARACTER_COLLISION_WIDTH || CONSTANTS.CHARACTER_WIDTH,
+        height = CONSTANTS.CHARACTER_COLLISION_HEIGHT || CONSTANTS.CHARACTER_HEIGHT
+    ) {
         return !this.checkCollision(x, y, width, height);
     }
 }
 
-module.exports = { ServerCollisionSystem, CONSTANTS };
+function getCharacterCollisionBox(atX, atY) {
+    const footprintWidth = CONSTANTS.CHARACTER_COLLISION_WIDTH || CONSTANTS.CHARACTER_WIDTH;
+    const footprintHeight = CONSTANTS.CHARACTER_COLLISION_HEIGHT || CONSTANTS.CHARACTER_HEIGHT;
+    const offsetX = (CONSTANTS.CHARACTER_WIDTH - footprintWidth) / 2;
+    const offsetY = CONSTANTS.CHARACTER_HEIGHT - footprintHeight;
+    return {
+        x: atX + offsetX,
+        y: atY + offsetY,
+        width: footprintWidth,
+        height: footprintHeight
+    };
+}
+
+module.exports = { ServerCollisionSystem, CONSTANTS, getCharacterCollisionBox };

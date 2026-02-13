@@ -930,17 +930,22 @@ server.registerTool('attack', {
 
     try {
         const result = await bridge.sendCommand('attack');
+        const message = result.message || '';
+        const combatUnavailable = /not implemented/i.test(message);
 
-        if (!result.hit) {
+        if (!result.hit || combatUnavailable) {
+            const explanation = combatUnavailable
+                ? message || 'Combat is not implemented visually yet.'
+                : message || 'No enemies reacted to your attack.';
             return {
                 content: [{
                     type: 'text',
-                    text: `⚔️ ${result.message}`
+                    text: `⚠️ ${explanation}\nFocus on exploring, chatting, or solving quests until combat is hooked up.`
                 }]
             };
         }
 
-        // Enemy flavor text based on name
+        // Enemy flavor text based on name (kept for future once combat is live)
         const enemyFlavors = {
             'tide crawler': 'A Tide Crawler lunges from the shallows!',
             'drift jelly': 'A shimmering Drift Jelly pulses toward you!',

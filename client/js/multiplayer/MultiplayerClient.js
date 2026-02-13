@@ -15,6 +15,7 @@ class MultiplayerClient {
         this.maxReconnectAttempts = 50;
         this.lastSentPosition = { x: 0, y: 0 };
         this.positionSendInterval = null;
+        this._pendingContexts = new Map();
     }
 
     connect() {
@@ -91,6 +92,9 @@ class MultiplayerClient {
             case 'joined':
                 console.log('✅ Joined multiplayer world!');
                 this.startPositionSync();
+                if (this.game && typeof this.game.broadcastPlayerContext === 'function') {
+                    this.game.broadcastPlayerContext();
+                }
                 // Add existing players
                 if (msg.players) {
                     msg.players.forEach(p => {
@@ -173,6 +177,10 @@ class MultiplayerClient {
                 // Could animate actions for remote players
                 break;
 
+            case 'player_context':
+                this._applyRemoteContext(msg.playerId, msg.context || {});
+                break;
+
             case 'pong':
                 // Latency check response
                 break;
@@ -189,6 +197,15 @@ class MultiplayerClient {
                 isMoving: !!p.m
             });
         }
+    }
+
+    _applyRemoteContext(playerId, context = {}) {
+        const remote = this.remotePlayers.get(playerId);
+        if (remote) {
+            remote.updateContext(context);
+            return;
+        }
+        this._pendingContexts.set(playerId, context);
     }
 
     join() {
@@ -242,6 +259,13 @@ class MultiplayerClient {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(msg));
         }
+    }
+
+    sendPlayerContext(context) {
+        this.send({
+            type: 'context',
+            ...context
+        });
     }
 
     startPositionSync() {
@@ -299,6 +323,11 @@ class MultiplayerClient {
         console.log(`   Total remote players will be: ${this.remotePlayers.size + 1}`);
         const remote = new RemotePlayer(this.game, data);
         this.remotePlayers.set(data.id, remote);
+        const pendingContext = this._pendingContexts.get(data.id);
+        if (pendingContext) {
+            remote.updateContext(pendingContext);
+            this._pendingContexts.delete(data.id);
+        }
     }
 
     removeRemotePlayer(playerId) {
@@ -366,6 +395,10 @@ class RemotePlayer {
         this.direction = data.direction || 'south';
         this.isMoving = false;
         
+        this.currentLocation = data.location || 'outdoor';
+        this.currentBuildingType = data.buildingType || null;
+        this.currentBuildingName = data.buildingName || null;
+        
         // Sprites for each direction (will be hue-shifted)
         this.sprites = {};
         this.rawSprites = {}; // Original unshifted sprites
@@ -376,6 +409,14 @@ class RemotePlayer {
         
         this.speechText = null;
         this.speechTimer = 0;
+        
+        // Mock stats for spectator mode (TODO: get from server)
+        this.health = 80 + Math.floor(Math.random() * 20); // Random health 80-100
+        this.maxHealth = 100;
+        this.tokens = Math.floor(Math.random() * 1000); // Random tokens 0-1000
+        this.kills = Math.floor(Math.random() * 25); // Random kills 0-25
+        this.faction = this.isBot ? ['Iron Shell', 'Tide Runners', 'Deep Current', 'None'][Math.floor(Math.random() * 4)] : 'None';
+        this.inventory = this.generateMockInventory();
         
         this.loadSprites();
     }
@@ -392,6 +433,29 @@ class RemotePlayer {
             'pink': 320
         };
         return colorMap[colorName?.toLowerCase()] || 0;
+    }
+
+    generateMockInventory() {
+        // Generate mock inventory items for display
+        const itemPool = [
+            'Shell Fragment', 'Brine Crystal', 'Seaweed', 'Pearl', 'Coral',
+            'Driftwood', 'Sea Glass', 'Barnacle', 'Kelp Wrap', 'Sand Dollar',
+            'Tide Pool Water', 'Sea Salt', 'Starfish', 'Anemone', 'Crab Claw'
+        ];
+        
+        const inventory = [];
+        const itemCount = Math.floor(Math.random() * 6); // 0-5 items
+        
+        for (let i = 0; i < itemCount; i++) {
+            const item = itemPool[Math.floor(Math.random() * itemPool.length)];
+            const count = Math.floor(Math.random() * 5) + 1; // 1-5 quantity
+            inventory.push({
+                name: item,
+                count: count
+            });
+        }
+        
+        return inventory;
     }
 
     loadSprites() {
@@ -757,6 +821,22 @@ class RemotePlayer {
         lines.forEach((line, i) => {
             ctx.fillText(line, bubbleX + padding, bubbleY + padding + (i + 1) * lineHeight - 6);
         });
+    }
+
+    updateContext(context = {}) {
+        const newLocation = context.location || this.currentLocation || 'outdoor';
+        const newBuildingType = Object.prototype.hasOwnProperty.call(context, 'buildingType') ? context.buildingType : this.currentBuildingType;
+        const newBuildingName = Object.prototype.hasOwnProperty.call(context, 'buildingName') ? context.buildingName : this.currentBuildingName;
+
+        const locationChanged = newLocation !== this.currentLocation || newBuildingType !== this.currentBuildingType;
+
+        this.currentLocation = newLocation;
+        this.currentBuildingType = newBuildingType ?? null;
+        this.currentBuildingName = newBuildingName ?? null;
+
+        if (locationChanged && this.game && this.game.spectatePlayer === this && typeof this.game._onSpectatedPlayerContextChange === 'function') {
+            this.game._onSpectatedPlayerContextChange();
+        }
     }
 
     destroy() {

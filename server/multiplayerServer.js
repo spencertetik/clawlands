@@ -56,7 +56,11 @@ class MultiplayerServer {
                     x: 0,
                     y: 0,
                     direction: 'south',
-                    isMoving: false
+                    isMoving: false,
+                    location: 'outdoor',
+                    buildingType: null,
+                    buildingName: null,
+                    isIndoors: false
                 }
             });
 
@@ -155,6 +159,25 @@ class MultiplayerServer {
                     isMoving: msg.isMoving
                 }, playerId);
                 break;
+
+            case 'context': {
+                const context = {
+                    location: msg.location || 'outdoor',
+                    buildingType: msg.buildingType || null,
+                    buildingName: msg.buildingName || null
+                };
+                player.data.location = context.location;
+                player.data.buildingType = context.buildingType;
+                player.data.buildingName = context.buildingName;
+                player.data.isIndoors = context.location === 'interior';
+
+                this.broadcast({
+                    type: 'player_context',
+                    playerId,
+                    context
+                }, playerId);
+                break;
+            }
 
             case 'say':
                 // Chat message

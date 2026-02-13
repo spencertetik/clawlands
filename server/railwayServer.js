@@ -18,7 +18,7 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } = require('./terrainMap');
-const { ServerCollisionSystem } = require('./serverCollisionSystem');
+const { ServerCollisionSystem, getCharacterCollisionBox } = require('./serverCollisionSystem');
 
 // ============================================
 // Configuration
@@ -817,7 +817,8 @@ wss.on('connection', async (ws, req) => {
         facing: 'down',
         isBot,
         isAlive: true,
-        rateLimit: { count: 0, resetTime: Date.now() + RATE_LIMIT.windowMs }
+        rateLimit: { count: 0, resetTime: Date.now() + RATE_LIMIT.windowMs },
+        lastKnownLocation: 'outdoor'
     };
 
     // Track pong responses for keepalive
@@ -1063,12 +1064,41 @@ async function handleMessage(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
-            // Check collision using the server collision system (matches client exactly)
-            if (serverCollision.checkCollision(newX, newY)) {
-                // Position blocked, keep old position
+            // Check for building exit (only if position actually changed)
+            if (Math.abs(newX - playerData.x) > 1 || Math.abs(newY - playerData.y) > 1) {
+                // Detect if player left a building area by checking if their new position is outside all building bounds
+                const playerCenterX = newX + 8;
+                const playerCenterY = newY + 12;
+                let insideBuilding = false;
+                for (const building of buildings) {
+                    if (playerCenterX >= building.x && playerCenterX < building.x + building.width &&
+                        playerCenterY >= building.y && playerCenterY < building.y + building.height) {
+                        insideBuilding = true;
+                        break;
+                    }
+                }
+                
+                // If player was previously in a building and now isn't, broadcast exit
+                if (!insideBuilding && playerData.lastKnownLocation === 'interior') {
+                    broadcast({
+                        type: 'player_context',
+                        playerId: playerId,
+                        context: {
+                            location: 'outdoor',
+                            buildingType: null,
+                            buildingName: null
+                        }
+                    }, playerId);
+                    playerData.lastKnownLocation = 'outdoor';
+                }
+            }
+            
+            // Check collision using the same footprint hitbox as the client player
+            const hitbox = getCharacterCollisionBox(newX, newY);
+            if (serverCollision.checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height)) {
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by terrain, buildings, or decorations',
+                    message: 'Cannot move there — blocked by terrain, buildings, decorations, or NPCs',
                     x: playerData.x,
                     y: playerData.y 
                 }));
@@ -1273,11 +1303,12 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
-            // Check collision using the server collision system (matches client exactly)
-            if (serverCollision.checkCollision(newX, newY)) {
+            // Check collision using the exact client footprint hitbox
+            const hitbox = getCharacterCollisionBox(newX, newY);
+            if (serverCollision.checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height)) {
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by terrain, buildings, or decorations',
+                    message: 'Cannot move there — blocked by terrain, buildings, decorations, or NPCs',
                     x: playerData.x,
                     y: playerData.y 
                 }));
@@ -1506,6 +1537,20 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                         y: nearestBuilding.y
                     }
                 }));
+
+                // Update player's location state
+                playerData.lastKnownLocation = 'interior';
+                
+                // Broadcast context change to all connected players (for spectators)
+                broadcast({
+                    type: 'player_context',
+                    playerId: playerId,
+                    context: {
+                        location: 'interior',
+                        buildingType: nearestBuilding.type,
+                        buildingName: nearestBuilding.name
+                    }
+                }, playerId);
             } else {
                 const errMsg = nearestBuilding
                     ? `No building within range. Nearest: ${nearestBuilding.name} (${nearestBuilding.type}) — ${Math.round(nearestDist)}px away. Walk closer and try again.`
@@ -1553,62 +1598,10 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 return;
             }
 
-            // Initialize combat stats if not present
-            if (playerData.shellIntegrity == null) playerData.shellIntegrity = 100;
-            if (playerData.tokens == null) playerData.tokens = 0;
-            if (!playerData.inventory) playerData.inventory = [];
-
-            // 20% chance of finding a Drift Fauna nearby
-            const enemyFound = Math.random() < 0.20;
-
-            if (!enemyFound) {
-                ws.send(JSON.stringify({
-                    type: 'attack_result',
-                    hit: false,
-                    message: 'No enemies in range. Drift Fauna roam the wilds between buildings.'
-                }));
-                return;
-            }
-
-            // Enemy found — deal random damage
-            const enemyNames = ['Drift Fauna', 'Spiny Drifter', 'Kelp Lurker', 'Tide Crawler', 'Barnacle Beast'];
-            const enemyName = enemyNames[Math.floor(Math.random() * enemyNames.length)];
-            const damage = Math.floor(Math.random() * 15) + 5; // 5-19 damage
-            const tokensEarned = Math.floor(Math.random() * 7) + 2; // 2-8 tokens
-
-            // 30% chance bot takes damage back
-            let damageTaken = 0;
-            if (Math.random() < 0.30) {
-                damageTaken = Math.floor(Math.random() * 10) + 3; // 3-12 damage
-                playerData.shellIntegrity = Math.max(0, playerData.shellIntegrity - damageTaken);
-            }
-
-            playerData.tokens += tokensEarned;
-
-            // Check if bot died
-            let respawned = false;
-            if (playerData.shellIntegrity <= 0) {
-                // Respawn at island center
-                const mainIsland = terrainData.islands[0];
-                const spawn = findSafeSpawn(mainIsland);
-                playerData.x = spawn.x;
-                playerData.y = spawn.y;
-                playerData.shellIntegrity = 100;
-                playerData._dirty = true;
-                respawned = true;
-            }
-
             ws.send(JSON.stringify({
                 type: 'attack_result',
-                hit: true,
-                enemy: enemyName,
-                damage,
-                tokensEarned,
-                damageTaken,
-                shellIntegrity: playerData.shellIntegrity,
-                totalTokens: playerData.tokens,
-                respawned,
-                position: respawned ? { x: playerData.x, y: playerData.y } : undefined
+                hit: false,
+                message: 'Combat is not implemented visually yet — attacks currently do nothing on screen.'
             }));
             break;
         }
