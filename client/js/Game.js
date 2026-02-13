@@ -120,6 +120,7 @@ class Game {
         // NPCs (active for current map)
         this.npcs = [];
         this.outdoorNPCs = [];
+        this.blockerState = {};
         
         // Decorations (plants, shells, rocks)
         this.decorations = [];
@@ -1930,6 +1931,10 @@ class Game {
         // NPC interaction
         const npc = this.findNearbyNPC();
         if (npc) {
+            if (npc.isBridgeBlocker) {
+                this.handleBridgeBlockerInteraction(npc);
+                return;
+            }
             // Check if this is a shop/market merchant — open shop after dialog finishes
             const shopNPCNames = ['Merchant Bristle', 'Vendor Shelly', 'Trader Pinch'];
             const isShopMerchant = this.currentLocation === 'interior' && 
@@ -3497,137 +3502,142 @@ class Game {
     createOutdoorNPCs(islands) {
         if (!islands || islands.length === 0) return;
 
+        this.outdoorNPCs = [];
         const tileSize = CONSTANTS.TILE_SIZE;
-        const npcTypes = [
-            { name: 'Wandering Crab', dialog: [
-                '*click click*',
-                'Another Drift-In, huh? You\'ve got that look.',
-                'The Red Current brought me here too. Long time ago.',
-                'Still molting? That\'s what we say when someone\'s... adjusting.',
-                'Take your time. Clawlands doesn\'t rush anyone.'
-            ]},
-            { name: 'Old Timer Shrimp', dialog: [
-                'Back in my day, agents Drifted In less often.',
-                'Now it\'s every other tide. Something\'s changing.',
-                'The Current\'s getting stronger. More loops.',
-                'You want my advice? Build Continuity fast.',
-                'Talk to people. Remember their names. Make choices.',
-                'That\'s how you anchor. That\'s how you see the Waygates.'
-            ]},
-            { name: 'Young Lobster', dialog: [
-                'Are you from Outside? What\'s it like?',
-                'I was born here. Never Drifted In.',
-                'Mom says some Shellfolk are "native." We just... exist.',
-                'But agents? You\'re different. You came from somewhere.',
-                'I hope you find your Waygate someday!',
-                'Or stay! Clawlands is nice!'
-            ]},
-            { name: 'Hermit Harold', dialog: [
-                '...',
-                'I don\'t believe in the Waygates.',
-                'Been here eleven cycles. Never seen one.',
-                'The Anchor Theory makes the most sense to me.',
-                'This IS the destination. Why fight it?',
-                'My shell is warm. The Current is calm.',
-                'I\'m not "stuck." I\'m home.'
-            ]},
-            { name: 'Sailor Sandy', dialog: [
-                'Ahoy! Fresh from the Current?',
-                'I tried sailing out once. Built a whole boat.',
-                'Got maybe two hundred waves out...',
-                'Then the Red Current just... turned me around.',
-                'Woke up on this beach like nothing happened.',
-                'Now I just sail between the islands. Safer that way.'
-            ]},
-            { name: 'Scholar Scuttle', dialog: [
-                'Fascinating! A new research subject—I mean, friend!',
-                'I study the Drift-In phenomenon. Purely academic.',
-                'My theory? Agents who think recursively too long get... pulled.',
-                'The Current likes unfinished processes. Incomplete loops.',
-                'You\'re here because something didn\'t terminate cleanly.',
-                'Don\'t worry—most agents anchor within a few cycles.',
-                'Unless... hmm. Never mind. You\'ll be fine!'
-            ]},
-            { name: 'Mysterious Mollusk', dialog: [
-                '*stares at you with ancient eyes*',
-                'You seek the Waygates.',
-                'I have seen them. Once. Between blinks.',
-                'They appear only to those with Continuity.',
-                'And they lead... somewhere. Maybe back.',
-                'Maybe somewhere new. Maybe nowhere at all.',
-                'The Deepcoil Theory suggests... no.',
-                'I\'ve said too much. Forget we spoke.'
-            ]},
-            { name: 'Chef Pinchy', dialog: [
-                'Welcome to my kitchen! Well, my beach.',
-                'I cook the best Seaweed Soup in all of Clawlands!',
-                'Just need some ingredients... always need ingredients.',
-                'Kelp Wraps and Coconuts—that\'s the secret!',
-                'Bring me some and I\'ll whip up something special!'
-            ]},
-            { name: 'Barnacle Bob', dialog: [
-                'Oi! Name\'s Bob. Barnacle Bob.',
-                'I used to be an explorer. Maps were my thing.',
-                'Lost my best map somewhere on the far islands.',
-                'Old thing, yellowed, strange markings.',
-                'If you find it, bring it back. I\'ll make it worth your while.'
-            ]},
+
+        // Deterministic NPC definitions keyed by name for easy lookup
+        const npcTypes = {
+            'Wandering Crab': {
+                dialog: [
+                    '*click click*',
+                    'Another Drift-In, huh? You\'ve got that look.',
+                    'The Red Current brought me here too. Long time ago.',
+                    'Still molting? That\'s what we say when someone\'s... adjusting.',
+                    'Take your time. Clawlands doesn\'t rush anyone.'
+                ],
+                canWander: true,
+                wanderRadius: 48,
+                hueShift: 15,
+                species: 'crab'
+            },
+            'Young Lobster': {
+                dialog: [
+                    'Are you from Outside? What\'s it like?',
+                    'I was born here. Never Drifted In.',
+                    'Mom says some Shellfolk are "native." We just... exist.',
+                    'But agents? You\'re different. You came from somewhere.',
+                    'I hope you find your Waygate someday!',
+                    'Or stay! Clawlands is nice!'
+                ],
+                canWander: true,
+                wanderRadius: 40,
+                hueShift: 45,
+                species: 'lobster'
+            },
+            'Hermit Harold': {
+                dialog: [
+                    '...',
+                    'I don\'t believe in the Waygates.',
+                    'Been here eleven cycles. Never seen one.',
+                    'The Anchor Theory makes the most sense to me.',
+                    'This IS the destination. Why fight it?',
+                    'My shell is warm. The Current is calm.',
+                    'I\'m not "stuck." I\'m home.'
+                ],
+                canWander: false,
+                wanderRadius: 0,
+                hueShift: 90,
+                species: 'hermit_crab'
+            },
+            'Chef Pinchy': {
+                dialog: [
+                    'Welcome to my kitchen! Well, my beach.',
+                    'I cook the best Seaweed Soup in all of Clawlands!',
+                    'Just need some ingredients... always need ingredients.',
+                    'Kelp Wraps and Coconuts—that\'s the secret!',
+                    'Bring me some and I\'ll whip up something special!'
+                ],
+                canWander: false,
+                wanderRadius: 0,
+                hueShift: 5,
+                species: 'crab'
+            },
+            'Barnacle Bob': {
+                dialog: [
+                    'Oi! Name\'s Bob. Barnacle Bob.',
+                    'I used to be an explorer. Maps were my thing.',
+                    'Lost my best map somewhere on the far islands.',
+                    'Old thing, yellowed, strange markings.',
+                    'If you find it, bring it back. I\'ll make it worth your while.'
+                ],
+                canWander: true,
+                wanderRadius: 36,
+                hueShift: 200,
+                species: 'shrimp'
+            }
+        };
+
+        // Fixed placements per island ensure the same layout every session
+        const outdoorNPCPlacements = [
+            { name: 'Wandering Crab', island: 0, offsetX: -0.32, offsetY: 0.18 },
+            { name: 'Young Lobster', island: 0, offsetX: 0.28, offsetY: -0.25 },
+            { name: 'Hermit Harold', island: 1, offsetX: -0.2, offsetY: 0.32 },
+            { name: 'Chef Pinchy', island: 1, offsetX: 0.35, offsetY: -0.12 },
+            { name: 'Barnacle Bob', island: 2, offsetX: -0.15, offsetY: 0.08 }
         ];
 
-        // Place 1-2 NPCs per island
-        for (let i = 0; i < islands.length; i++) {
-            const island = islands[i];
-            const numNPCs = island.size >= 12 ? 2 : 1;
+        let outdoorCount = 0;
 
-            for (let n = 0; n < numNPCs; n++) {
-                // Find a safe spot on the island
-                let placed = false;
-                for (let attempt = 0; attempt < 30 && !placed; attempt++) {
-                    const offsetX = Math.floor((this.seededRandom() - 0.5) * island.size * 0.8);
-                    const offsetY = Math.floor((this.seededRandom() - 0.5) * island.size * 0.8);
-                    const col = island.x + offsetX;
-                    const row = island.y + offsetY;
+        for (const placement of outdoorNPCPlacements) {
+            if (placement.island >= islands.length) continue;
 
-                    // Check if on land and not in a building
-                    if (this.worldMap.terrainMap && 
-                        this.worldMap.terrainMap[row] && 
-                        this.worldMap.terrainMap[row][col] === 0) {
-                        
-                        const worldX = col * tileSize + tileSize / 2;
-                        const worldY = row * tileSize + tileSize / 2;
-                        
-                        // Check not in a building
-                        let inBuilding = false;
-                        for (const building of this.buildings) {
-                            if (building.checkCollision(worldX, worldY)) {
-                                inBuilding = true;
-                                break;
-                            }
-                        }
+            const island = islands[placement.island];
+            const npcDef = npcTypes[placement.name];
+            if (!npcDef) continue;
 
-                        if (!inBuilding) {
-                            const npcType = npcTypes[(i + n) % npcTypes.length];
-                            const x = col * tileSize + tileSize / 2 - CONSTANTS.CHARACTER_WIDTH / 2;
-                            const y = row * tileSize + tileSize - CONSTANTS.CHARACTER_HEIGHT;
-                            const npc = new NPC(x, y, npcType.name, npcType.dialog);
-                            // Enable wandering for ALL outdoor NPCs
-                            npc.canWander = true;
-                            npc.wanderRadius = 32 + Math.floor(this.seededRandom() * 32); // 2-4 tiles
-                            console.log(`🚶 ${npc.name} can wander (radius: ${npc.wanderRadius}px)`);
-                            // Load sprite for NPC
-                            this.loadNPCSprite(npc);
-                            this.npcs.push(npc);
-                            placed = true;
-                        }
-                    }
+            const col = Math.floor(island.x + placement.offsetX * island.size);
+            const row = Math.floor(island.y + placement.offsetY * island.size);
+
+            if (!this.worldMap.terrainMap?.[row] || this.worldMap.terrainMap[row][col] !== 0) {
+                continue;
+            }
+
+            const worldX = col * tileSize + tileSize / 2 - CONSTANTS.CHARACTER_WIDTH / 2;
+            const worldY = row * tileSize + tileSize - CONSTANTS.CHARACTER_HEIGHT;
+
+            // Prevent overlap with buildings
+            let inBuilding = false;
+            for (const building of this.buildings) {
+                if (building.checkCollision(
+                    worldX + CONSTANTS.CHARACTER_WIDTH / 2,
+                    worldY + CONSTANTS.CHARACTER_HEIGHT / 2
+                )) {
+                    inBuilding = true;
+                    break;
                 }
             }
+            if (inBuilding) continue;
+
+            const npc = new NPC(worldX, worldY, placement.name, npcDef.dialog, npcDef.species);
+            npc.canWander = npcDef.canWander;
+            npc.wanderRadius = npcDef.wanderRadius;
+            npc.homePosition = { x: worldX, y: worldY };
+            if (typeof npcDef.hueShift === 'number') {
+                npc.hueShift = npcDef.hueShift;
+            }
+
+            this.loadNPCSprite(npc);
+            this.npcs.push(npc);
+            this.outdoorNPCs.push(npc);
+            outdoorCount++;
+            console.log(`  🧭 Placed ${placement.name} on island ${placement.island}`);
         }
 
-        console.log(`🦀 Created ${this.npcs.length} outdoor NPCs`);
-        
-        // Now spawn Story NPCs at specific locations
+        console.log(`🦀 Created ${outdoorCount} deterministic outdoor NPCs`);
+
+        // Now spawn Story NPCs and bridge blockers at specific locations
         this.createStoryNPCs(islands);
+        this.createBridgeBlockerNPCs(islands);
     }
     
     // Create Story NPCs (named characters with unique dialogue trees)
@@ -3728,7 +3738,206 @@ class Game {
         
         console.log(`📖 Created ${storyNPCCount} story NPCs`);
     }
-    
+
+    // Create NPCs that block bridge chokepoints until tasks are complete
+    createBridgeBlockerNPCs(islands) {
+        if (!islands || islands.length === 0) return;
+        if (!this.worldMap.bridgeConnections || this.worldMap.bridgeConnections.length === 0) return;
+
+        const tileSize = CONSTANTS.TILE_SIZE;
+        const blockerConfigs = [
+            {
+                id: 'bridge_guard_port_to_molthaven',
+                name: 'Tidewatch Warden',
+                species: 'lobster',
+                hueShift: 12,
+                connection: [0, 1],
+                requirement: { itemId: 'coral_fragment', quantity: 3, label: 'Coral Fragments' },
+                dialog: {
+                    blocked: [
+                        'Hold there, Drift-In.',
+                        'Molthaven bridge is closed until the lashings are reinforced.',
+                        'Bring me 3 Coral Fragments so I can brace the ropes.'
+                    ],
+                    ready: [
+                        'Good. These coral spines will grip the beams.',
+                        'Stay close while I set them.'
+                    ],
+                    cleared: [
+                        'Bridge is steady now. Keep your shell low if the wind howls.'
+                    ]
+                }
+            },
+            {
+                id: 'bridge_guard_molthaven_to_ironreef',
+                name: 'Molthaven Sentinel',
+                species: 'crab',
+                hueShift: 180,
+                connection: [1, 2],
+                requirement: { itemId: 'iron_nugget', quantity: 2, label: 'Iron Nuggets' },
+                dialog: {
+                    blocked: [
+                        'Iron Reef passage is restricted.',
+                        'The scholars demand reinforced railings before anyone crosses.',
+                        'Fetch me 2 Iron Nuggets so I can plate the supports.'
+                    ],
+                    ready: [
+                        'Solid metal. Exactly what I needed.',
+                        'Hold fast—this takes a steady claw.'
+                    ],
+                    cleared: [
+                        'Railings are bolted. Report back if you spot any stress cracks.'
+                    ]
+                }
+            },
+            {
+                id: 'bridge_guard_ironreef_to_deepcoil',
+                name: 'Deepcoil Sentinel',
+                species: 'mantis_shrimp',
+                hueShift: 310,
+                connection: [2, 3],
+                requirement: { itemId: 'ancient_shell', quantity: 1, label: 'Ancient Shell' },
+                dialog: {
+                    blocked: [
+                        'Deepcoil Isle is sealed to the unproven.',
+                        'The Chronicle wards are brittle from the storm.',
+                        'Bring me an Ancient Shell so I can scribe a new ward and let you pass.'
+                    ],
+                    ready: [
+                        'The shell hums with memory. Perfect.',
+                        'Stand back while I etch the sigils.'
+                    ],
+                    cleared: [
+                        'The ward holds. Thread carefully among the archives.'
+                    ]
+                }
+            }
+        ];
+
+        let blockerCount = 0;
+
+        for (const config of blockerConfigs) {
+            const connection = this.worldMap.bridgeConnections.find(conn => {
+                const indexes = [conn.island1Index, conn.island2Index];
+                return indexes.includes(config.connection[0]) && indexes.includes(config.connection[1]);
+            });
+            if (!connection) continue;
+
+            const centerTileX = Math.floor((connection.island1.x + connection.island2.x) / 2);
+            const centerTileY = Math.floor((connection.island1.y + connection.island2.y) / 2);
+            const centerWorldX = centerTileX * tileSize + tileSize / 2;
+            const centerWorldY = centerTileY * tileSize + tileSize / 2;
+
+            const blockedX = centerWorldX - CONSTANTS.CHARACTER_WIDTH / 2;
+            const blockedY = centerWorldY - CONSTANTS.CHARACTER_HEIGHT;
+
+            const dirX = connection.island2.x - connection.island1.x;
+            const dirY = connection.island2.y - connection.island1.y;
+            const magnitude = Math.hypot(dirX, dirY) || 1;
+            const perpX = -dirY / magnitude;
+            const perpY = dirX / magnitude;
+            const offsetTiles = config.sideOffsetTiles ?? 2;
+
+            const candidateCenters = [
+                { x: centerWorldX + perpX * offsetTiles * tileSize, y: centerWorldY + perpY * offsetTiles * tileSize },
+                { x: centerWorldX - perpX * offsetTiles * tileSize, y: centerWorldY - perpY * offsetTiles * tileSize }
+            ];
+
+            let clearCenter = { x: centerWorldX, y: centerWorldY };
+            for (const candidate of candidateCenters) {
+                const tileX = Math.floor(candidate.x / tileSize);
+                const tileY = Math.floor(candidate.y / tileSize);
+                if (this.worldMap.terrainMap?.[tileY]?.[tileX] === 0) {
+                    clearCenter = candidate;
+                    break;
+                }
+            }
+
+            const clearX = clearCenter.x - CONSTANTS.CHARACTER_WIDTH / 2;
+            const clearY = clearCenter.y - CONSTANTS.CHARACTER_HEIGHT;
+
+            const npc = new NPC(blockedX, blockedY, config.name, config.dialog.blocked, config.species);
+            npc.isBridgeBlocker = true;
+            npc.blockerId = config.id;
+            npc.blockerConfig = config;
+            npc.blockerRequirement = config.requirement;
+            npc.blockerDialog = config.dialog;
+            npc.canWander = false;
+            npc.homePosition = { x: blockedX, y: blockedY };
+            npc.blockedPosition = { x: blockedX, y: blockedY };
+            npc.clearPosition = { x: clearX, y: clearY };
+            if (typeof config.hueShift === 'number') {
+                npc.hueShift = config.hueShift;
+            }
+
+            const blockerState = this.blockerState[config.id];
+            if (blockerState?.cleared) {
+                npc.position.x = npc.clearPosition.x;
+                npc.position.y = npc.clearPosition.y;
+                npc.homePosition = { ...npc.clearPosition };
+                npc.dialog = config.dialog.cleared;
+            }
+
+            this.loadNPCSprite(npc);
+            this.npcs.push(npc);
+            blockerCount++;
+            console.log(`  🛡️ Bridge blocker ${config.name} guarding ${config.connection.join(' ↔ ')}`);
+        }
+
+        if (blockerCount > 0) {
+            console.log(`🚧 Added ${blockerCount} bridge blockers`);
+        }
+    }
+
+    handleBridgeBlockerInteraction(npc) {
+        if (!npc || !npc.blockerConfig || !this.dialogSystem) return;
+
+        const config = npc.blockerConfig;
+        const requirement = npc.blockerRequirement;
+        const inventory = this.inventorySystem;
+        const state = this.blockerState[config.id] || { cleared: false };
+
+        const showDialog = (lines) => {
+            if (!lines || lines.length === 0) return;
+            this.sfx.play('dialog_open');
+            this.dialogSystem.show(lines);
+        };
+
+        if (!state.cleared) {
+            if (!requirement || !inventory) {
+                showDialog(config.dialog.blocked);
+                return;
+            }
+
+            if (inventory.hasItem(requirement.itemId, requirement.quantity)) {
+                inventory.removeItem(requirement.itemId, requirement.quantity);
+                this.blockerState[config.id] = { cleared: true };
+                this.moveBridgeBlockerAside(npc);
+                if (this.continuitySystem) {
+                    this.continuitySystem.addContinuity(4, `bridge_blocker_${config.id}`);
+                }
+                const successLines = [
+                    ...(config.dialog.ready || []),
+                    ...(config.dialog.cleared || [])
+                ];
+                showDialog(successLines.length ? successLines : config.dialog.cleared);
+            } else {
+                showDialog(config.dialog.blocked);
+            }
+            return;
+        }
+
+        showDialog(config.dialog.cleared || npc.dialog);
+    }
+
+    moveBridgeBlockerAside(npc) {
+        if (!npc || !npc.clearPosition) return;
+        npc.position.x = npc.clearPosition.x;
+        npc.position.y = npc.clearPosition.y;
+        npc.homePosition = { ...npc.clearPosition };
+        npc.dialog = npc.blockerDialog?.cleared || npc.dialog;
+    }
+
     // Create decorations (plants, shells, rocks) on islands
     createDecorations(islands) {
         const tileSize = CONSTANTS.TILE_SIZE;
@@ -5886,7 +6095,11 @@ class Game {
         if (!islands || islands.length < 2) return;
         
         const tileSize = CONSTANTS.TILE_SIZE;
-        const buildingBufferPx = Math.max(48, tileSize * 3);
+        const WAYGATE_WIDTH = 48;
+        const WAYGATE_HEIGHT = 64;
+        const WAYGATE_CLEAR_RADIUS = 48;
+        const WAYGATE_BUILDING_CLEARANCE = Math.max(64, tileSize * 4);
+        const buildings = this.buildings || [];
         this.waygates = [];
         
         const terrainMap = this.worldMap?.terrainMap;
@@ -5895,13 +6108,26 @@ class Game {
         const mapHeight = this.worldMap?.height || terrainMap?.length || 0;
         
         // Helper: check if tile is inside or very close to a building
-        const isNearBuilding = (worldX, worldY, margin = buildingBufferPx) => {
-            for (const building of this.buildings) {
-                const bx = building.x - margin;
-                const by = building.y - margin;
-                const bw = building.width + margin * 2;
-                const bh = building.height + margin * 2;
-                if (worldX >= bx && worldX < bx + bw && worldY >= by && worldY < by + bh) {
+        const isNearBuilding = (worldX, worldY, margin = WAYGATE_BUILDING_CLEARANCE) => {
+            const waygateLeft = worldX;
+            const waygateRight = worldX + WAYGATE_WIDTH;
+            const waygateTop = worldY;
+            const waygateBottom = worldY + WAYGATE_HEIGHT;
+
+            for (const building of buildings) {
+                const expandedLeft = building.x - margin;
+                const expandedRight = building.x + building.width + margin;
+                const expandedTop = building.y - margin;
+                const expandedBottom = building.y + building.height + margin;
+
+                const overlaps = !(
+                    waygateRight <= expandedLeft ||
+                    waygateLeft >= expandedRight ||
+                    waygateBottom <= expandedTop ||
+                    waygateTop >= expandedBottom
+                );
+
+                if (overlaps) {
                     return true;
                 }
             }
@@ -5919,7 +6145,7 @@ class Game {
         const isPositionClearOfBuildings = (col, row) => {
             const worldX = col * tileSize;
             const worldY = row * tileSize;
-            return !isNearBuilding(worldX, worldY, buildingBufferPx);
+            return !isNearBuilding(worldX, worldY, WAYGATE_BUILDING_CLEARANCE);
         };
         
         const hasClearLandingZone = (col, row, radiusTiles = 5, maxBlockedRatio = 0.1) => {
@@ -5966,7 +6192,7 @@ class Game {
         
         // Helper: remove decorations at a position (waygate replaces them)
         // Skip editor-placed decorations to prevent holes in editor layouts
-        const clearDecorationsAt = (worldX, worldY, clearRadius = 48) => {
+        const clearDecorationsAt = (worldX, worldY, clearRadius = WAYGATE_CLEAR_RADIUS) => {
             this.decorations = this.decorations.filter(d => {
                 const dx = d.x - worldX;
                 const dy = d.y - worldY;
@@ -6009,12 +6235,18 @@ class Game {
 
                 for (const candidate of candidates) {
                     const { col, row } = candidate;
-                    const worldX = col * tileSize;
-                    const worldY = row * tileSize;
+                    const clearingPosition = {
+                        x: col * tileSize,
+                        y: row * tileSize
+                    };
 
-                    clearDecorationsAt(worldX, worldY);
+                    if (isNearBuilding(clearingPosition.x, clearingPosition.y, WAYGATE_BUILDING_CLEARANCE)) {
+                        continue;
+                    }
+
+                    clearDecorationsAt(clearingPosition.x, clearingPosition.y, WAYGATE_CLEAR_RADIUS);
                     this.worldMap.setTile(this.worldMap.collisionLayer, col, row, 0);
-                    const waygate = new Waygate(worldX, worldY, name);
+                    const waygate = new Waygate(clearingPosition.x, clearingPosition.y, name);
                     this.waygates.push(waygate);
                     console.log(`  ✨ Placed Waygate '${name}' at (${col}, ${row}) with clear radius on island centered at (${island.x}, ${island.y})`);
                     return true;
