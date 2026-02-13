@@ -5,13 +5,20 @@
 
 const WebSocket = require('ws');
 const http = require('http');
+const EnemyManager = require('./EnemyManager');
 
 const PORT = process.env.PORT || 3003;
 
 class MultiplayerServer {
     constructor() {
-        this.players = new Map(); // odplayerId -> { ws, data }
+        this.players = new Map(); // playerId -> { ws, data }
         this.nextPlayerId = 1;
+
+        this.enemyManager = new EnemyManager({
+            broadcast: (message, excludeId) => this.broadcast(message, excludeId),
+            getPlayers: () => this.players
+        });
+        this.enemyManager.start();
     }
 
     start() {
@@ -76,6 +83,10 @@ class MultiplayerServer {
                 type: 'players',
                 players: this.getAllPlayers()
             }));
+
+            if (this.enemyManager) {
+                this.enemyManager.sendInitialState(ws);
+            }
 
             ws.on('message', (data) => {
                 try {
@@ -197,6 +208,31 @@ class MultiplayerServer {
                     playerId: playerId,
                     action: msg.action
                 }, playerId);
+                break;
+
+            case 'attack':
+                if (!player.data.name) {
+                    player.ws.send(JSON.stringify({ type: 'attack', hit: false, message: 'Join first.' }));
+                    break;
+                }
+                if (msg.direction) {
+                    player.data.direction = msg.direction;
+                }
+                const result = this.enemyManager.handleAttack(playerId, {
+                    direction: msg.direction,
+                    weapon: msg.weapon,
+                    targetEnemyIds: msg.targetEnemyIds
+                });
+                player.ws.send(JSON.stringify({
+                    type: 'attack',
+                    hit: result.hit,
+                    enemyId: result.enemyId,
+                    enemyName: result.enemyName,
+                    damage: result.damage,
+                    enemyShellIntegrity: result.shellIntegrity,
+                    defeated: result.defeated,
+                    message: result.message
+                }));
                 break;
 
             case 'ping':

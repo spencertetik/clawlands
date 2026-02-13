@@ -19,6 +19,7 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } = require('./terrainMap');
 const { ServerCollisionSystem, getCharacterCollisionBox } = require('./serverCollisionSystem');
+const { EnemyManager } = require('./enemy/EnemyManager');
 
 // ============================================
 // Configuration
@@ -270,6 +271,7 @@ function hashToken(token) {
 const players = new Map();  // id -> { ws, name, x, y, species, color, facing, isBot }
 const rateLimits = new Map();  // ip -> { count, resetTime }
 const botRegRateLimits = new Map();  // ip -> { count, resetTime } for bot registration
+let enemyManager = null;
 
 function checkRateLimit(ip) {
     const now = Date.now();
@@ -425,6 +427,18 @@ function broadcastNearby(message, sourceId, sourceX, sourceY) {
         }
     });
 }
+
+enemyManager = new EnemyManager({
+    players,
+    buildings,
+    collisionSystem: serverCollision,
+    terrainData,
+    worldWidth: WORLD_PIXEL_WIDTH,
+    worldHeight: WORLD_PIXEL_HEIGHT,
+    maxEnemies: 8,
+    broadcast: (message) => broadcast(message)
+});
+enemyManager.start();
 
 function getPlayerList() {
     return Array.from(players.entries())
@@ -982,7 +996,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 ws.send(JSON.stringify({
                     type: 'joined',
                     player: { id: playerId, name, spectator: true },
-                    players: getPlayerList().filter(p => p.id !== playerId)
+                    players: getPlayerList().filter(p => p.id !== playerId),
+                    enemies: enemyManager ? enemyManager.getSnapshot() : []
                 }));
                 // Don't broadcast player_joined — spectators are invisible
                 break;
@@ -999,6 +1014,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
             playerData.name = name;
             playerData.species = msg.species || 'lobster';
             playerData.color = msg.color || 'red';
+            playerData.tokens = playerData.tokens || 0;
+            playerData.shellIntegrity = playerData.shellIntegrity || 100;
             
             // Randomize spawn point on main island (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
@@ -1035,7 +1052,8 @@ async function handleMessage(playerId, playerData, msg, ws) {
                     x: playerData.x,
                     y: playerData.y
                 },
-                players: getPlayerList().filter(p => p.id !== playerId)
+                players: getPlayerList().filter(p => p.id !== playerId),
+                enemies: enemyManager ? enemyManager.getSnapshot() : []
             }));
 
             // Notify others
@@ -1196,6 +1214,12 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 fromName: playerData.name,
                 text: sanitizedText
             }));
+            break;
+        }
+
+        case 'attack': {
+            if (!playerData.name || !enemyManager) return;
+            enemyManager.handleAttack(playerId, { direction: msg.direction, targetId: msg.targetId });
             break;
         }
     }
@@ -1438,6 +1462,10 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 .filter(n => n.distance < 400)
                 .sort((a, b) => a.distance - b.distance);
 
+            const nearbyEnemies = enemyManager
+                ? enemyManager.getNearbyEnemies(playerData.x, playerData.y, 450)
+                : [];
+
             ws.send(JSON.stringify({
                 type: 'surroundings',
                 position: { x: playerData.x, y: playerData.y },
@@ -1445,7 +1473,8 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 island: island ? { id: terrainData.islands.indexOf(island), x: island.x, y: island.y, size: island.size } : null,
                 nearbyBuildings,
                 nearbyPlayers: nearby,
-                nearbyNPCs
+                nearbyNPCs,
+                nearbyEnemies
             }));
             break;
         }
@@ -1597,11 +1626,27 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Join first' }));
                 return;
             }
+            if (!enemyManager) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Combat unavailable' }));
+                return;
+            }
 
+            const result = enemyManager.handleAttack(playerId, data || {});
             ws.send(JSON.stringify({
                 type: 'attack_result',
-                hit: false,
-                message: 'Combat is not implemented visually yet — attacks currently do nothing on screen.'
+                hit: result.hit,
+                enemy: result.enemy,
+                enemyId: result.enemyId,
+                damage: result.damage || 0,
+                enemyHealth: result.enemyHealth,
+                enemyDead: result.enemyDead,
+                tokensEarned: result.tokensEarned || 0,
+                damageTaken: 0,
+                shellIntegrity: result.shellIntegrity || playerData.shellIntegrity || 100,
+                totalTokens: result.totalTokens || playerData.tokens || 0,
+                respawned: false,
+                position: { x: playerData.x, y: playerData.y },
+                message: result.message || (result.hit ? 'Hit!' : 'No enemies in range')
             }));
             break;
         }

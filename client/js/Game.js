@@ -357,6 +357,10 @@ class Game {
         // Add remote players to collision system
         this.collisionSystem.setRemotePlayers(this.multiplayer.remotePlayers);
         
+        if (this.combatSystem && typeof this.combatSystem.setMultiplayerClient === 'function') {
+            this.combatSystem.setMultiplayerClient(this.multiplayer);
+        }
+        
         console.log('🌐 Multiplayer enabled - connecting to shared world');
     }
 
@@ -369,6 +373,9 @@ class Game {
 
     // Disable multiplayer
     disableMultiplayer() {
+        if (this.combatSystem && typeof this.combatSystem.setMultiplayerClient === 'function') {
+            this.combatSystem.setMultiplayerClient(null);
+        }
         if (this.multiplayer) {
             this.multiplayer.disconnect();
             this.multiplayer = null;

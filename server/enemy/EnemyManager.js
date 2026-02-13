@@ -1,0 +1,399 @@
+const { DRIFT_FAUNA_TYPES } = require('../../client/js/data/DriftFaunaData.js');
+
+const PLAYER_WIDTH = 16;
+const PLAYER_HEIGHT = 24;
+const WEAPON_RANGE = 18;
+const WEAPON_SWEEP = 12;
+const DEFAULT_WEAPON_DAMAGE = 10;
+const MIN_BUILDING_DISTANCE = 100;
+const MIN_PLAYER_DISTANCE = 96;
+const ENEMY_MOVE_EPSILON = 2;
+
+class EnemyManager {
+    constructor(options) {
+        this.players = options.players;
+        this.broadcast = options.broadcast;
+        this.collisionSystem = options.collisionSystem;
+        this.terrainData = options.terrainData;
+        this.buildings = options.buildings || [];
+        this.worldWidth = options.worldWidth || 3200;
+        this.worldHeight = options.worldHeight || 3200;
+        this.maxEnemies = options.maxEnemies || 8;
+        this.spawnIntervalMs = options.spawnIntervalMs || 7000;
+        this.tickRateMs = options.tickRateMs || 400;
+        this.weaponDamage = options.weaponDamage || DEFAULT_WEAPON_DAMAGE;
+        this.speedMultiplier = options.speedMultiplier || 1;
+
+        this.enemies = new Map();
+        this.nextEnemyId = 1;
+        this._tickHandle = null;
+        this._lastSpawnAt = 0;
+    }
+
+    start() {
+        if (this._tickHandle) return;
+        this._lastSpawnAt = Date.now();
+        this._tickHandle = setInterval(() => this.tick(), this.tickRateMs);
+    }
+
+    stop() {
+        if (this._tickHandle) {
+            clearInterval(this._tickHandle);
+            this._tickHandle = null;
+        }
+    }
+
+    tick() {
+        const now = Date.now();
+        if (this.enemies.size < this.maxEnemies && now - this._lastSpawnAt >= this.spawnIntervalMs) {
+            if (this.spawnEnemy()) {
+                this._lastSpawnAt = now;
+            }
+        }
+        this.updateEnemies(this.tickRateMs / 1000);
+    }
+
+    spawnEnemy() {
+        const typeKey = 'SKITTER'; // Tier 1 baseline for now
+        const typeData = DRIFT_FAUNA_TYPES[typeKey];
+        if (!typeData) return false;
+
+        const spawnPos = this.findSpawnPosition(typeData);
+        if (!spawnPos) return false;
+
+        const enemy = {
+            id: `enemy_${this.nextEnemyId++}`,
+            type: typeKey,
+            data: typeData,
+            x: spawnPos.x,
+            y: spawnPos.y,
+            width: typeData.size,
+            height: typeData.size,
+            health: typeData.shellIntegrity,
+            maxHealth: typeData.shellIntegrity,
+            heading: Math.random() * Math.PI * 2,
+            wanderTimer: 0,
+            targetPlayerId: null,
+            state: 'wandering',
+            lastBroadcastX: spawnPos.x,
+            lastBroadcastY: spawnPos.y
+        };
+
+        this.enemies.set(enemy.id, enemy);
+        this.broadcast({
+            type: 'enemy_spawn',
+            enemy: this.serializeEnemy(enemy)
+        });
+        return true;
+    }
+
+    serializeEnemy(enemy) {
+        return {
+            id: enemy.id,
+            type: enemy.type,
+            x: Math.round(enemy.x),
+            y: Math.round(enemy.y),
+            health: Math.max(0, Math.round(enemy.health)),
+            maxHealth: enemy.maxHealth,
+            state: enemy.state
+        };
+    }
+
+    findSpawnPosition(typeData) {
+        const players = this.getActivePlayers();
+        const base = players.length > 0
+            ? players[Math.floor(Math.random() * players.length)]
+            : { x: this.worldWidth / 2, y: this.worldHeight / 2 };
+
+        for (let attempt = 0; attempt < 40; attempt++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = MIN_PLAYER_DISTANCE + 100 + Math.random() * 250;
+            const x = this.clamp(base.x + Math.cos(angle) * dist, typeData.size, this.worldWidth - typeData.size);
+            const y = this.clamp(base.y + Math.sin(angle) * dist, typeData.size, this.worldHeight - typeData.size);
+
+            if (!this.isValidSpawn(x, y, typeData)) continue;
+            return { x: Math.round(x), y: Math.round(y) };
+        }
+        return null;
+    }
+
+    clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+    }
+
+    isValidSpawn(x, y, typeData) {
+        // Must be on walkable terrain
+        if (this.collisionSystem.checkCollision(x, y, typeData.size, typeData.size)) {
+            return false;
+        }
+
+        // Avoid buildings / safe zones
+        for (const building of this.buildings) {
+            const dist = this.distanceRectToPoint(building, x + typeData.size / 2, y + typeData.size / 2);
+            if (dist < MIN_BUILDING_DISTANCE) {
+                return false;
+            }
+        }
+
+        // Avoid clustering on other enemies
+        for (const enemy of this.enemies.values()) {
+            const dx = enemy.x - x;
+            const dy = enemy.y - y;
+            if (dx * dx + dy * dy < 60 * 60) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    distanceRectToPoint(rect, px, py) {
+        const nearestX = Math.max(rect.x, Math.min(px, rect.x + rect.width));
+        const nearestY = Math.max(rect.y, Math.min(py, rect.y + rect.height));
+        const dx = px - nearestX;
+        const dy = py - nearestY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    updateEnemies(dtSeconds) {
+        const moveEnemies = [];
+        for (const enemy of this.enemies.values()) {
+            const target = this.findNearestPlayer(enemy);
+            if (target) {
+                enemy.state = 'chasing';
+                enemy.targetPlayerId = target.id;
+                enemy.heading = Math.atan2((target.y + PLAYER_HEIGHT / 2) - (enemy.y + enemy.height / 2), (target.x + PLAYER_WIDTH / 2) - (enemy.x + enemy.width / 2));
+            } else {
+                enemy.state = 'wandering';
+                enemy.targetPlayerId = null;
+                enemy.wanderTimer -= dtSeconds;
+                if (enemy.wanderTimer <= 0) {
+                    enemy.heading = Math.random() * Math.PI * 2;
+                    enemy.wanderTimer = 1.5 + Math.random() * 2.5;
+                }
+            }
+
+            const speed = (enemy.state === 'chasing' ? enemy.data.speed : enemy.data.speed * 0.6) * this.speedMultiplier;
+            const distance = speed * dtSeconds;
+            if (distance <= 0.1) continue;
+
+            const newX = enemy.x + Math.cos(enemy.heading) * distance;
+            const newY = enemy.y + Math.sin(enemy.heading) * distance;
+
+            if (!this.collisionSystem.checkCollision(newX, enemy.y, enemy.width, enemy.height)) {
+                enemy.x = newX;
+            } else {
+                enemy.heading = Math.random() * Math.PI * 2;
+            }
+
+            if (!this.collisionSystem.checkCollision(enemy.x, newY, enemy.width, enemy.height)) {
+                enemy.y = newY;
+            } else {
+                enemy.heading = Math.random() * Math.PI * 2;
+            }
+
+            if (Math.abs(enemy.x - enemy.lastBroadcastX) > ENEMY_MOVE_EPSILON || Math.abs(enemy.y - enemy.lastBroadcastY) > ENEMY_MOVE_EPSILON) {
+                enemy.lastBroadcastX = enemy.x;
+                enemy.lastBroadcastY = enemy.y;
+                moveEnemies.push(enemy);
+            }
+        }
+
+        if (moveEnemies.length) {
+            for (const enemy of moveEnemies) {
+                this.broadcast({
+                    type: 'enemy_move',
+                    enemy: {
+                        id: enemy.id,
+                        x: Math.round(enemy.x),
+                        y: Math.round(enemy.y),
+                        state: enemy.state
+                    }
+                });
+            }
+        }
+    }
+
+    findNearestPlayer(enemy) {
+        const players = this.getActivePlayers();
+        let nearest = null;
+        let nearestDist = Infinity;
+        const cx = enemy.x + enemy.width / 2;
+        const cy = enemy.y + enemy.height / 2;
+        for (const player of players) {
+            const dx = (player.x + PLAYER_WIDTH / 2) - cx;
+            const dy = (player.y + PLAYER_HEIGHT / 2) - cy;
+            const distSq = dx * dx + dy * dy;
+            if (distSq < nearestDist && Math.sqrt(distSq) <= enemy.data.aggroRange * 2) {
+                nearestDist = distSq;
+                nearest = player;
+            }
+        }
+        return nearest;
+    }
+
+    getActivePlayers() {
+        const list = [];
+        for (const [id, player] of this.players.entries()) {
+            if (!player.name || player.isSpectator) continue;
+            if (player.ws && player.ws.readyState !== 1) continue;
+            list.push({ id, x: player.x, y: player.y, direction: player.direction || 'down', data: player });
+        }
+        return list;
+    }
+
+    handleAttack(playerId, payload = {}) {
+        const playerEntry = this.players.get(playerId);
+        if (!playerEntry || !playerEntry.name) {
+            return { hit: false, message: 'Player not ready', shellIntegrity: playerEntry?.shellIntegrity || 100, totalTokens: playerEntry?.tokens || 0 };
+        }
+
+        const targetEnemy = payload.targetId ? this.enemies.get(payload.targetId) : null;
+        const direction = payload.direction || playerEntry.direction || 'down';
+        const hitbox = this.getAttackHitbox(playerEntry, direction);
+
+        const enemy = targetEnemy || this.findEnemyInHitbox(hitbox);
+        if (!enemy) {
+            return { hit: false, message: 'No enemy in range', shellIntegrity: playerEntry.shellIntegrity || 100, totalTokens: playerEntry.tokens || 0 };
+        }
+
+        const damage = this.weaponDamage;
+        enemy.health = Math.max(0, enemy.health - damage);
+        enemy.state = enemy.health <= 0 ? 'dying' : 'hurt';
+
+        this.broadcast({
+            type: 'enemy_damage',
+            enemyId: enemy.id,
+            health: Math.max(0, Math.round(enemy.health)),
+            maxHealth: enemy.maxHealth,
+            attackerId: playerId
+        });
+
+        let tokensEarned = 0;
+        let enemyDead = false;
+        if (enemy.health <= 0) {
+            enemyDead = true;
+            tokensEarned = this.handleEnemyDeath(enemy, playerId);
+        }
+
+        return {
+            hit: true,
+            enemyId: enemy.id,
+            enemy: enemy.data.name,
+            damage,
+            enemyHealth: Math.max(0, Math.round(enemy.health)),
+            enemyDead,
+            tokensEarned,
+            shellIntegrity: playerEntry.shellIntegrity || 100,
+            totalTokens: playerEntry.tokens || 0
+        };
+    }
+
+    handleEnemyDeath(enemy, killerId) {
+        this.enemies.delete(enemy.id);
+        const loot = {
+            tokens: 1 + Math.floor(Math.random() * 3),
+            items: []
+        };
+
+        if (killerId) {
+            const killer = this.players.get(killerId);
+            if (killer) {
+                killer.tokens = (killer.tokens || 0) + loot.tokens;
+            }
+        }
+
+        this.broadcast({
+            type: 'enemy_death',
+            enemyId: enemy.id,
+            killerId,
+            loot
+        });
+
+        return loot.tokens;
+    }
+
+    findEnemyInHitbox(hitbox) {
+        let closest = null;
+        let closestDist = Infinity;
+        for (const enemy of this.enemies.values()) {
+            if (this.rectsOverlap(hitbox, { x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height })) {
+                const dist = this.distanceToEnemyCenter(hitbox, enemy);
+                if (dist < closestDist) {
+                    closest = enemy;
+                    closestDist = dist;
+                }
+            }
+        }
+        return closest;
+    }
+
+    distanceToEnemyCenter(hitbox, enemy) {
+        const hx = hitbox.x + hitbox.width / 2;
+        const hy = hitbox.y + hitbox.height / 2;
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        const dx = hx - ex;
+        const dy = hy - ey;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    rectsOverlap(a, b) {
+        return !(a.x + a.width < b.x ||
+            a.x > b.x + b.width ||
+            a.y + a.height < b.y ||
+            a.y > b.y + b.height);
+    }
+
+    getAttackHitbox(player, direction) {
+        const px = player.x;
+        const py = player.y;
+        const range = WEAPON_RANGE;
+        const sweep = WEAPON_SWEEP;
+        switch (direction) {
+            case 'up':
+            case 'north':
+                return { x: px - sweep / 2, y: py - range, width: PLAYER_WIDTH + sweep, height: range };
+            case 'down':
+            case 'south':
+                return { x: px - sweep / 2, y: py + PLAYER_HEIGHT, width: PLAYER_WIDTH + sweep, height: range };
+            case 'left':
+            case 'west':
+                return { x: px - range, y: py - sweep / 3, width: range, height: PLAYER_HEIGHT + sweep * 0.66 };
+            case 'right':
+            case 'east':
+            default:
+                return { x: px + PLAYER_WIDTH, y: py - sweep / 3, width: range, height: PLAYER_HEIGHT + sweep * 0.66 };
+        }
+    }
+
+    getNearbyEnemies(x, y, radius) {
+        const results = [];
+        const radiusSq = radius * radius;
+        for (const enemy of this.enemies.values()) {
+            const dx = enemy.x - x;
+            const dy = enemy.y - y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq <= radiusSq) {
+                results.push({
+                    id: enemy.id,
+                    type: enemy.type,
+                    name: enemy.data.name,
+                    x: Math.round(enemy.x),
+                    y: Math.round(enemy.y),
+                    distance: Math.round(Math.sqrt(distSq)),
+                    health: Math.max(0, Math.round(enemy.health)),
+                    maxHealth: enemy.maxHealth
+                });
+            }
+        }
+        results.sort((a, b) => a.distance - b.distance);
+        return results;
+    }
+
+    getSnapshot() {
+        return Array.from(this.enemies.values()).map(enemy => this.serializeEnemy(enemy));
+    }
+}
+
+module.exports = { EnemyManager };
