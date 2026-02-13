@@ -4,6 +4,8 @@ const CONSTANTS = {
     TILE_SIZE: 16,
     CHARACTER_WIDTH: 16, // Collision width
     CHARACTER_HEIGHT: 24, // Collision height
+    CHARACTER_COLLISION_WIDTH: 12, // Footprint width used for world collision checks
+    CHARACTER_COLLISION_HEIGHT: 12, // Footprint height (square hitbox near feet)
     CHARACTER_SPRITE_WIDTH: 24,
     CHARACTER_SPRITE_HEIGHT: 24,
     // Visual scale multiplier for rendering characters (keeps collisions at base size)

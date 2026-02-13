@@ -368,7 +368,7 @@ class DecorationLoader {
             type,
             width: def.width,
             height: def.height,
-            collision: def.collision,
+            collision: def.collision ? { ...def.collision } : null,
             ground: def.ground || false,
             useSprite: true
         };

@@ -95,14 +95,24 @@ class CollisionSystem {
             // This prevents getting permanently stuck when an NPC walks into the player
             // or when the player spawns on top of an NPC. Once free, normal collision resumes.
             if (this.player && !excludeEntity) {
-                const px = this.player.position.x;
-                const py = this.player.position.y;
-                const pw = this.player.width;
-                const ph = this.player.height;
+                const playerBox = this.player.getCollisionBox ? this.player.getCollisionBox() : {
+                    x: this.player.position.x,
+                    y: this.player.position.y,
+                    width: this.player.width,
+                    height: this.player.height
+                };
+                const npcBox = npc.getCollisionBox ? npc.getCollisionBox() : {
+                    x: npc.position.x,
+                    y: npc.position.y,
+                    width: npc.width,
+                    height: npc.height
+                };
                 
                 const currentlyOverlapping = !(
-                    px + pw <= npc.position.x || px >= npc.position.x + npc.width ||
-                    py + ph <= npc.position.y || py >= npc.position.y + npc.height
+                    playerBox.x + playerBox.width <= npcBox.x ||
+                    playerBox.x >= npcBox.x + npcBox.width ||
+                    playerBox.y + playerBox.height <= npcBox.y ||
+                    playerBox.y >= npcBox.y + npcBox.height
                 );
                 
                 if (currentlyOverlapping) {
@@ -132,11 +142,17 @@ class CollisionSystem {
                 const remoteY = remoteCenterY - remoteHeight / 2;
                 
                 // Check if already overlapping (don't block - let them escape)
+                const playerBox = this.player.getCollisionBox ? this.player.getCollisionBox() : {
+                    x: this.player.position.x,
+                    y: this.player.position.y,
+                    width: this.player.width,
+                    height: this.player.height
+                };
                 const currentlyOverlapping = !(
-                    this.player.position.x + this.player.width < remotePos.x ||
-                    this.player.position.x > remotePos.x + 16 ||
-                    this.player.position.y + this.player.height < remotePos.y ||
-                    this.player.position.y > remotePos.y + 24
+                    playerBox.x + playerBox.width <= remotePos.x ||
+                    playerBox.x >= remotePos.x + 16 ||
+                    playerBox.y + playerBox.height <= remotePos.y ||
+                    playerBox.y >= remotePos.y + 24
                 );
                 
                 if (currentlyOverlapping) {

@@ -120,8 +120,7 @@ class Game {
         // NPCs (active for current map)
         this.npcs = [];
         this.outdoorNPCs = [];
-        this.blockerState = this.loadBridgeBlockerState();
-        this.bridgeCollisionBlockers = {};
+        this.blockerState = {};
         
         // Decorations (plants, shells, rocks)
         this.decorations = [];
@@ -988,29 +987,34 @@ class Game {
         // Uses a small collision core so player can get close but not overlap
         // IMPORTANT: check collision before pushing to avoid pushing into walls/water
         if (this.player && this.npcs && this.currentLocation === 'outdoor') {
-            const px = this.player.position.x;
-            const py = this.player.position.y;
-            const pw = this.player.width;
-            const ph = this.player.height;
             for (const npc of this.npcs) {
-                // Tighter NPC collision box (inset 3px sides, 4px top)
-                const npcX = npc.position.x + 3;
-                const npcY = npc.position.y + 4;
-                const npcW = npc.width - 6;
-                const npcH = npc.height - 6;
+                const playerBox = this.player.getCollisionBox ? this.player.getCollisionBox() : {
+                    x: this.player.position.x,
+                    y: this.player.position.y,
+                    width: this.player.width,
+                    height: this.player.height
+                };
+                const npcBox = npc.getCollisionBox ? npc.getCollisionBox() : {
+                    x: npc.position.x + 3,
+                    y: npc.position.y + 4,
+                    width: npc.width - 6,
+                    height: npc.height - 6
+                };
                 const overlapping = !(
-                    px + pw <= npcX || px >= npcX + npcW ||
-                    py + ph <= npcY || py >= npcY + npcH
+                    playerBox.x + playerBox.width <= npcBox.x || playerBox.x >= npcBox.x + npcBox.width ||
+                    playerBox.y + playerBox.height <= npcBox.y || playerBox.y >= npcBox.y + npcBox.height
                 );
                 if (overlapping) {
-                    const npcCX = npcX + npcW / 2;
-                    const npcCY = npcY + npcH / 2;
-                    const plCX = px + pw / 2;
-                    const plCY = py + ph / 2;
+                    const npcCX = npcBox.x + npcBox.width / 2;
+                    const npcCY = npcBox.y + npcBox.height / 2;
+                    const plCX = playerBox.x + playerBox.width / 2;
+                    const plCY = playerBox.y + playerBox.height / 2;
                     let dx = plCX - npcCX;
                     let dy = plCY - npcCY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < 0.1) { dx = 1; dy = 0; } else { dx /= dist; dy /= dist; }
+                    const px = this.player.position.x;
+                    const py = this.player.position.y;
                     // Check if push destination is valid before moving
                     const pushX = px + dx * 1.5;
                     const pushY = py + dy * 1.5;
@@ -2246,27 +2250,6 @@ class Game {
             localStorage.setItem('clawlands_opened_chests', JSON.stringify(Array.from(this.openedChests)));
         } catch (e) {
             console.warn('Failed to save opened chests:', e);
-        }
-    }
-
-    // Persist bridge guard blockers so cleared bridges stay open across sessions
-    loadBridgeBlockerState() {
-        try {
-            const saved = localStorage.getItem('clawlands_bridge_blockers');
-            if (!saved) return {};
-            const data = JSON.parse(saved);
-            return data && typeof data === 'object' ? data : {};
-        } catch (e) {
-            console.warn('Failed to load bridge blocker state:', e);
-            return {};
-        }
-    }
-
-    saveBridgeBlockerState() {
-        try {
-            localStorage.setItem('clawlands_bridge_blockers', JSON.stringify(this.blockerState));
-        } catch (e) {
-            console.warn('Failed to save bridge blocker state:', e);
         }
     }
 
@@ -3845,32 +3828,19 @@ class Game {
             });
             if (!connection) continue;
 
-            // Get the precise midpoint tile of the bridge path
-            const midpointTile = this.getBridgeMidpointTile(connection);
-            if (!midpointTile) continue;
-
-            const centerTileX = midpointTile.x;
-            const centerTileY = midpointTile.y;
+            const centerTileX = Math.floor((connection.island1.x + connection.island2.x) / 2);
+            const centerTileY = Math.floor((connection.island1.y + connection.island2.y) / 2);
             const centerWorldX = centerTileX * tileSize + tileSize / 2;
             const centerWorldY = centerTileY * tileSize + tileSize / 2;
 
-            // Center the guard on the bridge midpoint
             const blockedX = centerWorldX - CONSTANTS.CHARACTER_WIDTH / 2;
             const blockedY = centerWorldY - CONSTANTS.CHARACTER_HEIGHT;
 
             const dirX = connection.island2.x - connection.island1.x;
             const dirY = connection.island2.y - connection.island1.y;
             const magnitude = Math.hypot(dirX, dirY) || 1;
-            const normDirX = dirX / magnitude;
-            const normDirY = dirY / magnitude;
-
-            // Build collision blocker tiles on both sides of the bridge
-            const blockerTiles = this.buildBridgeBlockerTiles(centerTileX, centerTileY, normDirX, normDirY);
-            this.registerBridgeCollisionBlockers(config.id, blockerTiles);
-
-            // Find a clear position to move guard to when quest is completed
-            const perpX = -normDirY;
-            const perpY = normDirX;
+            const perpX = -dirY / magnitude;
+            const perpY = dirX / magnitude;
             const offsetTiles = config.sideOffsetTiles ?? 2;
 
             const candidateCenters = [
@@ -3911,11 +3881,6 @@ class Game {
                 npc.position.y = npc.clearPosition.y;
                 npc.homePosition = { ...npc.clearPosition };
                 npc.dialog = config.dialog.cleared;
-                // Ensure collision blockers are deactivated for completed quests
-                this.setBridgeCollisionBlockersActive(config.id, false);
-            } else {
-                // Activate collision blockers for active guards
-                this.setBridgeCollisionBlockersActive(config.id, true);
             }
 
             this.loadNPCSprite(npc);
@@ -3952,7 +3917,6 @@ class Game {
             if (inventory.hasItem(requirement.itemId, requirement.quantity)) {
                 inventory.removeItem(requirement.itemId, requirement.quantity);
                 this.blockerState[config.id] = { cleared: true };
-                this.saveBridgeBlockerState(); // Save state to localStorage
                 this.moveBridgeBlockerAside(npc);
                 if (this.continuitySystem) {
                     this.continuitySystem.addContinuity(4, `bridge_blocker_${config.id}`);
@@ -3971,108 +3935,13 @@ class Game {
         showDialog(config.dialog.cleared || npc.dialog);
     }
 
-
-moveBridgeBlockerAside(npc) {
-    if (!npc || !npc.clearPosition) return;
-    npc.position.x = npc.clearPosition.x;
-    npc.position.y = npc.clearPosition.y;
-    npc.homePosition = { ...npc.clearPosition };
-    npc.dialog = npc.blockerDialog?.cleared || npc.dialog;
-    if (npc.blockerId) {
-        this.setBridgeCollisionBlockersActive(npc.blockerId, false);
+    moveBridgeBlockerAside(npc) {
+        if (!npc || !npc.clearPosition) return;
+        npc.position.x = npc.clearPosition.x;
+        npc.position.y = npc.clearPosition.y;
+        npc.homePosition = { ...npc.clearPosition };
+        npc.dialog = npc.blockerDialog?.cleared || npc.dialog;
     }
-}
-
-getBridgeMidpointTile(connection) {
-    if (!connection || !connection.island1 || !connection.island2) return null;
-    const island1 = connection.island1;
-    const island2 = connection.island2;
-    const dx = island2.x - island1.x;
-    const dy = island2.y - island1.y;
-    const steps = Math.max(Math.abs(dx), Math.abs(dy));
-    if (steps === 0) {
-        return { x: Math.floor(island1.x), y: Math.floor(island1.y) };
-    }
-    const pathTiles = [];
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const col = Math.floor(island1.x + dx * t);
-        const row = Math.floor(island1.y + dy * t);
-        if (this.worldMap?.terrainMap?.[row]?.[col] === 0) {
-            pathTiles.push({ x: col, y: row });
-        }
-    }
-    if (pathTiles.length === 0) {
-        return {
-            x: Math.floor((island1.x + island2.x) / 2),
-            y: Math.floor((island1.y + island2.y) / 2)
-        };
-    }
-    return pathTiles[Math.floor(pathTiles.length / 2)];
-}
-
-buildBridgeBlockerTiles(centerTileX, centerTileY, dirX, dirY) {
-    if (!this.worldMap?.terrainMap) return [];
-    const tiles = [];
-    const seen = new Set();
-    const orientation = Math.abs(dirX) >= Math.abs(dirY) ? 'horizontal' : 'vertical';
-    const span = 2;
-    const pushTile = (x, y) => {
-        if (typeof x !== 'number' || typeof y !== 'number') return;
-        const row = this.worldMap.terrainMap[y];
-        if (!row || row[x] !== 0) return;
-        const key = `${x},${y}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        tiles.push({ x, y });
-    };
-    for (let step = -span; step <= span; step++) {
-        if (orientation === 'horizontal') {
-            const col = centerTileX + step;
-            pushTile(col, centerTileY - 1);
-            pushTile(col, centerTileY + 1);
-        } else {
-            const row = centerTileY + step;
-            pushTile(centerTileX - 1, row);
-            pushTile(centerTileX + 1, row);
-        }
-    }
-    return tiles;
-}
-
-registerBridgeCollisionBlockers(blockerId, tiles) {
-    if (!this.bridgeCollisionBlockers) {
-        this.bridgeCollisionBlockers = {};
-    }
-    if (!Array.isArray(tiles)) {
-        this.bridgeCollisionBlockers[blockerId] = [];
-        return;
-    }
-    const entries = tiles.map(tile => ({
-        x: tile.x,
-        y: tile.y,
-        originalValue: this.worldMap?.collisionLayer?.[tile.y]?.[tile.x] ?? 0
-    }));
-    this.bridgeCollisionBlockers[blockerId] = entries;
-}
-
-setBridgeCollisionBlockersActive(blockerId, active) {
-    if (!this.bridgeCollisionBlockers || !this.worldMap?.collisionLayer) return;
-    const entries = this.bridgeCollisionBlockers[blockerId];
-    if (!entries || entries.length === 0) return;
-    for (const entry of entries) {
-        const row = entry.y;
-        const col = entry.x;
-        const collisionRow = this.worldMap.collisionLayer[row];
-        if (!collisionRow) continue;
-        if (active) {
-            collisionRow[col] = 1;
-        } else {
-            const original = entry.originalValue ?? 0;
-            collisionRow[col] = original;
-        }
-    }
-}
 
     // Create decorations (plants, shells, rocks) on islands
     createDecorations(islands) {
@@ -5574,74 +5443,56 @@ setBridgeCollisionBlockersActive(blockerId, active) {
         }
     }
     
-    // Mark collision tiles for all solid decorations (called AFTER editor data is applied)
+    // Mark collision tiles for all solid decorations (sprite-aligned)
     markDecorationCollisions() {
         const tileSize = CONSTANTS.TILE_SIZE;
-        
-        // Types that should block movement, with their collision width in tiles at the base
-        // collisionW: how many tiles wide the trunk/base blocks
-        // collisionH: how many tiles tall the collision footprint is
-        const solidTypes = {
-            'palm':             { collisionW: 1, collisionH: 1 },
-            'palm2':            { collisionW: 1, collisionH: 1 },
-            'rock':             { collisionW: 1, collisionH: 1 },
-            'rock2':            { collisionW: 1, collisionH: 1 },
-            'treasure_chest':   { collisionW: 1, collisionH: 1 },
-            'treasure_chest2':  { collisionW: 1, collisionH: 1 },
-            'lobster_statue':   { collisionW: 1, collisionH: 1 },
-            'wooden_sign':      { collisionW: 1, collisionH: 1 },
-            'anchor':           { collisionW: 1, collisionH: 1 },
-            'campfire':         { collisionW: 1, collisionH: 1 },
-            'log_pile':         { collisionW: 1, collisionH: 1 },
-            'buoy':             { collisionW: 1, collisionH: 1 },
-            'bush':             { collisionW: 1, collisionH: 1, centerY: true },
-        };
-        
+        if (!this.worldMap?.collisionLayer || !Array.isArray(this.decorations)) {
+            return;
+        }
+
         let marked = 0;
+
         for (const decor of this.decorations) {
-            const solidDef = solidTypes[decor.type];
-            if (!solidDef) continue;
-            
-            const cw = solidDef.collisionW;
-            const ch = solidDef.collisionH;
-            
-            // Position collision box
-            const baseCenterX = decor.x + decor.width / 2;
-            const centerCol = Math.floor(baseCenterX / tileSize);
-            
-            let startRow;
-            if (solidDef.centerY) {
-                // Center collision on sprite (for short ground-level items like bushes)
-                const centerY = decor.y + decor.height / 2;
-                const centerRow = Math.floor(centerY / tileSize);
-                startRow = centerRow - Math.floor((ch - 1) / 2);
-            } else {
-                // Anchor collision at base/bottom (for tall items like trees)
-                const baseBottomY = decor.y + decor.height;
-                const bottomRow = Math.floor((baseBottomY - 1) / tileSize);
-                startRow = bottomRow - (ch - 1);
+            if (!decor || decor.ground) continue;
+
+            let collisionDef = decor.collision || null;
+            if (!collisionDef && this.decorationLoader && typeof this.decorationLoader.getDefinition === 'function') {
+                const def = this.decorationLoader.getDefinition(decor.type);
+                collisionDef = def?.collision || null;
             }
-            
-            // Expand from center column
-            const startCol = centerCol - Math.floor((cw - 1) / 2);
-            
-            for (let r = 0; r < ch; r++) {
-                for (let c = 0; c < cw; c++) {
-                    const cr = startRow + r;
-                    const cc = startCol + c;
-                    if (cr >= 0 && cr < this.worldMap.height &&
-                        cc >= 0 && cc < this.worldMap.width &&
-                        this.worldMap.collisionLayer[cr]) {
-                        this.worldMap.collisionLayer[cr][cc] = 1;
+            if (!collisionDef) continue;
+
+            const decoWidth = decor.width ?? tileSize;
+            const decoHeight = decor.height ?? tileSize;
+            const collisionWidth = collisionDef.width ?? decoWidth;
+            const collisionHeight = collisionDef.height ?? decoHeight;
+            if (collisionWidth <= 0 || collisionHeight <= 0) continue;
+            const offsetX = collisionDef.offsetX ?? Math.round((decoWidth - collisionWidth) / 2);
+            const offsetY = collisionDef.offsetY ?? Math.max(0, decoHeight - collisionHeight);
+            const baseX = (decor.x ?? 0) + offsetX;
+            const baseY = (decor.y ?? 0) + offsetY;
+
+            const startCol = Math.floor(baseX / tileSize);
+            const endCol = Math.floor((baseX + collisionWidth - 1) / tileSize);
+            const startRow = Math.floor(baseY / tileSize);
+            const endRow = Math.floor((baseY + collisionHeight - 1) / tileSize);
+
+            for (let row = startRow; row <= endRow; row++) {
+                const collisionRow = this.worldMap.collisionLayer[row];
+                if (!collisionRow) continue;
+                for (let col = startCol; col <= endCol; col++) {
+                    if (col < 0 || col >= collisionRow.length) continue;
+                    if (collisionRow[col] !== 1) {
+                        collisionRow[col] = 1;
                         marked++;
                     }
                 }
             }
         }
-        
-        console.log(`Marked ${marked} collision tiles for solid decorations`);
+
+        console.log(`Marked ${marked} collision tiles for solid decorations (sprite-aligned)`);
     }
-    
+
     // Apply hand-placed editor map data (roads, decorations, deletions)
     applyEditorMapData() {
         if (typeof EDITOR_MAP_DATA === 'undefined') return;

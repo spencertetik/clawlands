@@ -96,25 +96,26 @@ class NPC extends Entity {
                 const newX = this.position.x + moveX;
                 const newY = this.position.y + moveY;
                 
-                // Check collision before moving (use smaller hitbox for NPCs)
+                // Check collision before moving using NPC footprint
                 // Pass 'this' to exclude self from NPC collision checks
+                const npcHitbox = this.getCollisionBox(newX, newY);
                 const canMove = !collisionSystem || !collisionSystem.checkCollision(
-                    newX + 4, newY + 8, this.width - 8, this.height - 8, this
+                    npcHitbox.x, npcHitbox.y, npcHitbox.width, npcHitbox.height, this
                 );
                 
                 // Also check if we'd walk onto the player (NPCs should avoid player)
                 let wouldHitPlayer = false;
                 if (collisionSystem && collisionSystem.player) {
                     const p = collisionSystem.player;
-                    const npcBox = { x: newX + 4, y: newY + 8, w: this.width - 8, h: this.height - 8 };
-                    const playerBox = { x: p.position.x, y: p.position.y, w: p.width, h: p.height };
+                    const npcBox = npcHitbox;
+                    const playerBox = p.getCollisionBox ? p.getCollisionBox() : { x: p.position.x, y: p.position.y, width: p.width, height: p.height };
                     
                     // AABB overlap check
                     wouldHitPlayer = !(
-                        npcBox.x + npcBox.w < playerBox.x ||
-                        npcBox.x > playerBox.x + playerBox.w ||
-                        npcBox.y + npcBox.h < playerBox.y ||
-                        npcBox.y > playerBox.y + playerBox.h
+                        npcBox.x + npcBox.width < playerBox.x ||
+                        npcBox.x > playerBox.x + playerBox.width ||
+                        npcBox.y + npcBox.height < playerBox.y ||
+                        npcBox.y > playerBox.y + playerBox.height
                     );
                 }
                 
@@ -169,17 +170,26 @@ class NPC extends Entity {
         }
     }
     
-    // Check if player would collide with this NPC (smaller hitbox for better feel)
+    getCollisionBox(atX = this.position.x, atY = this.position.y) {
+        const footprintWidth = CONSTANTS.CHARACTER_COLLISION_WIDTH || (this.width - 6);
+        const footprintHeight = CONSTANTS.CHARACTER_COLLISION_HEIGHT || (this.height - 6);
+        const offsetX = (this.width - footprintWidth) / 2;
+        const offsetY = this.height - footprintHeight;
+        return {
+            x: atX + offsetX,
+            y: atY + offsetY,
+            width: footprintWidth,
+            height: footprintHeight
+        };
+    }
+
+    // Check if player would collide with this NPC (uses shared footprint hitbox)
     checkCollision(playerX, playerY, playerWidth, playerHeight) {
-        // Use a tighter collision box (inset 3px on each side, 4px from top)
-        const npcX = this.position.x + 3;
-        const npcY = this.position.y + 4;
-        const npcW = this.width - 6;
-        const npcH = this.height - 6;
-        return playerX < npcX + npcW &&
-               playerX + playerWidth > npcX &&
-               playerY < npcY + npcH &&
-               playerY + playerHeight > npcY;
+        const npcBox = this.getCollisionBox();
+        return playerX < npcBox.x + npcBox.width &&
+               playerX + playerWidth > npcBox.x &&
+               playerY < npcBox.y + npcBox.height &&
+               playerY + playerHeight > npcBox.y;
     }
 
     // Render NPC with sprite or fallback to rectangle

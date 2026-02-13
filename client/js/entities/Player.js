@@ -59,10 +59,12 @@ class Player extends Entity {
             if (cs) {
                 const newX = this.position.x + knockX;
                 const newY = this.position.y + knockY;
-                if (!cs.checkCollision(newX, this.position.y, this.width, this.height)) {
+                const hitboxX = this.getCollisionBox(newX, this.position.y);
+                const hitboxY = this.getCollisionBox(this.position.x, newY);
+                if (!cs.checkCollision(hitboxX.x, hitboxX.y, hitboxX.width, hitboxX.height)) {
                     this.position.x = newX;
                 }
-                if (!cs.checkCollision(this.position.x, newY, this.width, this.height)) {
+                if (!cs.checkCollision(hitboxY.x, hitboxY.y, hitboxY.width, hitboxY.height)) {
                     this.position.y = newY;
                 }
             } else {
@@ -146,9 +148,11 @@ class Player extends Entity {
             const newX = this.position.x + this.velocity.x * deltaTime;
             const newY = this.position.y + this.velocity.y * deltaTime;
 
-            // Check collision before moving
-            const canMoveX = !collisionSystem || !collisionSystem.checkCollision(newX, this.position.y, this.width, this.height);
-            const canMoveY = !collisionSystem || !collisionSystem.checkCollision(this.position.x, newY, this.width, this.height);
+            // Check collision before moving using the player's footprint hitbox
+            const hitboxX = this.getCollisionBox(newX, this.position.y);
+            const hitboxY = this.getCollisionBox(this.position.x, newY);
+            const canMoveX = !collisionSystem || !collisionSystem.checkCollision(hitboxX.x, hitboxX.y, hitboxX.width, hitboxX.height);
+            const canMoveY = !collisionSystem || !collisionSystem.checkCollision(hitboxY.x, hitboxY.y, hitboxY.width, hitboxY.height);
 
             // Apply movement
             if (canMoveX) {
@@ -175,6 +179,20 @@ class Player extends Entity {
             this.animationTimer = 0;
             this.animationFrame = (this.animationFrame + 1) % 3; // 3 walk frames
         }
+    }
+
+    // Collision footprint anchored to the player's feet
+    getCollisionBox(atX = this.position.x, atY = this.position.y) {
+        const footprintWidth = CONSTANTS.CHARACTER_COLLISION_WIDTH || this.width;
+        const footprintHeight = CONSTANTS.CHARACTER_COLLISION_HEIGHT || this.height;
+        const offsetX = (this.width - footprintWidth) / 2;
+        const offsetY = this.height - footprintHeight;
+        return {
+            x: atX + offsetX,
+            y: atY + offsetY,
+            width: footprintWidth,
+            height: footprintHeight
+        };
     }
 
     // Render player
