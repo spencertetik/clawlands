@@ -983,8 +983,8 @@ class Game {
             npc.update(deltaTime, this.collisionSystem);
         }
 
-        // Collision with NPCs is now handled purely in the collision system 
-        // No push/repel forces - player simply stops when hitting solid objects
+        // Maintain gentle separation between moving characters so they don't overlap
+        this.pushPlayerAwayFromNPCs();
 
         // Stuck detection: if player is on a solid tile, nudge to nearest passable tile
         if (this.player && this.collisionSystem && this.currentLocation === 'outdoor') {
@@ -4135,7 +4135,7 @@ class Game {
         }
 
         // Push away from NPCs and update camera
-        this.pushPlayerAwayFromNPCs();
+        // pushPlayerAwayFromNPCs removed — simple collision blocking only
         this.camera.setTarget(this.player);
 
         if (typeof gameNotifications !== 'undefined' && gameNotifications) {
