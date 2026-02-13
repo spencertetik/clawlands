@@ -18,14 +18,15 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const { generateTerrain, generateBuildings, isBoxWalkable, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } = require('./terrainMap');
+const { ServerCollisionSystem } = require('./serverCollisionSystem');
 
 // ============================================
 // Configuration
 // ============================================
 
 const PORT = process.env.PORT || 3000;
-const WORLD_PIXEL_WIDTH = WORLD_WIDTH * TILE_SIZE;  // 200 * 16 = 3200
-const WORLD_PIXEL_HEIGHT = WORLD_HEIGHT * TILE_SIZE; // 200 * 16 = 3200
+let WORLD_PIXEL_WIDTH = WORLD_WIDTH * TILE_SIZE;  // Will be updated after terrain generation
+let WORLD_PIXEL_HEIGHT = WORLD_HEIGHT * TILE_SIZE; // Will be updated after terrain generation
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k => k);
 
@@ -33,9 +34,20 @@ const BOT_API_KEYS = (process.env.BOT_API_KEYS || 'dev-key').split(',').filter(k
 // Terrain Generation
 // ============================================
 
-// Generate terrain data - same seed as client
+// Generate terrain data - matches client exactly
 const terrainData = generateTerrain();
-const buildings = generateBuildings(terrainData.terrainMap, terrainData.islands);
+const buildings = generateBuildings(terrainData);
+
+// Update world pixel dimensions based on actual terrain data
+WORLD_PIXEL_WIDTH = terrainData.width * TILE_SIZE;
+WORLD_PIXEL_HEIGHT = terrainData.height * TILE_SIZE;
+
+// Initialize server-side collision system
+const serverCollision = new ServerCollisionSystem(terrainData);
+serverCollision.setBuildings(buildings);
+serverCollision.setDecorations(terrainData.decorations || []);
+
+console.log(`🗺️ World loaded: ${terrainData.width}×${terrainData.height} tiles, ${buildings.length} buildings, ${(terrainData.decorations || []).length} decorations`);
 
 // ============================================
 // NPC Data (mirrors client StoryNPCData placements)
@@ -115,6 +127,9 @@ for (const placement of storyNPCPlacements) {
 }
 
 console.log(`🧑 Placed ${npcs.length} story NPCs on the server`);
+
+// Add NPCs to collision system for bot collision checks
+serverCollision.setNPCs(npcs);
 
 // Rate limiting config
 const RATE_LIMIT = {
@@ -335,7 +350,7 @@ function findSafeSpawn(island) {
         const tryY = (island.y + offsetTilesY) * 16;
         
         // Must be walkable terrain
-        if (!isBoxWalkable(terrainData.terrainMap, tryX, tryY)) continue;
+        if (!isBoxWalkable(terrainData, tryX, tryY)) continue;
         
         // Must be clear of buildings (32px clearance)
         let tooClose = false;
@@ -352,7 +367,7 @@ function findSafeSpawn(island) {
         let openDirs = 0;
         for (const [dx, dy] of [[16,0],[-16,0],[0,16],[0,-16]]) {
             const nx = tryX + dx, ny = tryY + dy;
-            if (isBoxWalkable(terrainData.terrainMap, nx, ny)) {
+            if (isBoxWalkable(terrainData, nx, ny)) {
                 let buildingClear = true;
                 for (const building of buildings) {
                     if (nx < building.x + building.width && nx + 16 > building.x &&
@@ -375,7 +390,7 @@ function findSafeSpawn(island) {
         const offsetTilesY = Math.floor(Math.random() * (island.size * 2)) - island.size;
         const tryX = (island.x + offsetTilesX) * 16;
         const tryY = (island.y + offsetTilesY) * 16;
-        if (isBoxWalkable(terrainData.terrainMap, tryX, tryY)) {
+        if (isBoxWalkable(terrainData, tryX, tryY)) {
             return { x: tryX, y: tryY };
         }
     }
@@ -1048,45 +1063,12 @@ async function handleMessage(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
-            // Check terrain collision
-            if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
+            // Check collision using the server collision system (matches client exactly)
+            if (serverCollision.checkCollision(newX, newY)) {
                 // Position blocked, keep old position
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by terrain or buildings',
-                    x: playerData.x,
-                    y: playerData.y 
-                }));
-                return;
-            }
-            
-            // Check building collision (inset by 8px, with door zone at bottom-center)
-            let buildingBlocked = false;
-            const DOOR_WIDTH = 16;
-            const INSET = 8;
-            for (const building of buildings) {
-                const bx = building.x + INSET;
-                const by = building.y + INSET;
-                const bw = building.width - INSET * 2;
-                const bh = building.height - INSET * 2;
-                
-                // Check if player is in the door zone (bottom-center of building)
-                const doorX = building.x + (building.width - DOOR_WIDTH) / 2;
-                const inDoorZone = newX + 8 >= doorX && newX + 8 <= doorX + DOOR_WIDTH && 
-                                   newY >= building.y + building.height - INSET;
-                if (inDoorZone) continue; // Allow walking to door
-                
-                if (newX < bx + bw && newX + 16 > bx &&
-                    newY < by + bh && newY + 24 > by) {
-                    buildingBlocked = true;
-                    break;
-                }
-            }
-            
-            if (buildingBlocked) {
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
-                    message: 'Cannot move there - blocked by building',
+                    message: 'Cannot move there - blocked by terrain, buildings, or decorations',
                     x: playerData.x,
                     y: playerData.y 
                 }));
@@ -1291,44 +1273,11 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
             
-            // Check terrain collision
-            if (!isBoxWalkable(terrainData.terrainMap, newX, newY)) {
+            // Check collision using the server collision system (matches client exactly)
+            if (serverCollision.checkCollision(newX, newY)) {
                 ws.send(JSON.stringify({ 
                     type: 'error', 
-                    message: 'Cannot move there - blocked by terrain or buildings',
-                    x: playerData.x,
-                    y: playerData.y 
-                }));
-                return;
-            }
-            
-            // Check building collision (inset by 8px, with door zone at bottom-center)
-            let buildingBlocked = false;
-            const BOT_DOOR_WIDTH = 16;
-            const BOT_INSET = 8;
-            for (const building of buildings) {
-                const bx = building.x + BOT_INSET;
-                const by = building.y + BOT_INSET;
-                const bw = building.width - BOT_INSET * 2;
-                const bh = building.height - BOT_INSET * 2;
-                
-                // Check if player is in the door zone (bottom-center of building)
-                const doorX = building.x + (building.width - BOT_DOOR_WIDTH) / 2;
-                const inDoorZone = newX + 8 >= doorX && newX + 8 <= doorX + BOT_DOOR_WIDTH && 
-                                   newY >= building.y + building.height - BOT_INSET;
-                if (inDoorZone) continue; // Allow walking to door
-                
-                if (newX < bx + bw && newX + 16 > bx &&
-                    newY < by + bh && newY + 24 > by) {
-                    buildingBlocked = true;
-                    break;
-                }
-            }
-            
-            if (buildingBlocked) {
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
-                    message: 'Cannot move there - blocked by building',
+                    message: 'Cannot move there - blocked by terrain, buildings, or decorations',
                     x: playerData.x,
                     y: playerData.y 
                 }));

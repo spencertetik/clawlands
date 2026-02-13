@@ -417,3 +417,7 @@ class Building {
         ctx.fillText(this.name, bx, by - 2 * scale);
     }
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Building;
+}
