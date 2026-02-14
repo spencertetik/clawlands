@@ -10,10 +10,10 @@ const MIN_PLAYER_DISTANCE = 96;
 const ENEMY_MOVE_EPSILON = 2;
 
 class EnemyManager {
-    constructor(options) {
-        this.players = options.players;
-        this.broadcast = options.broadcast;
-        this.collisionSystem = options.collisionSystem;
+    constructor(options = {}) {
+        this.players = options.players || (typeof options.getPlayers === 'function' ? options.getPlayers() : new Map());
+        this.broadcast = options.broadcast || (() => {});
+        this.collisionSystem = options.collisionSystem || { checkCollision: () => false };
         this.terrainData = options.terrainData;
         this.buildings = options.buildings || [];
         this.worldWidth = options.worldWidth || 3200;
@@ -234,27 +234,30 @@ class EnemyManager {
 
     getActivePlayers() {
         const list = [];
-        for (const [id, player] of this.players.entries()) {
-            if (!player.name || player.isSpectator) continue;
-            if (player.ws && player.ws.readyState !== 1) continue;
-            list.push({ id, x: player.x, y: player.y, direction: player.direction || 'down', data: player });
+        for (const [id, playerEntry] of this.players.entries()) {
+            const playerData = playerEntry?.data || playerEntry;
+            if (!playerData || !playerData.name || playerData.isSpectator) continue;
+            const ws = playerEntry?.ws || playerData?.ws;
+            if (ws && ws.readyState !== 1) continue;
+            list.push({ id, x: playerData.x, y: playerData.y, direction: playerData.direction || 'down', data: playerData });
         }
         return list;
     }
 
     handleAttack(playerId, payload = {}) {
         const playerEntry = this.players.get(playerId);
-        if (!playerEntry || !playerEntry.name) {
-            return { hit: false, message: 'Player not ready', shellIntegrity: playerEntry?.shellIntegrity || 100, totalTokens: playerEntry?.tokens || 0 };
+        const playerData = playerEntry?.data || playerEntry;
+        if (!playerData || !playerData.name) {
+            return { hit: false, message: 'Player not ready', shellIntegrity: playerData?.shellIntegrity || 100, totalTokens: playerData?.tokens || 0 };
         }
 
         const targetEnemy = payload.targetId ? this.enemies.get(payload.targetId) : null;
-        const direction = payload.direction || playerEntry.direction || 'down';
-        const hitbox = this.getAttackHitbox(playerEntry, direction);
+        const direction = payload.direction || playerData.direction || 'down';
+        const hitbox = this.getAttackHitbox(playerData, direction);
 
         const enemy = targetEnemy || this.findEnemyInHitbox(hitbox);
         if (!enemy) {
-            return { hit: false, message: 'No enemy in range', shellIntegrity: playerEntry.shellIntegrity || 100, totalTokens: playerEntry.tokens || 0 };
+            return { hit: false, message: 'No enemy in range', shellIntegrity: playerData.shellIntegrity || 100, totalTokens: playerData.tokens || 0 };
         }
 
         const damage = this.weaponDamage;
@@ -284,8 +287,8 @@ class EnemyManager {
             enemyHealth: Math.max(0, Math.round(enemy.health)),
             enemyDead,
             tokensEarned,
-            shellIntegrity: playerEntry.shellIntegrity || 100,
-            totalTokens: playerEntry.tokens || 0
+            shellIntegrity: playerData.shellIntegrity || 100,
+            totalTokens: playerData.tokens || 0
         };
     }
 
@@ -297,9 +300,10 @@ class EnemyManager {
         };
 
         if (killerId) {
-            const killer = this.players.get(killerId);
-            if (killer) {
-                killer.tokens = (killer.tokens || 0) + loot.tokens;
+            const killerEntry = this.players.get(killerId);
+            const killerData = killerEntry?.data || killerEntry;
+            if (killerData) {
+                killerData.tokens = (killerData.tokens || 0) + loot.tokens;
             }
         }
 

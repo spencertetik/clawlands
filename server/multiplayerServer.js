@@ -5,7 +5,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const EnemyManager = require('./EnemyManager');
+const { EnemyManager } = require('./enemy/EnemyManager');
 
 const PORT = process.env.PORT || 3003;
 
@@ -14,9 +14,16 @@ class MultiplayerServer {
         this.players = new Map(); // playerId -> { ws, data }
         this.nextPlayerId = 1;
 
+        const collisionStub = { checkCollision: () => false };
         this.enemyManager = new EnemyManager({
+            players: this.players,
             broadcast: (message, excludeId) => this.broadcast(message, excludeId),
-            getPlayers: () => this.players
+            collisionSystem: collisionStub,
+            buildings: [],
+            worldWidth: 3200,
+            worldHeight: 3200,
+            terrainData: null,
+            maxEnemies: 8
         });
         this.enemyManager.start();
     }
