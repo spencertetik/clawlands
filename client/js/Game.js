@@ -1028,7 +1028,10 @@ class Game {
 
         // Spectator mode — only update camera + multiplayer (no player logic)
         if (this.spectateMode) {
-            if (this.multiplayer) this.multiplayer.update(deltaTime);
+            if (this.multiplayer) {
+                this.multiplayer.update(deltaTime);
+                this.multiplayer.updateServerEnemies(deltaTime);
+            }
             this.camera.update(deltaTime);
             if (this.dayNightCycle) this.dayNightCycle.update(deltaTime);
             if (this.weatherSystem) this.weatherSystem.update(deltaTime);
@@ -1141,6 +1144,7 @@ class Game {
         // Update multiplayer (other players)
         if (this.multiplayer && this.multiplayerEnabled) {
             this.multiplayer.update(deltaTime);
+            this.multiplayer.updateServerEnemies(deltaTime);
             // Update player count display every 2 seconds
             this.playerCountTimer += deltaTime;
             if (this.playerCountTimer >= 2.0) {
@@ -1454,6 +1458,11 @@ class Game {
         // Render combat system (enemies, attacks, effects, HUD) — skip in spectator
         if (this.combatSystem && !this.spectateMode) {
             this.combatSystem.render(this.renderer);
+        }
+
+        // Render server-driven enemies (Drift Fauna from multiplayer)
+        if (this.multiplayer && (this.multiplayerEnabled || this.spectateMode)) {
+            this.multiplayer.renderServerEnemies(this.renderer);
         }
         
         // Render weather effects (rain, fog, etc.) on top

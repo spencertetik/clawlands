@@ -109,8 +109,12 @@ class MultiplayerClient {
                         }
                     });
                 }
-                if (Array.isArray(msg.enemies) && this.enemyDelegate?.handleEnemySnapshot) {
-                    this.enemyDelegate.handleEnemySnapshot(msg.enemies);
+                if (Array.isArray(msg.enemies)) {
+                    if (this.enemyDelegate?.handleEnemySnapshot) {
+                        this.enemyDelegate.handleEnemySnapshot(msg.enemies);
+                    } else {
+                        this.handleEnemySnapshot(msg.enemies);
+                    }
                 }
                 break;
 
@@ -190,20 +194,40 @@ class MultiplayerClient {
                 this._applyRemoteContext(msg.playerId, msg.context || {});
                 break;
 
-            case 'enemy_spawn':
-                this.handleEnemySpawn(this.normalizeEnemyPayload(msg));
+            case 'enemy_spawn': {
+                const enemies = this.normalizeEnemyPayload(msg);
+                if (this.enemyDelegate?.handleEnemySpawn) {
+                    this.enemyDelegate.handleEnemySpawn(enemies);
+                } else {
+                    this.handleEnemySpawn(enemies);
+                }
                 break;
+            }
 
-            case 'enemy_move':
-                this.handleEnemyMove(this.normalizeEnemyPayload(msg));
+            case 'enemy_move': {
+                const enemies = this.normalizeEnemyPayload(msg);
+                if (this.enemyDelegate?.handleEnemyMove) {
+                    this.enemyDelegate.handleEnemyMove(enemies);
+                } else {
+                    this.handleEnemyMove(enemies);
+                }
                 break;
+            }
 
             case 'enemy_damage':
-                this.handleEnemyDamage(msg);
+                if (this.enemyDelegate?.handleEnemyDamage) {
+                    this.enemyDelegate.handleEnemyDamage(msg);
+                } else {
+                    this.handleEnemyDamage(msg);
+                }
                 break;
 
             case 'enemy_death':
-                this.handleEnemyDeath(msg);
+                if (this.enemyDelegate?.handleEnemyDeath) {
+                    this.enemyDelegate.handleEnemyDeath(msg);
+                } else {
+                    this.handleEnemyDeath(msg);
+                }
                 break;
 
             case 'attack':
@@ -394,11 +418,17 @@ class MultiplayerClient {
     }
 
     update(deltaTime) {
+        this.updateRemotePlayers(deltaTime);
+    }
+
+    updateRemotePlayers(deltaTime) {
         // Update all remote players (interpolation)
         this.remotePlayers.forEach(player => {
             player.update(deltaTime);
         });
+    }
 
+    updateServerEnemies(deltaTime) {
         // Update all server enemies (interpolation)
         this.serverEnemies.forEach(enemy => {
             enemy.update(deltaTime);
@@ -417,11 +447,16 @@ class MultiplayerClient {
         this.remotePlayers.forEach(player => {
             player.render(ctx, camera);
         });
+    }
 
-        // Render all server enemies
+    renderServerEnemies(renderer = this.game?.renderer) {
+        if (!renderer) return;
+
         this.serverEnemies.forEach(enemy => {
-            if (this.game.renderer) {
-                enemy.render(this.game.renderer);
+            try {
+                enemy.render(renderer);
+            } catch (err) {
+                console.warn('Server enemy render error:', err);
             }
         });
     }
@@ -433,6 +468,27 @@ class MultiplayerClient {
         if (payload.enemy) return [payload.enemy];
         if (payload.enemies) return [payload.enemies];
         return [];
+    }
+
+    handleEnemySnapshot(enemies) {
+        const normalized = this.normalizeEnemyPayload(enemies);
+        console.log(`📡 Enemy snapshot received (${normalized.length} enemies)`);
+
+        // Clear existing enemies and notify combat system
+        if (this.serverEnemies.size > 0) {
+            this.serverEnemies.forEach(enemy => {
+                if (this.game.combatSystem?.removeServerEnemy) {
+                    this.game.combatSystem.removeServerEnemy(enemy.id);
+                }
+            });
+            this.serverEnemies.clear();
+        }
+
+        if (normalized.length === 0) {
+            return;
+        }
+
+        this.handleEnemySpawn(normalized);
     }
 
     handleEnemySpawn(enemies) {
