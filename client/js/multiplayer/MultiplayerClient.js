@@ -191,11 +191,11 @@ class MultiplayerClient {
                 break;
 
             case 'enemy_spawn':
-                this.handleEnemySpawn(msg.enemies || []);
+                this.handleEnemySpawn(this.normalizeEnemyPayload(msg));
                 break;
 
             case 'enemy_move':
-                this.handleEnemyMove(msg.enemies || []);
+                this.handleEnemyMove(this.normalizeEnemyPayload(msg));
                 break;
 
             case 'enemy_damage':
@@ -426,6 +426,15 @@ class MultiplayerClient {
         });
     }
 
+    normalizeEnemyPayload(payload) {
+        if (!payload) return [];
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload.enemies)) return payload.enemies;
+        if (payload.enemy) return [payload.enemy];
+        if (payload.enemies) return [payload.enemies];
+        return [];
+    }
+
     handleEnemySpawn(enemies) {
         for (const enemyData of enemies) {
             if (!enemyData || !enemyData.id) continue;
@@ -455,7 +464,9 @@ class MultiplayerClient {
         if (!msg.enemyId) return;
         const enemy = this.serverEnemies.get(msg.enemyId);
         if (enemy) {
-            enemy.takeDamage(msg.shellIntegrity, msg.maxShellIntegrity);
+            const newHealth = msg.shellIntegrity ?? msg.health ?? enemy.shellIntegrity;
+            const newMax = msg.maxShellIntegrity ?? msg.maxHealth ?? enemy.maxShellIntegrity;
+            enemy.takeDamage(newHealth, newMax);
         }
     }
 
@@ -969,13 +980,17 @@ class RemoteEnemy {
         this.game = game;
         this.id = data.id;
         this.type = data.type;
-        this.name = data.name;
+        this.typeData = window.DRIFT_FAUNA_TYPES?.[this.type] || window.DRIFT_FAUNA_TYPES?.SKITTER;
+        const defaultSize = this.typeData?.size || 10;
+        const defaultShell = this.typeData?.shellIntegrity || 1;
+
+        this.name = data.name || this.typeData?.name || this.type;
         this.x = data.x;
         this.y = data.y;
-        this.width = data.width || 10;
-        this.height = data.height || 10;
-        this.shellIntegrity = data.shellIntegrity;
-        this.maxShellIntegrity = data.maxShellIntegrity;
+        this.width = data.width || defaultSize;
+        this.height = data.height || defaultSize;
+        this.shellIntegrity = data.shellIntegrity ?? data.health ?? defaultShell;
+        this.maxShellIntegrity = data.maxShellIntegrity ?? data.maxHealth ?? defaultShell;
         this.state = data.state || 'idle';
         this.zoneId = data.zoneId;
 
@@ -986,8 +1001,6 @@ class RemoteEnemy {
         this.deathTimer = 0;
         this.flashTimer = 0;
 
-        // Get type data for rendering
-        this.typeData = window.DRIFT_FAUNA_TYPES?.[this.type] || window.DRIFT_FAUNA_TYPES?.SKITTER;
         if (this.typeData) {
             this.color = this.typeData.color;
             this.flashColor = this.typeData.flashColor;
@@ -1005,8 +1018,12 @@ class RemoteEnemy {
     }
 
     takeDamage(newHealth, maxHealth) {
-        this.shellIntegrity = newHealth;
-        this.maxShellIntegrity = maxHealth;
+        if (typeof newHealth === 'number') {
+            this.shellIntegrity = Math.max(0, newHealth);
+        }
+        if (typeof maxHealth === 'number') {
+            this.maxShellIntegrity = maxHealth;
+        }
         this.flashTimer = 200; // Flash for 200ms
     }
 

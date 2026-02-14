@@ -80,21 +80,29 @@ class EnemyManager {
         };
 
         this.enemies.set(enemy.id, enemy);
+        const serialized = this.serializeEnemy(enemy);
         this.broadcast({
             type: 'enemy_spawn',
-            enemy: this.serializeEnemy(enemy)
+            enemies: [serialized]
         });
         return true;
     }
 
     serializeEnemy(enemy) {
+        const shellIntegrity = Math.max(0, Math.round(enemy.health));
+        const maxShellIntegrity = enemy.maxHealth;
         return {
             id: enemy.id,
             type: enemy.type,
             x: Math.round(enemy.x),
             y: Math.round(enemy.y),
-            health: Math.max(0, Math.round(enemy.health)),
-            maxHealth: enemy.maxHealth,
+            width: enemy.width,
+            height: enemy.height,
+            name: enemy.data?.name,
+            health: shellIntegrity,
+            maxHealth: maxShellIntegrity,
+            shellIntegrity,
+            maxShellIntegrity,
             state: enemy.state
         };
     }
@@ -200,17 +208,15 @@ class EnemyManager {
         }
 
         if (moveEnemies.length) {
-            for (const enemy of moveEnemies) {
-                this.broadcast({
-                    type: 'enemy_move',
-                    enemy: {
-                        id: enemy.id,
-                        x: Math.round(enemy.x),
-                        y: Math.round(enemy.y),
-                        state: enemy.state
-                    }
-                });
-            }
+            this.broadcast({
+                type: 'enemy_move',
+                enemies: moveEnemies.map(enemy => ({
+                    id: enemy.id,
+                    x: Math.round(enemy.x),
+                    y: Math.round(enemy.y),
+                    state: enemy.state
+                }))
+            });
         }
     }
 
@@ -264,11 +270,14 @@ class EnemyManager {
         enemy.health = Math.max(0, enemy.health - damage);
         enemy.state = enemy.health <= 0 ? 'dying' : 'hurt';
 
+        const shellIntegrity = Math.max(0, Math.round(enemy.health));
         this.broadcast({
             type: 'enemy_damage',
             enemyId: enemy.id,
-            health: Math.max(0, Math.round(enemy.health)),
+            health: shellIntegrity,
             maxHealth: enemy.maxHealth,
+            shellIntegrity,
+            maxShellIntegrity: enemy.maxHealth,
             attackerId: playerId
         });
 

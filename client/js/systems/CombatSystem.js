@@ -1239,7 +1239,12 @@ class CombatSystem {
         const enemy = this.multiplayerEnemies.get(msg.enemyId);
         if (enemy) {
             const oldHealth = enemy.shellIntegrity;
-            enemy.shellIntegrity = Math.max(0, msg.health || 0);
+            const newHealth = Math.max(0, (msg.shellIntegrity ?? msg.health ?? enemy.shellIntegrity ?? 0));
+            const newMax = msg.maxShellIntegrity ?? msg.maxHealth ?? enemy.maxShellIntegrity;
+            enemy.shellIntegrity = newHealth;
+            if (newMax != null) {
+                enemy.maxShellIntegrity = newMax;
+            }
             
             // Visual feedback for damage
             enemy.state = 'hurt';
@@ -1299,8 +1304,8 @@ class CombatSystem {
 
         const enemy = new DriftFauna(enemyData.x, enemyData.y, typeData);
         enemy.networkControlled = true;
-        enemy.shellIntegrity = enemyData.health || typeData.shellIntegrity;
-        enemy.maxShellIntegrity = enemyData.maxHealth || typeData.shellIntegrity;
+        enemy.shellIntegrity = enemyData.shellIntegrity ?? enemyData.health ?? typeData.shellIntegrity;
+        enemy.maxShellIntegrity = enemyData.maxShellIntegrity ?? enemyData.maxHealth ?? typeData.shellIntegrity;
         enemy.serverId = enemyData.id;
         enemy.state = enemyData.state || 'wandering';
 

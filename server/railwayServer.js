@@ -480,7 +480,7 @@ const httpServer = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
-            version: '2026-02-13a',
+            version: '2026-02-13b',
             players: players.size - spectators,
             spectators,
             database: !!db
