@@ -791,7 +791,7 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
                 req.body = await parseBody(req);
             }
 
-            await handleMCPRequest(req, res, `ws://localhost:${PORT}/multiplayer`, 'mcp-internal');
+            await handleMCPRequest(req, res, `ws://localhost:${PORT}`, BOT_API_KEYS[0] || 'dev-key');
         } catch (err) {
             console.error('MCP error:', err);
             if (!res.headersSent) {
