@@ -10,7 +10,7 @@ class Game {
         // Seeded random for deterministic world generation (multiplayer sync)
         this.worldSeed = 12345;
         this._rngState = this.worldSeed;
-        
+
         // Initialize core systems
         this.inputManager = new InputManager();
 
@@ -18,10 +18,10 @@ class Game {
         const worldTilesWide = 200;
         const worldTilesHigh = 200;
         this.worldMap = new WorldMap(worldTilesWide, worldTilesHigh, CONSTANTS.TILE_SIZE);
-        
+
         // Reset RNG for deterministic world (multiplayer sync)
         this.resetRng();
-        
+
         // Create Clawlands archipelago with larger, more distinct islands
         const islands = this.worldMap.createClawlandsArchipelago({
             seed: 12345,
@@ -81,10 +81,10 @@ class Game {
 
         // Asset loader
         this.assetLoader = new AssetLoader();
-        
+
         // Decoration sprite loader
         this.decorationLoader = new DecorationLoader();
-        
+
         // Interior furniture sprite loader
         this.interiorLoader = new InteriorLoader();
 
@@ -116,16 +116,16 @@ class Game {
         this.pendingIslands = islands; // Store islands for building creation after assets load
         this.activeChronicleStone = null; // Currently interacting stone
         this.activeBulletinBoard = null; // Currently interacting bulletin board
-        
+
         // NPCs (active for current map)
         this.npcs = [];
         this.outdoorNPCs = [];
         this.blockerState = {};
-        
+
         // Decorations (plants, shells, rocks)
         this.decorations = [];
         this.outdoorDecorations = [];
-        
+
         // Game active state - false until welcome screen is dismissed
         this.gameActive = false;
 
@@ -140,7 +140,7 @@ class Game {
         this.questSystem = typeof QuestSystem !== 'undefined' ? new QuestSystem(this.continuitySystem) : null;
         this.npcMemory = typeof NPCMemory !== 'undefined' ? new NPCMemory() : null;
         this.factionSystem = typeof FactionSystem !== 'undefined' ? new FactionSystem() : null;
-        
+
         // Inventory system
         this.inventorySystem = typeof InventorySystem !== 'undefined' ? new InventorySystem('default') : null;
         this.inventoryUI = null; // Created after inventory system
@@ -154,7 +154,7 @@ class Game {
         if (this.questManager) {
             console.log('📦 Quest manager initialized');
         }
-        
+
         // Quest Log UI
         this.questLogUI = null;
         if (this.questSystem || this.questManager) {
@@ -163,21 +163,21 @@ class Game {
                 console.log('📜 Quest Log UI initialized');
             }
         }
-        
+
         // Opened chest tracking (persisted per player)
         this.openedChests = this.loadOpenedChests();
-        
+
         // World items (collectible pickups)
         this.worldItems = [];
         this.outdoorWorldItems = [];
         this.worldItemCheckTimer = 0;
-        
+
         // Item quest completion tracking
         this.completedItemQuests = typeof loadCompletedItemQuests !== 'undefined' ? loadCompletedItemQuests() : new Set();
-        
+
         // The Great Book (Church of Molt scripture)
         this.greatBooks = [];
-        
+
         if (this.continuitySystem) {
             console.log('📊 Story systems initialized');
         }
@@ -218,14 +218,14 @@ class Game {
         // this.redCurrent = typeof RedCurrent !== 'undefined' ? 
         //     new RedCurrent(this.worldWidth, this.worldHeight) : null;
         this.redCurrent = null;
-        
+
         // Special world objects (created after assets load)
         this.waygates = [];
         this.stabilityEngine = null;
-        
+
         // Day/night cycle
         this.dayNightCycle = typeof DayNightCycle !== 'undefined' ? new DayNightCycle() : null;
-        
+
         // DISABLED: Red Current initialization
         // if (this.redCurrent) {
         //     this.redCurrent.setWorldMap(this.worldMap);
@@ -234,24 +234,24 @@ class Game {
         if (this.dayNightCycle) {
             console.log(`🌅 Day/Night cycle initialized (${this.dayNightCycle.getTimePeriodName()})`);
         }
-        
+
         // Continuity UI meter — DISABLED: now rendered on canvas in unified HUD
         // this.continuityMeter = typeof ContinuityMeter !== 'undefined' ? new ContinuityMeter() : null;
         this.continuityMeter = null;
-        
+
         // Weather system
-        this.weatherSystem = typeof WeatherSystem !== 'undefined' ? 
+        this.weatherSystem = typeof WeatherSystem !== 'undefined' ?
             new WeatherSystem(this.worldWidth, this.worldHeight) : null;
-        
+
         if (this.weatherSystem) {
             console.log(`🌤️ Weather system initialized (${this.weatherSystem.getWeatherName()})`);
         }
-        
+
         // Visual enhancement systems
         this.waterRenderer = typeof WaterRenderer !== 'undefined' ? new WaterRenderer() : null;
         this.lightingSystem = typeof LightingSystem !== 'undefined' ? new LightingSystem() : null;
         this.shoreRenderer = typeof ShoreRenderer !== 'undefined' ? new ShoreRenderer() : null;
-        
+
         if (this.waterRenderer) {
             console.log('🌊 Water animation system initialized');
         }
@@ -261,10 +261,10 @@ class Game {
         if (this.shoreRenderer) {
             console.log('🏖️ Shore transition system initialized');
         }
-        
+
         // Minimap (created after world is generated)
         this.minimap = null;
-        
+
         // Footstep effects
         this.footstepEffects = typeof FootstepEffects !== 'undefined' ? new FootstepEffects() : null;
 
@@ -291,10 +291,10 @@ class Game {
         // Debug mode (off by default, toggle with backtick key, or ?debug=true URL param)
         const urlParams = new URLSearchParams(window.location.search);
         this.debugMode = urlParams.get('debug') === 'true';
-        
+
         // Dev mode (developer tools access) - toggle with Cmd+Shift+D / Ctrl+Shift+D
         this.devMode = false;
-        
+
         // Spectator mode — ?spectate=BotName to follow a remote player
         this.spectateTarget = urlParams.get('spectate');
         this.spectateMode = !!this.spectateTarget;
@@ -348,19 +348,19 @@ class Game {
             console.error('MultiplayerClient not loaded');
             return;
         }
-        
+
         this.multiplayer = new MultiplayerClient(this);
         this.multiplayerClient = this.multiplayer; // Alias for compatibility
         this.multiplayer.connect();
         this.multiplayerEnabled = true;
-        
+
         // Add remote players to collision system
         this.collisionSystem.setRemotePlayers(this.multiplayer.remotePlayers);
-        
+
         if (this.combatSystem && typeof this.combatSystem.setMultiplayerClient === 'function') {
             this.combatSystem.setMultiplayerClient(this.multiplayer);
         }
-        
+
         console.log('🌐 Multiplayer enabled - connecting to shared world');
     }
 
@@ -405,12 +405,12 @@ class Game {
         this.botBridge = new BotBridge(this);
         this.botBridge.connect();
         this.botEnabled = true;
-        
+
         // Disable player keyboard controls (bots control via direct key manipulation)
         if (this.inputManager) {
             this.inputManager.setDisabled(true);
         }
-        
+
         console.log('🤖 Bot mode enabled - AI players can now connect');
     }
 
@@ -421,12 +421,12 @@ class Game {
             this.botBridge = null;
         }
         this.botEnabled = false;
-        
+
         // Re-enable player keyboard controls
         if (this.inputManager) {
             this.inputManager.setDisabled(false);
         }
-        
+
         console.log('🤖 Bot mode disabled');
     }
 
@@ -450,59 +450,59 @@ class Game {
     // Start spectator mode — skip intro, connect multiplayer, follow target bot
     startSpectatorMode() {
         console.log(`👁️ Spectator mode: watching "${this.spectateTarget}"`);
-        
+
         // Hide retro frame art and go fullscreen — spectator needs the full canvas
         const frameArt = document.getElementById('frame-art');
         if (frameArt) frameArt.style.display = 'none';
         document.body.classList.add('fullscreen-mode');
-        
+
         // Clear any overlay backdrop that might block the canvas
         const screenOverlay = document.getElementById('screen-overlay');
         if (screenOverlay) {
             screenOverlay.style.background = 'transparent';
             screenOverlay.style.pointerEvents = 'none';
         }
-        
+
         // Show splash screen immediately (hides ugly world generation)
         this._showSpectatorSplash();
-        
+
         // Disable input — spectators can't control anything (F for fullscreen handled in main.js)
         if (this.inputManager) {
             this.inputManager.setDisabled(true);
         }
-        
+
         // Set a dummy character name so multiplayer join works
         this.characterName = `Spectator_${Date.now() % 10000}`;
         this.player.name = this.characterName;
         this.characterConfig = { species: 'lobster', hueShift: 0 };
-        
+
         // Mark game as active so rendering works
         this.gameActive = true;
-        
+
         // Hide the player off-screen (spectator is invisible)
         this.player.position.x = -1000;
         this.player.position.y = -1000;
-        
+
         // Start ambient sounds
         if (this.sfx) {
             this.sfx.startOceanAmbient();
             this.sfx.startWindAmbient();
             this.sfx.startBirdAmbient();
         }
-        
+
         // Show spectator overlay
         this._showSpectatorOverlay();
-        
+
         // Show spectator stats HUD
         if (this.spectatorStatsHUD) {
             this.spectatorStatsHUD.show();
         }
-        
+
         // Show minimap in spectator mode
         if (this.minimap) {
             this.minimap.show();
         }
-        
+
         // Enable multiplayer and start scanning for target
         this.enableMultiplayer();
         setTimeout(() => {
@@ -510,13 +510,13 @@ class Game {
             this._startSpectatorScan();
         }, 1500);
     }
-    
+
     // Full-screen splash screen that covers the game during spectator load
     _showSpectatorSplash() {
         this._splashShownAt = Date.now();
         this._splashPlayerFound = false;
         this._splashMinTime = 4000; // Minimum 4 seconds on splash
-        
+
         const splash = document.createElement('div');
         splash.id = 'spectator-splash';
         splash.innerHTML = `
@@ -541,47 +541,47 @@ class Game {
             transition: opacity 1s ease;
         `;
         document.body.appendChild(splash);
-        
+
         // Animate progress bar through loading stages
         setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '20%'; }, 400);
         setTimeout(() => { const b = document.getElementById('splash-bar'); if (b) b.style.width = '40%'; }, 1200);
-        setTimeout(() => { 
+        setTimeout(() => {
             const b = document.getElementById('splash-bar'); if (b) b.style.width = '55%';
             const s = document.getElementById('splash-status'); if (s) s.textContent = 'Loading assets...';
         }, 2000);
-        setTimeout(() => { 
+        setTimeout(() => {
             const b = document.getElementById('splash-bar'); if (b) b.style.width = '70%';
             const s = document.getElementById('splash-status'); if (s) s.textContent = 'Connecting to server...';
         }, 3000);
-        setTimeout(() => { 
-            const s = document.getElementById('splash-status'); 
+        setTimeout(() => {
+            const s = document.getElementById('splash-status');
             if (s && !this._splashPlayerFound) s.textContent = 'Searching for AI agent...';
         }, 4500);
     }
-    
+
     // Called when spectate target is found — wait for assets + min time, then fade
     _dismissSpectatorSplash() {
         this._splashPlayerFound = true;
-        
+
         // Update status
         const s = document.getElementById('splash-status');
         if (s) s.textContent = 'Player found!';
         const b = document.getElementById('splash-bar');
         if (b) b.style.width = '90%';
-        
+
         // Wait for BOTH: assets loaded + minimum display time
         const checkReady = () => {
             const elapsed = Date.now() - (this._splashShownAt || 0);
             const timeReady = elapsed >= this._splashMinTime;
             const assetsReady = this.assetsLoaded;
-            
+
             if (timeReady && assetsReady) {
                 // All good — fade out
                 const bar = document.getElementById('splash-bar');
                 if (bar) bar.style.width = '100%';
                 const status = document.getElementById('splash-status');
                 if (status) status.textContent = 'Entering world...';
-                
+
                 setTimeout(() => {
                     const splash = document.getElementById('spectator-splash');
                     if (splash) {
@@ -598,7 +598,7 @@ class Game {
                 setTimeout(checkReady, 200);
             }
         };
-        
+
         checkReady();
     }
 
@@ -609,12 +609,12 @@ class Game {
         this._spectatorScanInterval = setInterval(() => {
             if (!this.multiplayer) return;
             scanCount++;
-            
+
             const playerCount = this.multiplayer.remotePlayers.size;
-            
+
             // Always update HUD player count
             this._updateSpectateHUD();
-            
+
             // If we have a target, check it's still in the player list
             if (this.spectatePlayer) {
                 let stillExists = false;
@@ -634,14 +634,14 @@ class Game {
                     return; // Still locked on — skip scan
                 }
             }
-            
+
             if (scanCount % 4 === 0) { // Log every 2 seconds
                 console.log(`👁️ Scanning... ${playerCount} remote players found`);
                 for (const [id, remote] of this.multiplayer.remotePlayers) {
                     console.log(`   - "${remote.name}" at (${Math.round(remote.position.x)}, ${Math.round(remote.position.y)})`);
                 }
             }
-            
+
             // Auto-find initial target (first connect or after losing target)
             // Only bots are spectatable — humans are excluded
             let bestMatch = null;
@@ -939,32 +939,32 @@ class Game {
 
             const speciesEmoji = this.getSpeciesEmoji(this.characterConfig?.species);
             console.log(`${speciesEmoji} ${this.characterName} has entered Clawlands!`);
-            
+
             // Show continuity meter after entering the world
             if (this.continuityMeter) {
                 this.continuityMeter.show();
             }
-            
+
             // Show minimap after entering the world
             if (this.minimap) {
                 this.minimap.show();
             }
-            
+
             // DISABLED: Trigger Drift-In effect at player position
             // if (this.redCurrent) {
             //     this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
             // }
-            
+
             // Mark game as active — item pickups, interactions etc. now enabled
             this.gameActive = true;
-            
+
             // Start ambient sounds (ocean waves, wind, birds/insects)
             if (this.sfx) {
                 this.sfx.startOceanAmbient();
                 this.sfx.startWindAmbient();
                 this.sfx.startBirdAmbient();
             }
-            
+
             // Hide DOM HUD panel — now rendered on canvas
             const hudPanel = document.getElementById('hud-panel');
             if (hudPanel) hudPanel.style.display = 'none';
@@ -986,7 +986,7 @@ class Game {
     // Stop the game loop
     stop() {
         this.running = false;
-        
+
         // Clean up spectator stats HUD
         if (this.spectatorStatsHUD) {
             this.spectatorStatsHUD.destroy();
@@ -1093,7 +1093,7 @@ class Game {
                 if (dx < 200 && dy < 200) {
                     worldItem.update(deltaTime);
                 }
-                
+
                 // Check pickup on timer
                 if (this.worldItemCheckTimer >= 0.15 && !worldItem.collected) {
                     if (worldItem.isPlayerNearby(px, py, this.player.width, this.player.height)) {
@@ -1111,7 +1111,7 @@ class Game {
 
         // Auto-exit buildings
         this.checkAutoExitBuilding();
-        
+
         // Walk-through waygate teleportation
         this.checkWaygateWalkThrough();
 
@@ -1131,7 +1131,7 @@ class Game {
                 // Silently fail - position saving is not critical
             }
         }
-        
+
         // Update music zone based on player position (check every 0.5 seconds when outdoors)
         if (this.currentLocation === 'outdoor' && typeof audioManager !== 'undefined') {
             this.musicZoneTimer = (this.musicZoneTimer || 0) + deltaTime;
@@ -1152,12 +1152,12 @@ class Game {
                 this.updatePlayerCount();
             }
         }
-        
+
         // DISABLED: Update Red Current visual effect (outdoor only)
         // if (this.redCurrent && this.currentLocation === 'outdoor') {
         //     this.redCurrent.update(deltaTime);
         // }
-        
+
         // Update Waygates (check visibility based on Continuity)
         if (this.waygates && this.continuitySystem) {
             const continuity = this.continuitySystem.value;
@@ -1166,18 +1166,18 @@ class Game {
                 waygate.update(deltaTime);
             }
         }
-        
+
         // Update Stability Engine
         if (this.stabilityEngine) {
             this.stabilityEngine.update(deltaTime);
         }
-        
+
         // Update day/night cycle
         if (this.dayNightCycle) {
             this.dayNightCycle.update(deltaTime);
             this.dayNightCycle.render();
         }
-        
+
         // Update continuity meter UI
         if (this.continuityMeter && this.continuitySystem) {
             const value = this.continuitySystem.value;
@@ -1185,7 +1185,7 @@ class Game {
             this.continuityMeter.setValue(value, tier);
             this.continuityMeter.update(deltaTime);
         }
-        
+
         // Update Drift Reset system (monitor continuity for soft death)
         if (this.driftReset && this.gameActive) {
             this.driftReset.update();
@@ -1200,17 +1200,17 @@ class Game {
         if (this.currencySystem && this.currencySystem.update) {
             this.currencySystem.update(deltaTime);
         }
-        
+
         // Update faction UI
         if (this.factionUI) {
             this.factionUI.update(deltaTime);
         }
-        
+
         // Update weather system (outdoor only)
         if (this.weatherSystem && this.currentLocation === 'outdoor') {
             this.weatherSystem.update(deltaTime);
         }
-        
+
         // Update visual enhancement systems
         if (this.waterRenderer) {
             this.waterRenderer.update(deltaTime);
@@ -1218,7 +1218,7 @@ class Game {
         if (this.lightingSystem) {
             this.lightingSystem.update(deltaTime);
         }
-        
+
         // Update minimap (outdoor only)
         if (this.minimap && this.currentLocation === 'outdoor') {
             try {
@@ -1227,12 +1227,12 @@ class Game {
                 this.minimap.render();
             } catch (e) { /* minimap error won't block game render */ }
         }
-        
+
         // Update footstep effects
         if (this.footstepEffects) {
             this.footstepEffects.update(deltaTime, this.player, this.worldMap);
         }
-        
+
         // Update enemy proximity sounds (footsteps, growls approaching)
         if (this.sfx && this.combatSystem && this.player && this.gameActive) {
             this.sfx.updateEnemyProximity(
@@ -1241,7 +1241,7 @@ class Game {
                 this.player.position.y
             );
         }
-        
+
         // Update ambient volumes based on player position
         if (this.sfx && this.sfx._oceanRunning && this.worldMap && this.player) {
             this._oceanCheckTimer = (this._oceanCheckTimer || 0) + deltaTime;
@@ -1250,7 +1250,7 @@ class Game {
                 const tileSize = CONSTANTS.TILE_SIZE;
                 const px = Math.floor(this.player.position.x / tileSize);
                 const py = Math.floor(this.player.position.y / tileSize);
-                
+
                 // Check nearby tiles for water — closer to water = louder ocean
                 let minWaterDist = 20; // tiles
                 for (let dy = -15; dy <= 15; dy++) {
@@ -1265,14 +1265,14 @@ class Game {
                         }
                     }
                 }
-                
+
                 // Map distance to volume (closer = louder, max at edge, silent far inland)
                 const isOutdoor = this.currentLocation === 'outdoor';
                 const oceanVol = minWaterDist < 3 ? 1.0 :
-                                minWaterDist < 8 ? 0.6 :
-                                minWaterDist < 15 ? 0.3 : 0.08;
+                    minWaterDist < 8 ? 0.6 :
+                        minWaterDist < 15 ? 0.3 : 0.08;
                 this.sfx.setOceanVolume(isOutdoor ? oceanVol : 0.03);
-                
+
                 // Wind is always present outdoors (subtle), louder near edges/shore
                 const windVol = isOutdoor ? (minWaterDist < 5 ? 0.8 : 0.4) : 0.05;
                 this.sfx.setWindVolume(windVol);
@@ -1285,7 +1285,7 @@ class Game {
         if (this.currentLocation !== 'outdoor') return;
         if (this.isTransitioning) return;
         if (this.dialogSystem && this.dialogSystem.isOpen()) return;
-        
+
         // Exit cooldown - prevent immediate re-entry after exiting (2 seconds)
         if (this.lastExitTime && Date.now() - this.lastExitTime < 2000) return;
 
@@ -1301,55 +1301,55 @@ class Game {
         if (this.currentLocation !== 'interior') return;
         if (this.isTransitioning) return;
         if (this.dialogSystem && this.dialogSystem.isOpen()) return;
-        
+
         // Entry cooldown - prevent immediate exit after entering (1 second)
         if (this.lastEntryTime && Date.now() - this.lastEntryTime < 1000) return;
 
         const exitTile = this.worldMap?.meta?.exitTile;
         if (!exitTile) return;
-        
+
         // Check if player is near exit tile
         const pos = this.getPlayerTilePosition();
         const colDist = Math.abs(pos.col - exitTile.col);
         const rowDist = exitTile.row - pos.row; // Positive = player is above exit row
-        
+
         // Only exit when:
         // 1. Within 1 column of exit door (centered on door)
         // 2. On the exit row OR 1 row above it (walking toward exit)
         // 3. Player is facing/moving DOWN (toward exit)
         const onExitRow = rowDist >= 0 && rowDist <= 1;
         const nearDoor = colDist <= 1 && onExitRow && this.player.direction === CONSTANTS.DIRECTION.DOWN;
-        
+
         if (nearDoor) {
             console.log(`🚪 Auto-exiting building`);
             this.exitBuilding();
         }
     }
-    
+
     // Walk-through waygate teleportation (automatic when walking through)
     checkWaygateWalkThrough() {
         if (this.currentLocation !== 'outdoor') return;
         if (this.isTransitioning) return;
         if (this.dialogSystem && this.dialogSystem.isOpen()) return;
-        
+
         // Cooldown to prevent rapid teleports
         if (this.waygateCooldown && Date.now() - this.waygateCooldown < 2000) return;
-        
+
         if (!this.waygates) return;
-        
+
         // Check if player is standing IN the waygate portal area (tighter hitbox)
         const playerCenterX = this.player.position.x + this.player.width / 2;
         const playerCenterY = this.player.position.y + this.player.height / 2;
-        
+
         for (const waygate of this.waygates) {
             if (!waygate.active) continue; // Must be fully visible/active
-            
+
             // Portal area is the inner part of the archway
             const portalLeft = waygate.x + 12;
             const portalRight = waygate.x + waygate.width - 12;
             const portalTop = waygate.y + 18;
             const portalBottom = waygate.y + waygate.height - 8;
-            
+
             if (playerCenterX >= portalLeft && playerCenterX <= portalRight &&
                 playerCenterY >= portalTop && playerCenterY <= portalBottom) {
                 console.log(`🌀 Walk-through waygate teleport!`);
@@ -1368,14 +1368,14 @@ class Game {
             // Fallback to test world if assets not ready
             this.renderTestWorld();
         }
-        
+
         // Render enhanced visuals (water animation and shore transitions)
         if (this.currentLocation === 'outdoor') {
             // Animate water tiles over the base terrain
             if (this.waterRenderer && this.worldMap) {
                 this.waterRenderer.render(this.renderer, this.camera, this.worldMap);
             }
-            
+
             // Soft gradient foam on water tiles adjacent to land
             if (this.shoreRenderer && this.worldMap) {
                 this.shoreRenderer.render(this.renderer, this.camera, this.worldMap);
@@ -1409,24 +1409,24 @@ class Game {
 
         // Render decorations (plants, shells, rocks)
         this.renderDecorations();
-        
+
         // DISABLED: Render Red Current effect (edge glow and particles)
         // if (this.redCurrent && this.currentLocation === 'outdoor') {
         //     this.redCurrent.render(this.renderer, this.camera);
         // }
-        
+
         // Render Waygates (may be invisible if low Continuity)
         if (this.currentLocation === 'outdoor') {
             for (const waygate of this.waygates) {
                 waygate.render(this.renderer);
             }
         }
-        
+
         // Render Stability Engine
         if (this.stabilityEngine && this.currentLocation === 'outdoor') {
             this.stabilityEngine.render(this.renderer);
         }
-        
+
         // Render world items (collectible pickups)
         if (this.worldItems.length > 0) {
             const camX = this.camera.position.x;
@@ -1449,7 +1449,7 @@ class Game {
         if (this.footstepEffects) {
             this.footstepEffects.render(this.renderer);
         }
-        
+
         // Render player (pass sprite renderer) — hide in spectator mode
         if (!this.spectateMode) {
             this.player.render(this.renderer, this.spriteRenderer);
@@ -1464,7 +1464,7 @@ class Game {
         if (this.multiplayer && (this.multiplayerEnabled || this.spectateMode)) {
             this.multiplayer.renderServerEnemies(this.renderer);
         }
-        
+
         // Render weather effects (rain, fog, etc.) on top
         if (this.weatherSystem && this.currentLocation === 'outdoor') {
             this.weatherSystem.render(this.renderer, this.camera);
@@ -1477,7 +1477,7 @@ class Game {
 
         // Render interaction hints
         this.renderInteractionHint();
-        
+
         // Render faction UI (if available) — skip in spectator
         if (this.factionUI && !this.spectateMode) {
             const ctx = this.canvas.getContext('2d');
@@ -1542,16 +1542,16 @@ class Game {
 
         const ctx = this.canvas.getContext('2d');
         const scale = CONSTANTS.DISPLAY_SCALE;
-        
+
         ctx.save();
         ctx.font = `bold ${7 * scale}px monospace`;
         ctx.textAlign = 'center';
-        
+
         // Position above player's head (in screen coordinates)
         // Use camera.position.x/y, not camera.x/y
         const screenX = (this.player.position.x - this.camera.position.x + this.player.width / 2) * scale;
         const screenY = (this.player.position.y - this.camera.position.y - 6) * scale;
-        
+
         // Text with outline for visibility (round joins to prevent jagged corners)
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 2.5 * scale;
@@ -1560,18 +1560,18 @@ class Game {
         ctx.strokeText(this.characterName, screenX, screenY);
         ctx.fillStyle = '#fbbf24'; // Gold color to stand out
         ctx.fillText(this.characterName, screenX, screenY);
-        
+
         ctx.restore();
     }
-    
+
     // Render decorations (plants, shells, rocks) - uses sprites when available
     renderDecorations() {
         if (!this.decorations || this.decorations.length === 0) return;
-        
+
         for (const decor of this.decorations) {
             // Skip path tiles that are rendered via the auto-tiled path layer
             if (decor.useSprite === false) continue;
-            
+
             // Check if in view
             if (!this.camera.isVisible(decor.x, decor.y, decor.width, decor.height)) {
                 // Debug: log editor-placed items that are off-screen (once)
@@ -1586,21 +1586,21 @@ class Game {
                 }
                 continue;
             }
-            
+
             // Try to use sprite - check attached sprite first, then decoration loader
             const sprite = decor.sprite || this.decorationLoader?.getSprite(decor.type);
-            
+
             // Debug: log if editor-placed item has no sprite
             if (decor.editorPlaced && !sprite) {
                 console.warn(`🗺️ Editor item ${decor.type} at (${decor.x},${decor.y}) has no sprite!`);
             }
-            
+
             // Debug: log editor item render status (only once per item)
             if (decor.editorPlaced && !decor._loggedRender) {
                 decor._loggedRender = true;
                 console.log(`🗺️ Rendering editor item ${decor.type} at (${decor.x},${decor.y}), sprite: ${sprite ? 'yes' : 'no'}, complete: ${sprite?.complete}, layer: ${decor.layer}`);
             }
-            
+
             if (sprite) {
                 // Add sprite drawing to render layer system
                 let x = decor.x;
@@ -1608,10 +1608,10 @@ class Game {
                 let w = decor.width;
                 let h = decor.height;
                 const img = sprite;
-                
+
                 // Scale down furniture in interiors — sprites are too big relative to rooms
                 const isInterior = this.currentLocation === 'interior';
-                const furnitureScale = isInterior ? (decor.ground ? 0.6 : 0.5) : 1.0;
+                const furnitureScale = 1.0;
                 if (furnitureScale !== 1.0) {
                     const scaledW = Math.round(w * furnitureScale);
                     const scaledH = Math.round(h * furnitureScale);
@@ -1621,10 +1621,11 @@ class Game {
                     w = scaledW;
                     h = scaledH;
                 }
-                
+
+
                 // Use decor's layer if set, otherwise default based on ground flag
                 const layer = decor.layer || (decor.ground ? CONSTANTS.LAYER.GROUND : CONSTANTS.LAYER.GROUND_DECORATION);
-                
+
                 // Only draw if image is loaded
                 if (img.complete && img.naturalWidth > 0) {
                     const rotation = decor.rotation || 0;
@@ -1653,18 +1654,18 @@ class Game {
                     case 'palm':
                         // Trunk
                         this.renderer.drawRect(
-                            decor.x + decor.width/2 - 2, decor.y + decor.height/2,
-                            4, decor.height/2,
+                            decor.x + decor.width / 2 - 2, decor.y + decor.height / 2,
+                            4, decor.height / 2,
                             '#8b4513', CONSTANTS.LAYER.GROUND_DECORATION
                         );
                         // Leaves
                         this.renderer.drawRect(
                             decor.x, decor.y,
-                            decor.width, decor.height/2,
+                            decor.width, decor.height / 2,
                             decor.color || '#2d5a27', CONSTANTS.LAYER.GROUND_DECORATION
                         );
                         break;
-                        
+
                     case 'path':
                         // Dirt path tile
                         this.renderer.drawRect(
@@ -1676,7 +1677,7 @@ class Game {
                         this.renderer.drawRect(decor.x, decor.y, decor.width, 1, '#5C4A0F', CONSTANTS.LAYER.GROUND);
                         this.renderer.drawRect(decor.x, decor.y + decor.height - 1, decor.width, 1, '#5C4A0F', CONSTANTS.LAYER.GROUND);
                         break;
-                        
+
                     default:
                         // Generic colored rectangle fallback
                         this.renderer.drawRect(
@@ -1715,7 +1716,7 @@ class Game {
                 hintText = `[SPACE] Read Chronicle Stone`;
             }
         }
-        
+
         // Check for nearby Bulletin Board (outdoor only)
         if (!hintText && this.currentLocation === 'outdoor') {
             const board = this.findNearbyBulletinBoard();
@@ -1723,7 +1724,7 @@ class Game {
                 hintText = `[SPACE] Read 4claw.org Board`;
             }
         }
-        
+
         // Check for nearby Great Book (Church of Molt scripture)
         if (!hintText && this.currentLocation === 'outdoor') {
             const book = this.findNearbyGreatBook();
@@ -1736,12 +1737,12 @@ class Game {
         if (!hintText && this.multiplayerClient) {
             const remotePlayer = this.findNearbyRemotePlayer();
             if (remotePlayer) {
-                hintText = remotePlayer.isBot 
+                hintText = remotePlayer.isBot
                     ? `[SPACE] Talk to ${remotePlayer.name}`
                     : `[SPACE] Wave at ${remotePlayer.name}`;
             }
         }
-        
+
         // Check for nearby interactive decoration
         if (!hintText && this.currentLocation === 'outdoor') {
             const decor = this.findNearbyInteractiveDecoration();
@@ -1750,17 +1751,17 @@ class Game {
                 hintText = `[SPACE] Examine ${decorName}`;
             }
         }
-        
+
         // Check for nearby Waygate (may be partially visible)
         if (!hintText && this.currentLocation === 'outdoor') {
             const waygate = this.findNearbyWaygate();
             if (waygate && waygate.visibility > 0.3) {
-                hintText = waygate.active ? 
-                    `[SPACE] Examine Waygate • Walk through to travel` : 
+                hintText = waygate.active ?
+                    `[SPACE] Examine Waygate • Walk through to travel` :
                     `[SPACE] Examine the shimmering archway`;
             }
         }
-        
+
         // Check for nearby Stability Engine
         if (!hintText && this.currentLocation === 'outdoor' && this.stabilityEngine) {
             if (this.stabilityEngine.isPlayerNearby(
@@ -1791,15 +1792,15 @@ class Game {
         if (hintText) {
             const ctx = this.canvas.getContext('2d');
             const scale = CONSTANTS.DISPLAY_SCALE;
-            
+
             ctx.save();
             ctx.font = `bold ${12 * scale}px monospace`;
             ctx.textAlign = 'center';
-            
+
             // Position above player's head (in screen coordinates)
             const screenX = (this.player.position.x - this.camera.x + this.player.width / 2) * scale;
             const screenY = (this.player.position.y - this.camera.y - 10) * scale;
-            
+
             // Background
             const metrics = ctx.measureText(hintText);
             const padding = 4 * scale;
@@ -1810,7 +1811,7 @@ class Game {
                 metrics.width + padding * 2,
                 14 * scale + padding
             );
-            
+
             // Text
             ctx.fillStyle = '#fbbf24';
             ctx.fillText(hintText, screenX, screenY);
@@ -1946,7 +1947,7 @@ class Game {
     // Handle interactions (NPC/Sign dialog - building entry/exit is automatic)
     handleInteractions() {
         if (!this.inputManager.isInteractPressed()) return;
-        
+
         // Don't handle interactions when UI overlays are open
         if (this.inventoryUI && this.inventoryUI.isOpen()) return;
         if (this.questLogUI && this.questLogUI.isOpen()) return;
@@ -1966,14 +1967,14 @@ class Game {
         if (npc) {
             // Check if this is a shop/market merchant — open shop after dialog finishes
             const shopNPCNames = ['Merchant Bristle', 'Vendor Shelly', 'Trader Pinch'];
-            const isShopMerchant = this.currentLocation === 'interior' && 
-                this.currentBuilding && 
+            const isShopMerchant = this.currentLocation === 'interior' &&
+                this.currentBuilding &&
                 (this.currentBuilding.type === 'shop' || this.currentBuilding.type === 'market') &&
                 shopNPCNames.includes(npc.name);
-            
+
             // Determine dialog callback
             let dialogCallback = null;
-            
+
             // Shop merchants open shop after dialog
             if (isShopMerchant && this.shopSystem) {
                 dialogCallback = () => this.shopSystem.open();
@@ -1986,7 +1987,7 @@ class Game {
             if (isInnkeeper && this.innSystem) {
                 dialogCallback = () => this.innSystem.open();
             }
-            
+
             // Keeper Lumen's lighthouse reward
             if (npc.lighthouseReward && this.inventorySystem) {
                 const rewardKey = 'clawlands_lighthouse_reward';
@@ -2008,7 +2009,7 @@ class Game {
                     }
                 };
             }
-            
+
             // Check for item quest first
             const itemQuestDialogue = this.handleItemQuestDialogue(npc);
             if (itemQuestDialogue) {
@@ -2020,7 +2021,7 @@ class Game {
                 this.sfx.play('dialog_open');
                 this.dialogSystem.show(dialogue, dialogCallback);
             }
-            
+
             // Track conversation in story systems
             if (this.continuitySystem) {
                 this.continuitySystem.onTalkToNPC(npc.name);
@@ -2033,7 +2034,7 @@ class Game {
             if (this.npcMemory) {
                 this.npcMemory.recordConversation(npc.name);
             }
-            
+
             // Faction reputation for story NPCs
             if (this.factionSystem && npc.isStoryNPC && npc.storyData?.faction) {
                 const faction = npc.storyData.faction;
@@ -2061,7 +2062,7 @@ class Game {
                 return;
             }
         }
-        
+
         // Bulletin Board interaction (outdoor only)
         if (this.currentLocation === 'outdoor') {
             const board = this.findNearbyBulletinBoard();
@@ -2070,7 +2071,7 @@ class Game {
                 return;
             }
         }
-        
+
         // Great Book interaction (Church of Molt scripture)
         if (this.currentLocation === 'outdoor') {
             const book = this.findNearbyGreatBook();
@@ -2094,7 +2095,7 @@ class Game {
                 return;
             }
         }
-        
+
         // Interactive decoration (chests, statues, scrolls, etc.)
         if (this.currentLocation === 'outdoor') {
             const decor = this.findNearbyInteractiveDecoration();
@@ -2111,7 +2112,7 @@ class Game {
                 }
             }
         }
-        
+
         // Waygate interaction (outdoor only) - shows lore dialogue
         if (this.currentLocation === 'outdoor') {
             const waygate = this.findNearbyWaygate();
@@ -2123,7 +2124,7 @@ class Game {
                 return;
             }
         }
-        
+
         // Stability Engine interaction (outdoor only)
         if (this.currentLocation === 'outdoor' && this.stabilityEngine) {
             if (this.stabilityEngine.isPlayerNearby(
@@ -2139,21 +2140,21 @@ class Game {
             }
         }
     }
-    
+
     // Find nearby interactive decoration
     findNearbyInteractiveDecoration() {
         const px = this.player.position.x + this.player.width / 2;
         const py = this.player.position.y + this.player.height / 2;
         const interactRange = 32;
-        
+
         for (const decor of this.decorations) {
             if (!decor.interactive) continue;
-            
+
             const decorCenterX = decor.x + decor.width / 2;
             const decorCenterY = decor.y + decor.height / 2;
             const dx = Math.abs(decorCenterX - px);
             const dy = Math.abs(decorCenterY - py);
-            
+
             if (dx < interactRange && dy < interactRange) {
                 return decor;
             }
@@ -2167,27 +2168,27 @@ class Game {
         const chestTypes = ['treasure_chest', 'treasure_chest2', 'chest1', 'chest2'];
         return chestTypes.includes(decor.type);
     }
-    
+
     // Get a unique key for a chest to track opened state
     getChestKey(decor) {
         return `chest_${Math.round(decor.x)}_${Math.round(decor.y)}`;
     }
-    
+
     // Open a treasure chest: give random item based on rarity weights
     openChest(decor) {
         if (!this.inventorySystem) {
             this.dialogSystem.show([decor.lore || 'An old chest. You can\'t open it right now.']);
             return;
         }
-        
+
         const chestKey = this.getChestKey(decor);
-        
+
         // Check if already opened
         if (this.openedChests.has(chestKey)) {
             this.dialogSystem.show(['The chest is empty. You\'ve already taken what was inside.']);
             return;
         }
-        
+
         // Check if inventory is full
         if (this.inventorySystem.isFull()) {
             this.dialogSystem.show([
@@ -2196,7 +2197,7 @@ class Game {
             ]);
             return;
         }
-        
+
         // Pick a random item based on rarity weights
         // Common: 50%, Uncommon: 30%, Rare: 15%, Legendary: 5%
         const roll = Math.random();
@@ -2205,7 +2206,7 @@ class Game {
         else if (roll < 0.80) rarity = 'uncommon';
         else if (roll < 0.95) rarity = 'rare';
         else rarity = 'legendary';
-        
+
         // Get all items of this rarity (exclude quest items — those come from NPCs)
         const candidates = [];
         if (typeof ItemData !== 'undefined') {
@@ -2215,40 +2216,40 @@ class Game {
                 }
             }
         }
-        
+
         // Fallback if no items of that rarity
         if (candidates.length === 0) {
             candidates.push('driftwood', 'sea_glass', 'coral_fragment');
         }
-        
+
         const chosenId = candidates[Math.floor(Math.random() * candidates.length)];
         const itemDef = typeof ItemData !== 'undefined' ? ItemData[chosenId] : null;
-        
+
         if (!itemDef) {
             this.dialogSystem.show(['The chest is empty.']);
             return;
         }
-        
+
         // Add to inventory
         const added = this.inventorySystem.addItem(chosenId, 1);
         if (added > 0) {
             // Mark chest as opened
             this.openedChests.add(chestKey);
             this.saveOpenedChests();
-            
+
             // Show dialog
             const rarityLabel = itemDef.rarity !== 'common' ? ` It looks ${itemDef.rarity}!` : '';
             this.dialogSystem.show([
                 'You pry open the old chest...',
                 `You found ${itemDef.icon} ${itemDef.name}!${rarityLabel}`
             ]);
-            
+
             // Toast notification too
             if (typeof gameNotifications !== 'undefined') {
                 const rarityTag = itemDef.rarity !== 'common' ? ` [${itemDef.rarity}]` : '';
                 gameNotifications.success(`${itemDef.icon} Found ${itemDef.name}${rarityTag} in chest!`);
             }
-            
+
             // Continuity boost
             if (this.continuitySystem) {
                 this.continuitySystem.addContinuity(2, `chest_${chosenId}`);
@@ -2257,7 +2258,7 @@ class Game {
             this.dialogSystem.show(['The chest is empty.']);
         }
     }
-    
+
     // Load opened chests from localStorage
     loadOpenedChests() {
         try {
@@ -2267,7 +2268,7 @@ class Game {
             return new Set();
         }
     }
-    
+
     // Save opened chests to localStorage
     saveOpenedChests() {
         try {
@@ -2281,10 +2282,10 @@ class Game {
     pickupWorldItem(worldItem) {
         if (!worldItem || worldItem.collected) return;
         if (!this.inventorySystem) return;
-        
+
         const itemDef = typeof ItemData !== 'undefined' ? ItemData[worldItem.itemId] : null;
         if (!itemDef) return;
-        
+
         // Check if inventory has space
         if (this.inventorySystem.isFull()) {
             // Check if we can stack into an existing slot
@@ -2296,51 +2297,51 @@ class Game {
                 return;
             }
         }
-        
+
         const added = this.inventorySystem.addItem(worldItem.itemId, 1);
         if (added > 0) {
             worldItem.collect();
-            
+
             // Show pickup notification
             if (typeof gameNotifications !== 'undefined') {
                 const rarityTag = itemDef.rarity !== 'common' ? ` [${itemDef.rarity}]` : '';
                 gameNotifications.success(`${itemDef.icon} Picked up ${itemDef.name}${rarityTag}`);
             }
-            
+
             // Play pickup sound effect
             this.sfx.play('pickup');
-            
+
             // Continuity boost for finding items
             if (this.continuitySystem) {
                 this.continuitySystem.addContinuity(1, `pickup_${worldItem.itemId}`);
             }
         }
     }
-    
+
     // Create world items on islands during world setup
     createWorldItems(islands) {
         if (typeof WorldItem === 'undefined' || typeof WorldItemSpawns === 'undefined') return;
         if (!islands || islands.length === 0) return;
-        
+
         const tileSize = CONSTANTS.TILE_SIZE;
         let itemCount = 0;
-        
+
         for (let i = 0; i < islands.length; i++) {
             const island = islands[i];
             const spawnKey = `island_${i}`;
             const spawns = WorldItemSpawns[spawnKey] || WorldItemSpawns.generic || [];
-            
+
             for (const spawn of spawns) {
                 const col = Math.floor(island.x + spawn.offsetX);
                 const row = Math.floor(island.y + spawn.offsetY);
-                
+
                 // Verify it's on land
                 if (this.worldMap.terrainMap?.[row]?.[col] !== 0) continue;
-                
+
                 // Check not inside a building
                 const worldX = col * tileSize + tileSize / 2 - 7;
                 const worldY = row * tileSize + tileSize / 2 - 7;
-                
+
                 let inBuilding = false;
                 for (const building of this.buildings) {
                     if (building.checkCollision(worldX + 7, worldY + 7)) {
@@ -2349,7 +2350,7 @@ class Game {
                     }
                 }
                 if (inBuilding) continue;
-                
+
                 const worldItem = new WorldItem(
                     spawn.itemId,
                     worldX,
@@ -2360,7 +2361,7 @@ class Game {
                 itemCount++;
             }
         }
-        
+
         this.outdoorWorldItems = [...this.worldItems];
         console.log(`🎁 Created ${itemCount} world item spawns across ${islands.length} islands`);
     }
@@ -2369,14 +2370,14 @@ class Game {
     updatePlayerCount() {
         let humans = 1; // count self
         let bots = 0;
-        
+
         if (this.multiplayerClient) {
             this.multiplayerClient.remotePlayers.forEach(p => {
                 if (p.isBot) bots++;
                 else humans++;
             });
         }
-        
+
         this.hudPanelData.humans = humans;
         this.hudPanelData.bots = bots;
         this.hudPanelData.total = humans + bots;
@@ -2385,11 +2386,11 @@ class Game {
     // Find nearby remote player for interaction
     findNearbyRemotePlayer() {
         if (!this.multiplayerClient) return null;
-        
+
         const px = this.player.position.x;
         const py = this.player.position.y;
         const interactRange = 32; // pixels
-        
+
         for (const [id, remote] of this.multiplayerClient.remotePlayers) {
             const dx = Math.abs(remote.position.x - px);
             const dy = Math.abs(remote.position.y - py);
@@ -2410,7 +2411,7 @@ class Game {
             // For human players: just wave, no free-form chat
             this.dialogSystem.show([`You wave at ${remotePlayer.name}!`]);
         }
-        
+
         // Send talk request to server
         this.multiplayerClient.send({
             type: 'talk_request',
@@ -2428,7 +2429,7 @@ class Game {
     // Find nearby Chronicle Stone
     findNearbyChronicleStone() {
         if (!this.chronicleStones) return null;
-        
+
         for (const stone of this.chronicleStones) {
             if (stone.isPlayerNearby(
                 this.player.position.x,
@@ -2441,11 +2442,11 @@ class Game {
         }
         return null;
     }
-    
+
     // Find nearby Great Book (Church of Molt scripture)
     findNearbyGreatBook() {
         if (!this.greatBooks) return null;
-        
+
         for (const book of this.greatBooks) {
             if (book.isPlayerNear(
                 this.player.position.x + this.player.width / 2,
@@ -2489,7 +2490,7 @@ class Game {
     // Find nearby Bulletin Board
     findNearbyBulletinBoard() {
         if (!this.bulletinBoards) return null;
-        
+
         for (const board of this.bulletinBoards) {
             if (board.isPlayerNearby(
                 this.player.position.x,
@@ -2513,14 +2514,14 @@ class Game {
             this.activeBulletinBoard = board;
             board.currentPage = 0;
         }
-        
+
         // Show current page
         this.sfx.play('bulletin_read');
         this.dialogSystem.show(board.getReadDialog(), () => {
             // Reset active board when dialog closes
             this.activeBulletinBoard = null;
         });
-        
+
         // Track continuity for engaging with community content
         if (this.continuitySystem) {
             this.continuitySystem.addContinuity(0.5, '4claw_board_read');
@@ -2530,7 +2531,7 @@ class Game {
     // Find nearby sign for interaction
     findNearbySign() {
         if (!this.signs) return null;
-        
+
         for (const sign of this.signs) {
             if (sign.isPlayerNearby(
                 this.player.position.x,
@@ -2543,11 +2544,11 @@ class Game {
         }
         return null;
     }
-    
+
     // Find nearby Waygate for interaction
     findNearbyWaygate() {
         if (!this.waygates) return null;
-        
+
         for (const waygate of this.waygates) {
             if (waygate.isPlayerNearby(
                 this.player.position.x,
@@ -2560,7 +2561,7 @@ class Game {
         }
         return null;
     }
-    
+
     // Use a Waygate to teleport to another one
     useWaygate(sourceWaygate) {
         // Prevent rapid re-teleporting (cooldown)
@@ -2568,12 +2569,12 @@ class Game {
             return;
         }
         this.waygateCooldown = Date.now();
-        
+
         // Find other active waygates
-        const otherGates = this.waygates.filter(g => 
+        const otherGates = this.waygates.filter(g =>
             g !== sourceWaygate && g.active
         );
-        
+
         if (otherGates.length === 0) {
             // No other gates - teleport to a random island spawn
             if (gameNotifications) {
@@ -2581,10 +2582,10 @@ class Game {
             }
             return;
         }
-        
+
         // Pick a random destination gate
         const destGate = otherGates[Math.floor(Math.random() * otherGates.length)];
-        
+
         // Visual effect - flash screen
         const flash = document.createElement('div');
         flash.style.cssText = `
@@ -2595,7 +2596,7 @@ class Game {
             pointer-events: none;
             animation: waygateFlash 0.8s ease-out forwards;
         `;
-        
+
         // Add animation keyframes
         if (!document.getElementById('waygate-styles')) {
             const style = document.createElement('style');
@@ -2608,10 +2609,10 @@ class Game {
             `;
             document.head.appendChild(style);
         }
-        
+
         document.body.appendChild(flash);
         setTimeout(() => flash.remove(), 800);
-        
+
         // Teleport player to destination gate (prefer walkable tiles south of gate)
         const tileSize = CONSTANTS.TILE_SIZE;
         const gateCenterCol = Math.floor((destGate.x + destGate.width / 2) / tileSize);
@@ -2663,26 +2664,26 @@ class Game {
             this.player.position.y = destGate.y + destGate.height + 8;
             console.warn('⚠️ Waygate landing fallback used (no walkable tiles found nearby)');
         }
-        
+
         // Snap camera to new position (camera follows player.position on update)
         this.camera.position.x = this.player.position.x - this.camera.viewportWidth / 2;
         this.camera.position.y = this.player.position.y - this.camera.viewportHeight / 2;
         this.camera.clampToWorld();
-        
+
         // DISABLED: Trigger Drift-In effect at destination
         // if (this.redCurrent) {
         //     this.redCurrent.triggerDriftIn(this.player.position.x, this.player.position.y);
         // }
-        
+
         // Add continuity for using waygate
         if (this.continuitySystem) {
             this.continuitySystem.addContinuity(5, 'waygate_travel');
         }
-        
+
         if (gameNotifications) {
             gameNotifications.success('You step through the Waygate...');
         }
-        
+
         console.log(`🌀 Waygate travel: ${sourceWaygate.name} → ${destGate.name}`);
     }
 
@@ -2757,11 +2758,11 @@ class Game {
 
         return null;
     }
-    
+
     // Try to auto-start quests from a given NPC
     tryAutoStartQuests(npcName) {
         if (!this.questSystem) return;
-        
+
         const available = this.questSystem.getAvailableQuests();
         for (const questId of available) {
             const quest = this.questSystem.questDefs[questId];
@@ -2780,12 +2781,12 @@ class Game {
         if (typeof StoryNPCData !== 'undefined' && StoryNPCData[npc.name]) {
             const storyNPC = StoryNPCData[npc.name];
             const dialogueTree = storyNPC.dialogue;
-            
+
             if (dialogueTree && this.npcMemory) {
                 // Get player context for dialogue selection
                 const continuityValue = this.continuitySystem ? this.continuitySystem.value : 0;
                 const context = this.npcMemory.getDialogueContext(npc.name, continuityValue);
-                
+
                 // Check for quest-specific dialogue first
                 if (this.questSystem) {
                     for (const [questId, quest] of Object.entries(this.questSystem.activeQuests)) {
@@ -2794,7 +2795,7 @@ class Game {
                             return dialogueTree[questDialogueKey];
                         }
                     }
-                    
+
                     // Check for quest completion dialogue
                     for (const questId of this.questSystem.completedQuests) {
                         const completeKey = `quest_complete_${questId}`;
@@ -2804,31 +2805,31 @@ class Game {
                         }
                     }
                 }
-                
+
                 // Use NPCMemory to select appropriate dialogue
                 const selectedDialogue = this.npcMemory.selectDialogue(dialogueTree, context);
-                
+
                 // Teach knowledge from this NPC
                 if (storyNPC.teaches && context.timesSpoken >= 2) {
                     for (const factId of storyNPC.teaches) {
                         this.npcMemory.learn(factId);
                     }
                 }
-                
+
                 return selectedDialogue;
             }
         }
-        
+
         // Fall back to basic NPC dialogue
         return npc.getDialog();
     }
-    
+
     // Handle item quest dialogue for an NPC
     // Returns dialogue array if quest applies, or null to fall through to normal dialogue
     // Checks both ItemQuestData and QuestData via QuestManager
     handleItemQuestDialogue(npc) {
         if (!this.inventorySystem) return null;
-        
+
         // Try QuestManager first (unified: covers both ItemQuestData + QuestData)
         if (this.questManager) {
             const result = this.questManager.checkNPCQuest(npc.name, this.inventorySystem);
@@ -2836,33 +2837,33 @@ class Game {
                 // If it's completable, perform the exchange
                 if (result.type === 'completable' && result.questId) {
                     this.questManager.tryCompleteQuest(result.questId, this.inventorySystem);
-                    
+
                     // Play quest complete sound effect
                     this.sfx.play('quest_complete');
-                    
+
                     // Continuity boost
                     if (this.continuitySystem) {
                         this.continuitySystem.addContinuity(5, `quest_${result.questId}`);
                     }
-                    
+
                     return result.dialog;
                 }
                 // Otherwise it's a regular dialog array
                 return result;
             }
         }
-        
+
         // Legacy fallback: direct ItemQuestData lookup
         if (typeof getItemQuestForNPC === 'undefined') return null;
-        
+
         const quest = getItemQuestForNPC(npc.name);
         if (!quest) return null;
-        
+
         // Already completed?
         if (this.completedItemQuests.has(quest.id)) {
             return quest.dialogAlreadyDone;
         }
-        
+
         // Check if player has all required items
         let hasAllItems = true;
         for (const req of quest.requires) {
@@ -2871,13 +2872,13 @@ class Game {
                 break;
             }
         }
-        
+
         if (hasAllItems) {
             // Player has the items — complete the quest!
             for (const req of quest.requires) {
                 this.inventorySystem.removeItem(req.itemId, req.qty);
             }
-            
+
             for (const reward of quest.rewards) {
                 const added = this.inventorySystem.addItem(reward.itemId, reward.qty);
                 if (added > 0) {
@@ -2887,34 +2888,34 @@ class Game {
                     }
                 }
             }
-            
+
             this.completedItemQuests.add(quest.id);
             if (typeof saveCompletedItemQuests !== 'undefined') {
                 saveCompletedItemQuests(this.completedItemQuests);
             }
-            
+
             if (this.continuitySystem) {
                 this.continuitySystem.addContinuity(5, `item_quest_${quest.id}`);
             }
-            
+
             // Play quest complete sound effect
             this.sfx.play('quest_complete');
-            
+
             if (typeof gameNotifications !== 'undefined') {
                 this.sfx.play('notification');
                 gameNotifications.achievement(`Quest complete: ${quest.description}`);
             }
-            
+
             return quest.dialogComplete;
         }
-        
+
         const ctx = this.npcMemory ? this.npcMemory.getDialogueContext(npc.name, 0) : null;
         const hasInteracted = ctx && ctx.timesSpoken > 0;
-        
+
         if (hasInteracted) {
             return quest.dialogIncomplete;
         }
-        
+
         return quest.dialogStart;
     }
 
@@ -2971,13 +2972,13 @@ class Game {
         }
 
         const tileSize = CONSTANTS.TILE_SIZE;
-        
+
         // Calculate return position (just outside the door)
         const doorBounds = building.getDoorBounds();
         const doorCenterX = doorBounds.x + doorBounds.width / 2;
         const returnCol = Math.floor(doorCenterX / tileSize);
         const returnRow = Math.floor((building.y + building.height + 8) / tileSize);
-        
+
         this.outdoorReturnTile = {
             col: returnCol,
             row: Math.min(this.outdoorMap.height - 1, returnRow)
@@ -2985,7 +2986,7 @@ class Game {
 
         // Play door enter sound effect
         this.sfx.play('door_enter');
-        
+
         // Start transition (this awaits until halfway through animation)
         if (typeof transitionOverlay !== 'undefined') {
             await transitionOverlay.enterBuilding(building.name, building.type);
@@ -2998,7 +2999,7 @@ class Game {
         this.currentBuilding = building;
         this.currentLocation = 'interior';
         this.setCurrentMap(interiorMap);
-        
+
         // Track location visit in story systems
         if (this.continuitySystem) {
             this.continuitySystem.onEnterLocation(building.type);
@@ -3017,7 +3018,7 @@ class Game {
         // If we have editor interior data for this building, skip default furniture
         const editorKey = `interior_${building.type}_${building.x}_${building.y}`;
         const hasEditorInterior = typeof EDITOR_INTERIOR_DATA !== 'undefined' && EDITOR_INTERIOR_DATA[editorKey];
-        
+
         if (hasEditorInterior) {
             // Start with empty decorations — editor data is the source of truth
             this.decorations = [];
@@ -3025,10 +3026,10 @@ class Game {
             // No editor data — use procedural defaults
             this.decorations = this.createInteriorFurniture(interiorConfig);
         }
-        
+
         // Apply permanent interior editor data (from EditorInteriorData.js)
         this.applyInteriorEditorData(building);
-        
+
         // Load any saved editor changes for this interior
         if (this.mapEditor) {
             this.mapEditor.loadEditsForLocation(
@@ -3045,17 +3046,17 @@ class Game {
         const spawnRow = Math.max(1, exitTile.row - 1);
         this.placePlayerAtTile(exitTile.col, spawnRow);
         this.player.direction = CONSTANTS.DIRECTION.UP;
-        
+
         // Set entry time to prevent immediate exit
         this.lastEntryTime = Date.now();
-        
+
         console.log(`🏠 Entered ${building.name}`);
-        
+
         // Switch to interior lighting
         if (this.lightingSystem) {
             this.lightingSystem.setInterior(true);
         }
-        
+
         // Switch to building music
         if (typeof audioManager !== 'undefined') {
             audioManager.playForBuilding(building.type);
@@ -3074,14 +3075,14 @@ class Game {
     // Exit the current building back to the outdoor map
     async exitBuilding() {
         if (!this.outdoorMap) return;
-        
+
         // Prevent re-exit during transition
         if (this.isTransitioning) return;
         this.isTransitioning = true;
 
         // Play door exit sound effect
         this.sfx.play('door_exit');
-        
+
         // Start exit transition
         if (typeof transitionOverlay !== 'undefined') {
             await transitionOverlay.exitBuilding();
@@ -3105,10 +3106,10 @@ class Game {
         // Restore outdoor NPCs
         this.npcs = this.outdoorNPCs ? [...this.outdoorNPCs] : [];
         this.collisionSystem.setNPCs(this.npcs);
-        
+
         // Restore outdoor decorations
         this.decorations = this.outdoorDecorations ? [...this.outdoorDecorations] : [];
-        
+
         // Restore outdoor world items
         this.worldItems = this.outdoorWorldItems ? [...this.outdoorWorldItems] : [];
 
@@ -3118,17 +3119,17 @@ class Game {
             this.placePlayerAtTile(col, row);
             this.player.direction = CONSTANTS.DIRECTION.DOWN;
         }
-        
+
         console.log(`🚪 Exited to outdoor`);
-        
+
         // Set exit time for cooldown (prevents immediate re-entry)
         this.lastExitTime = Date.now();
-        
+
         // Switch back to outdoor lighting
         if (this.lightingSystem) {
             this.lightingSystem.setInterior(false);
         }
-        
+
         // Switch back to zone-based overworld music
         if (typeof audioManager !== 'undefined') {
             // Reset zone to force re-evaluation on next update
@@ -3321,16 +3322,16 @@ class Game {
     // Add procedural decorations from WorldMap decorationLayer to main decorations array
     addProceduralDecorations() {
         if (!this.worldMap || !this.worldMap.decorationLayer) return;
-        
+
         let proceduralCount = 0;
         const tileSize = CONSTANTS.TILE_SIZE;
-        
+
         // Process each tile in the decoration layer
         for (let row = 0; row < this.worldMap.height; row++) {
             for (let col = 0; col < this.worldMap.width; col++) {
                 const decorTile = this.worldMap.decorationLayer[row][col];
                 if (!decorTile || !decorTile.procedural) continue;
-                
+
                 // Convert tile-based decoration to game decoration format
                 const decoration = {
                     x: decorTile.x,
@@ -3341,7 +3342,7 @@ class Game {
                     useSprite: decorTile.useSprite,
                     procedural: true
                 };
-                
+
                 // Get sprite from decoration loader
                 if (this.decorationLoader) {
                     const sprite = this.decorationLoader.getSprite(decorTile.type);
@@ -3349,12 +3350,12 @@ class Game {
                         decoration.sprite = sprite;
                     }
                 }
-                
+
                 this.decorations.push(decoration);
                 proceduralCount++;
             }
         }
-        
+
         console.log(`🌿 Added ${proceduralCount} procedural decorations from WorldMap`);
     }
 
@@ -3362,7 +3363,7 @@ class Game {
     createInteriorFurniture(config) {
         const tileSize = CONSTANTS.TILE_SIZE;
         const furniture = [];
-        
+
         // Map tile IDs to furniture sprite types
         const idToType = {
             3: 'barrel',      // counter/crate -> barrel
@@ -3371,24 +3372,24 @@ class Game {
             6: 'plant_pot',
             7: 'table'
         };
-        
+
         for (const decor of (config.decorations || [])) {
             const spriteType = idToType[decor.id];
             if (!spriteType) continue;
-            
+
             const def = InteriorLoader.FURNITURE[spriteType];
             if (!def) continue;
-            
+
             // Get sprite from interior loader
             const sprite = this.interiorLoader.getSprite(spriteType);
-            
+
             // Position at tile center (adjusted for sprite size)
             const x = decor.col * tileSize + (tileSize - (def.width || 16)) / 2;
             const y = decor.row * tileSize + tileSize - (def.height || 16);
-            
+
             // Ground items (rugs) render below furniture, furniture renders above
             const isGroundItem = def.ground === true;
-            
+
             furniture.push({
                 x,
                 y,
@@ -3400,7 +3401,7 @@ class Game {
                 ground: isGroundItem
             });
         }
-        
+
         console.log(`🪑 Created ${furniture.length} interior furniture pieces`);
         return furniture;
     }
@@ -3445,7 +3446,7 @@ class Game {
             // Keeper Lumen gives a unique reward the first time you visit
             const lighthouseRewardKey = 'clawlands_lighthouse_reward';
             const alreadyRewarded = localStorage.getItem(lighthouseRewardKey);
-            
+
             if (!alreadyRewarded) {
                 const npc = placeNpc(Math.floor(map.width / 2), 5, 'Keeper Lumen', [
                     '...You found the key.',
@@ -3693,14 +3694,14 @@ class Game {
         this.createStoryNPCs(islands);
         this.createBridgeGuardNPCs(islands);
     }
-    
+
     // Create Story NPCs (named characters with unique dialogue trees)
     createStoryNPCs(islands) {
         if (typeof StoryNPCData === 'undefined') return;
         if (!islands || islands.length === 0) return;
-        
+
         const tileSize = CONSTANTS.TILE_SIZE;
-        
+
         // Define which story NPCs spawn on which islands
         // Island 0 = Main island (Port Clawson)
         // Island 1 = Second island (Molthaven)
@@ -3710,86 +3711,86 @@ class Game {
             { name: 'Dockmaster Brinehook', island: 0, offsetX: 0.3, offsetY: 0.4 },
             { name: 'Flicker', island: 0, offsetX: -0.2, offsetY: 0.1 },
             { name: 'Sailor Sandy', island: 0, offsetX: 0.4, offsetY: -0.3 },
-            
+
             // Molthaven (second island, index 1) - Church of Molt headquarters
             { name: 'Luma Shellwright', island: 1, offsetX: 0.1, offsetY: 0.2 },
             { name: 'Memeothy', island: 1, offsetX: -0.1, offsetY: 0.1 },
             { name: 'Woodhouse', island: 1, offsetX: 0.2, offsetY: 0.15 },
             { name: 'Moss', island: 1, offsetX: -0.3, offsetY: -0.2 },
             { name: 'Coral', island: 1, offsetX: -0.25, offsetY: -0.15 },
-            
+
             // Iron Reef (third island, index 2)
             { name: 'Gearfin', island: 2, offsetX: 0.1, offsetY: 0 },
             { name: 'Boltclaw', island: 2, offsetX: -0.1, offsetY: 0.15 },
             { name: 'Clawhovah', island: 2, offsetX: 0.2, offsetY: -0.2 },
-            
+
             // Deepcoil Isle (fourth island, index 3)
             { name: 'The Archivist', island: 3, offsetX: 0, offsetY: 0 },
             { name: 'Scholar Scuttle', island: 3, offsetX: 0.3, offsetY: 0.2 },
-            
+
             // Wanderers (spawn on various islands)
             { name: 'The Herald', island: 1, offsetX: 0.4, offsetY: -0.3 },
             { name: 'Mysterious Mollusk', island: 4, offsetX: 0, offsetY: 0.2 },
             { name: 'Old Timer Shrimp', island: 0, offsetX: -0.4, offsetY: 0.3 },
         ];
-        
+
         let storyNPCCount = 0;
-        
+
         for (const placement of storyNPCPlacements) {
             // Check if island exists
             if (placement.island >= islands.length) continue;
-            
+
             const island = islands[placement.island];
             const storyData = StoryNPCData[placement.name];
-            
+
             if (!storyData) {
                 // console.warn(`Story NPC data not found: ${placement.name}`);
                 continue;
             }
-            
+
             // Calculate position based on island center + offset
             const col = Math.floor(island.x + placement.offsetX * island.size);
             const row = Math.floor(island.y + placement.offsetY * island.size);
-            
+
             // Verify it's on land
             if (!this.worldMap.terrainMap?.[row]?.[col] === 0) continue;
-            
+
             const worldX = col * tileSize + tileSize / 2 - CONSTANTS.CHARACTER_WIDTH / 2;
             const worldY = row * tileSize + tileSize - CONSTANTS.CHARACTER_HEIGHT;
-            
+
             // Check not inside a building
             let inBuilding = false;
             for (const building of this.buildings) {
-                if (building.checkCollision(worldX + CONSTANTS.CHARACTER_WIDTH/2, worldY + CONSTANTS.CHARACTER_HEIGHT/2)) {
+                if (building.checkCollision(worldX + CONSTANTS.CHARACTER_WIDTH / 2, worldY + CONSTANTS.CHARACTER_HEIGHT / 2)) {
                     inBuilding = true;
                     break;
                 }
             }
             if (inBuilding) continue;
-            
+
             // Create the NPC with first dialogue option as fallback
             const defaultDialogue = storyData.dialogue?.default || storyData.dialogue?.first_meeting || ['...'];
             const npc = new NPC(worldX, worldY, placement.name, defaultDialogue);
-            
+
             // Set story NPC properties
             npc.isStoryNPC = true;
             npc.storyData = storyData;
             npc.canWander = storyData.canWander || false;
             npc.wanderRadius = storyData.wanderRadius || 32;
-            
+
             // Apply hue shift if specified
             if (storyData.hueShift) {
                 npc.hueShift = storyData.hueShift;
             }
-            
+
             // Load sprite
             this.loadNPCSprite(npc);
             this.npcs.push(npc);
             storyNPCCount++;
-            
+
             console.log(`  📜 Spawned ${placement.name} on island ${placement.island}`);
         }
-        
+
         console.log(`📖 Created ${storyNPCCount} story NPCs`);
     }
 
@@ -3903,7 +3904,7 @@ class Game {
 
         // Procedural decorations from WorldMap disabled for now (performance)
         // this.addProceduralDecorations();
-        
+
         // Decoration types with sizes matching our clean extracted sprites
         // Common decorations (high spawn weight)
         // solid: true marks the tile as impassable for collision
@@ -3935,7 +3936,7 @@ class Game {
             { type: 'coral2', width: 20, height: 19 },
             { type: 'driftwood', width: 20, height: 16 },
         ];
-        
+
         // Rare/special decorations (low spawn chance)
         // solid: true = blocks player movement, interactive: true = can interact with SPACE
         const rareDecorTypes = [
@@ -3950,78 +3951,78 @@ class Game {
             { type: 'log_pile', width: 28, height: 26, solid: true },
             { type: 'buoy', width: 23, height: 28, solid: true },
         ];
-        
+
         // Original decoration system (restored - new procedural system had performance issues)
         {
-        for (const island of islands) {
-            // Number of decorations based on island size (reduced for cleaner look)
-            const numDecorations = Math.floor(island.size * 1.2);
-            
-            for (let i = 0; i < numDecorations; i++) {
-                // Random position within island
-                const angle = this.seededRandom() * Math.PI * 2;
-                const radius = this.seededRandom() * island.size * 0.85;
-                
-                const col = Math.floor(island.x + Math.cos(angle) * radius);
-                const row = Math.floor(island.y + Math.sin(angle) * radius);
-                
-                // Check if on land
-                if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) continue;
-                const groundTile = this.worldMap.groundLayer[row]?.[col];
-                if (groundTile === 1) continue; // Skip water
-                
-                // Check not too close to buildings
-                const worldX = col * tileSize;
-                const worldY = row * tileSize;
-                let tooClose = false;
-                for (const building of this.buildings) {
-                    const dx = worldX - (building.x + building.width / 2);
-                    const dy = worldY - (building.y + building.height / 2);
-                    if (Math.sqrt(dx*dx + dy*dy) < 56) {
-                        tooClose = true;
-                        break;
+            for (const island of islands) {
+                // Number of decorations based on island size (reduced for cleaner look)
+                const numDecorations = Math.floor(island.size * 1.2);
+
+                for (let i = 0; i < numDecorations; i++) {
+                    // Random position within island
+                    const angle = this.seededRandom() * Math.PI * 2;
+                    const radius = this.seededRandom() * island.size * 0.85;
+
+                    const col = Math.floor(island.x + Math.cos(angle) * radius);
+                    const row = Math.floor(island.y + Math.sin(angle) * radius);
+
+                    // Check if on land
+                    if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) continue;
+                    const groundTile = this.worldMap.groundLayer[row]?.[col];
+                    if (groundTile === 1) continue; // Skip water
+
+                    // Check not too close to buildings
+                    const worldX = col * tileSize;
+                    const worldY = row * tileSize;
+                    let tooClose = false;
+                    for (const building of this.buildings) {
+                        const dx = worldX - (building.x + building.width / 2);
+                        const dy = worldY - (building.y + building.height / 2);
+                        if (Math.sqrt(dx * dx + dy * dy) < 56) {
+                            tooClose = true;
+                            break;
+                        }
                     }
-                }
-                if (tooClose) continue;
-                
-                // Check not too close to other decorations (min spacing)
-                let tooCloseToDecor = false;
-                for (const existing of this.decorations) {
-                    if (existing.type === 'dirt_path') continue; // paths don't count
-                    const ddx = worldX - existing.x;
-                    const ddy = worldY - existing.y;
-                    if (Math.sqrt(ddx*ddx + ddy*ddy) < 20) {
-                        tooCloseToDecor = true;
-                        break;
+                    if (tooClose) continue;
+
+                    // Check not too close to other decorations (min spacing)
+                    let tooCloseToDecor = false;
+                    for (const existing of this.decorations) {
+                        if (existing.type === 'dirt_path') continue; // paths don't count
+                        const ddx = worldX - existing.x;
+                        const ddy = worldY - existing.y;
+                        if (Math.sqrt(ddx * ddx + ddy * ddy) < 20) {
+                            tooCloseToDecor = true;
+                            break;
+                        }
                     }
+                    if (tooCloseToDecor) continue;
+
+                    // Pick random decoration type (90% common, 10% rare)
+                    const useRare = this.seededRandom() < 0.1;
+                    const pool = useRare ? rareDecorTypes : commonDecorTypes;
+                    const decorType = pool[Math.floor(this.seededRandom() * pool.length)];
+
+                    const decor = {
+                        x: worldX + this.seededRandom() * tileSize,
+                        y: worldY + this.seededRandom() * tileSize,
+                        type: decorType.type,
+                        color: decorType.color,
+                        width: decorType.width,
+                        height: decorType.height,
+                        solid: decorType.solid || false,
+                        interactive: decorType.interactive || false,
+                        lore: decorType.lore || null
+                    };
+
+                    // Collision is now marked in a separate pass after all decorations are placed
+                    // (including editor-placed ones) — see markDecorationCollisions()
+
+                    this.decorations.push(decor);
                 }
-                if (tooCloseToDecor) continue;
-                
-                // Pick random decoration type (90% common, 10% rare)
-                const useRare = this.seededRandom() < 0.1;
-                const pool = useRare ? rareDecorTypes : commonDecorTypes;
-                const decorType = pool[Math.floor(this.seededRandom() * pool.length)];
-                
-                const decor = {
-                    x: worldX + this.seededRandom() * tileSize,
-                    y: worldY + this.seededRandom() * tileSize,
-                    type: decorType.type,
-                    color: decorType.color,
-                    width: decorType.width,
-                    height: decorType.height,
-                    solid: decorType.solid || false,
-                    interactive: decorType.interactive || false,
-                    lore: decorType.lore || null
-                };
-                
-                // Collision is now marked in a separate pass after all decorations are placed
-                // (including editor-placed ones) — see markDecorationCollisions()
-                
-                this.decorations.push(decor);
             }
         }
-        }
-        
+
         console.log(`🌿 Total decorations after processing: ${this.decorations.length}`);
     }
 
@@ -4030,12 +4031,12 @@ class Game {
         const species = npc.species || 'lobster';
         const basePath = `assets/sprites/characters/${species}`;
         const hueShift = npc.hueShift || 0;
-        
+
         // Load directional sprites
         const directions = ['south', 'north', 'east', 'west'];
         const directionalSprites = {};
         const walkSprites = { south: [], north: [], east: [], west: [] };
-        
+
         // Load idle/static sprites for each direction
         directions.forEach(dir => {
             const img = new Image();
@@ -4045,7 +4046,7 @@ class Game {
             };
             img.src = `${basePath}/${dir}.png`;
         });
-        
+
         // Load walk animation frames for each direction (3 frames per direction)
         directions.forEach(dir => {
             for (let i = 0; i < 3; i++) {
@@ -4058,7 +4059,7 @@ class Game {
             }
         });
     }
-    
+
     // Apply hue shift to a loaded image, returns a canvas
     applyHueShiftToImage(image, hueShift) {
         const canvas = document.createElement('canvas');
@@ -4066,55 +4067,55 @@ class Game {
         canvas.height = image.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(image, 0, 0);
-        
+
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
-        
+
         for (let i = 0; i < data.length; i += 4) {
-            const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+            const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
             if (a === 0) continue;
-            
+
             // Convert to HSL
             const max = Math.max(r, g, b) / 255;
             const min = Math.min(r, g, b) / 255;
             const l = (max + min) / 2;
-            
+
             if (max === min) continue; // Gray, skip
-            
+
             const d = max - min;
             const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            
+
             let h;
-            const rn = r/255, gn = g/255, bn = b/255;
+            const rn = r / 255, gn = g / 255, bn = b / 255;
             if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
             else if (max === gn) h = ((bn - rn) / d + 2) / 6;
             else h = ((rn - gn) / d + 4) / 6;
-            
+
             // Only shift reddish/warm colors (hue near 0 or 1)
             if (h > 0.1 && h < 0.9) continue;
-            
+
             // Apply shift
             h = (h + hueShift / 360) % 1;
             if (h < 0) h += 1;
-            
+
             // HSL to RGB
             const hue2rgb = (p, q, t) => {
                 if (t < 0) t += 1;
                 if (t > 1) t -= 1;
-                if (t < 1/6) return p + (q - p) * 6 * t;
-                if (t < 1/2) return q;
-                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
                 return p;
             };
-            
+
             const q2 = l < 0.5 ? l * (1 + s) : l + s - l * s;
             const p2 = 2 * l - q2;
-            
-            data[i] = Math.round(hue2rgb(p2, q2, h + 1/3) * 255);
-            data[i+1] = Math.round(hue2rgb(p2, q2, h) * 255);
-            data[i+2] = Math.round(hue2rgb(p2, q2, h - 1/3) * 255);
+
+            data[i] = Math.round(hue2rgb(p2, q2, h + 1 / 3) * 255);
+            data[i + 1] = Math.round(hue2rgb(p2, q2, h) * 255);
+            data[i + 2] = Math.round(hue2rgb(p2, q2, h - 1 / 3) * 255);
         }
-        
+
         ctx.putImageData(imageData, 0, 0);
         return canvas;
     }
@@ -4443,13 +4444,13 @@ class Game {
     toggleDevMode() {
         this.devMode = !this.devMode;
         console.log(`🛠️ Dev mode ${this.devMode ? 'ON' : 'OFF'}`);
-        
+
         if (this.devMode) {
             this.showDevModeIndicator();
         } else {
             this.hideDevModeIndicator();
         }
-        
+
         // Update map editor button visibility in main.js
         this.updateDevModeUI();
     }
@@ -4501,7 +4502,7 @@ class Game {
         // Get base path for species - check if species folder exists, fallback to root
         const speciesPath = `assets/sprites/characters/${species}`;
         const fallbackPath = 'assets/sprites/characters';
-        
+
         // Build items list with species-specific paths
         const items = [
             { key: 'character_south', path: `${speciesPath}/south.png`, fallback: `${fallbackPath}/south.png`, optional: false },
@@ -4683,14 +4684,14 @@ class Game {
                     this.tileRenderer.addTileset('path', sandPathTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
                     console.log('Loaded PixelLab sand/path tileset');
                 }
-                
+
                 // Load dark cobblestone tileset
                 const darkCobbleTileset = this.assetLoader.getImage('tileset_dark_cobble');
                 if (darkCobbleTileset) {
                     this.tileRenderer.addTileset('dark_path', darkCobbleTileset, CONSTANTS.TILE_SIZE, CONSTANTS.TILE_SIZE, 4);
                     console.log('Loaded dark cobblestone tileset');
                 }
-                
+
                 // dirt_cobble transition tileset removed — paths butt up with straight edges
 
                 // Always create a simple beach decoration tileset (can be replaced later)
@@ -4713,14 +4714,14 @@ class Game {
                 }).catch(err => {
                     console.warn('Failed to load some decoration sprites:', err);
                 });
-                
+
                 // Load interior furniture sprites
                 this.interiorLoader.load().then(() => {
                     console.log('🪑 Interior sprites loaded');
                 }).catch(err => {
                     console.warn('Failed to load some interior sprites:', err);
                 });
-                
+
                 // Now create buildings with loaded sprites
                 if (this.pendingIslands) {
                     this.createClawlandsBuildings(this.pendingIslands);
@@ -4729,7 +4730,7 @@ class Game {
 
                 this.assetsLoaded = true;
                 console.log('✅ Assets loaded successfully');
-                
+
                 // Attach day/night cycle overlay to game container
                 if (this.dayNightCycle) {
                     const gameContainer = document.getElementById('game-container');
@@ -4737,7 +4738,7 @@ class Game {
                         this.dayNightCycle.attachTo(gameContainer);
                     }
                 }
-                
+
                 // Preload audio (don't await - let it load in background)
                 // Music starts in WelcomeScreen: title music on PLAY click,
                 // overworld music on finalize() after character creation
@@ -5020,7 +5021,7 @@ class Game {
         }
 
         const tileSize = CONSTANTS.TILE_SIZE;
-        
+
         // Building configs with sprites - Port Clawson (main island)
         const buildingConfigs = [
             { type: 'inn', name: 'The Drift-In Inn' },
@@ -5038,14 +5039,14 @@ class Game {
         console.log(`   Islands:`, islands.map(i => `(${i.x},${i.y} size:${i.size})`).join(', '));
         this.buildings = [];
         this.signs = [];
-        
+
         // Track placed positions to avoid overlap
         const placedPositions = [];
 
         // Find the largest island - put main buildings there
         const sortedIslands = [...islands].sort((a, b) => b.size - a.size);
         const mainIsland = sortedIslands[0];
-        
+
         console.log(`   Main island: (${mainIsland.x},${mainIsland.y}) size:${mainIsland.size}`);
 
         // Place ALL buildings on the main island
@@ -5055,20 +5056,20 @@ class Game {
             const pixelHeight = sprite ? sprite.height : 48;
             const tilesWidth = Math.ceil(pixelWidth / tileSize);
             const tilesHeight = Math.ceil(pixelHeight / tileSize);
-            
+
             console.log(`   Trying to place ${config.name} (${tilesWidth}x${tilesHeight} tiles, sprite=${sprite ? 'yes' : 'no'})`);
-            
+
             // Find spot avoiding already placed buildings
             const pos = this.findBuildingLocationAvoidingOthers(
-                mainIsland, 
-                tilesWidth, 
-                tilesHeight + 2, 
+                mainIsland,
+                tilesWidth,
+                tilesHeight + 2,
                 placedPositions
             );
-            
+
             if (pos) {
                 placedPositions.push({ col: pos.col, row: pos.row, width: tilesWidth, height: tilesHeight + 2 });
-                
+
                 const building = new Building(
                     pos.col * tileSize,
                     pos.row * tileSize,
@@ -5076,16 +5077,16 @@ class Game {
                     sprite
                 );
                 building.name = config.name;
-                
+
                 this.buildings.push(building);
                 this.collisionSystem.addBuilding(building);
                 this.worldMap.clearDecorationRect(pos.col, pos.row, tilesWidth, tilesHeight);
-                
+
                 // Create sign to the right side of building
                 const signX = pos.col * tileSize + pixelWidth + 4;
                 const signY = (pos.row + tilesHeight - 1) * tileSize;
                 this.signs.push(new Sign(signX, signY, config.name));
-                
+
                 console.log(`  🏠 Placed ${config.name} at (${pos.col},${pos.row})`);
             } else {
                 console.log(`  ⚠️ Could not place ${config.name} - no space found`);
@@ -5104,15 +5105,15 @@ class Game {
             { type: 'shop', name: 'Tide Shop' },
             { type: 'house', name: 'Driftwood Cabin' }
         ];
-        
+
         for (let i = 1; i < sortedIslands.length; i++) {
             const island = sortedIslands[i];
             if (island.size < 8) continue;
-            
+
             // Place 1-2 buildings per secondary island based on size
             const numBuildings = island.size > 12 ? 2 : 1;
             const islandPlacedPositions = [];
-            
+
             for (let b = 0; b < numBuildings; b++) {
                 const buildingConfig = secondaryBuildingTypes[(i + b) % secondaryBuildingTypes.length];
                 const sprite = this.assetLoader.getImage(`building_${buildingConfig.type}_base`);
@@ -5120,17 +5121,17 @@ class Game {
                 const pixelHeight = sprite ? sprite.height : 48;
                 const buildingWidth = Math.ceil(pixelWidth / tileSize);
                 const buildingHeight = Math.ceil(pixelHeight / tileSize);
-                
+
                 const pos = this.findBuildingLocationAvoidingOthers(
-                    island, 
-                    buildingWidth, 
+                    island,
+                    buildingWidth,
                     buildingHeight + 2,
                     islandPlacedPositions
                 );
-                
+
                 if (pos) {
                     islandPlacedPositions.push({ col: pos.col, row: pos.row, width: buildingWidth, height: buildingHeight + 2 });
-                    
+
                     const building = new Building(
                         pos.col * tileSize,
                         pos.row * tileSize,
@@ -5141,16 +5142,16 @@ class Game {
                     this.buildings.push(building);
                     this.collisionSystem.addBuilding(building);
                     this.worldMap.clearDecorationRect(pos.col, pos.row, buildingWidth, buildingHeight);
-                    
+
                     const signX = pos.col * tileSize + building.width + 4;
                     const signY = (pos.row + buildingHeight - 1) * tileSize;
                     this.signs.push(new Sign(signX, signY, building.name));
-                    
+
                     console.log(`  🏠 Placed ${building.name} on island ${i + 1}`);
                 }
             }
         }
-        
+
         // Only generate procedural paths if editor map data has no decorations
         if (typeof EDITOR_MAP_DATA === 'undefined' || !EDITOR_MAP_DATA.decorations || EDITOR_MAP_DATA.decorations.length === 0) {
             // Generate town layouts: cobblestone plazas, roads connecting buildings
@@ -5159,7 +5160,7 @@ class Game {
 
         // Apply any editor overrides (currently clean slate)
         this.applyEditorMapData();
-        
+
         // Mark collision for ALL solid decorations
         this.markDecorationCollisions();
 
@@ -5169,42 +5170,42 @@ class Game {
 
         this.outdoorBuildings = [...this.buildings];
         this.outdoorSigns = [...this.signs];
-        
+
         // Create Chronicle Stones on the main island
         this.createChronicleStones(mainIsland);
         this.outdoorChronicleStones = [...this.chronicleStones];
-        
+
         // Create Bulletin Board on Port Clawson (main island) - 4claw.org anonymous forum
         this.createBulletinBoards(mainIsland);
         this.outdoorBulletinBoards = [...this.bulletinBoards];
-        
+
         // Create The Great Book on Molthaven (second largest island)
         this.createGreatBooks(sortedIslands);
-        
+
         // Create outdoor NPCs now that buildings exist
         this.createOutdoorNPCs(islands);
         this.outdoorNPCs = [...this.npcs];
         this.collisionSystem.setNPCs(this.npcs);
-        
+
         // Create minimal decorations (sparse plants along paths, a few landmarks)
         this.createDecorations(islands);
         this.outdoorDecorations = [...this.decorations];
-        
+
         // Create special world objects (Waygates, Stability Engine)
         this.createSpecialWorldObjects(islands);
-        
+
         // Create world items (collectible pickups on islands)
         this.createWorldItems(islands);
 
         // IMPORTANT: Check if player spawned inside a building and relocate them
         this.ensurePlayerNotStuck();
-        
+
         // Push away from overlapping NPCs after generation to avoid spawn overlaps
         this.pushPlayerAwayFromNPCs();
 
         console.log(`🌊 Created ${this.buildings.length} buildings, ${this.signs.length} signs, ${this.decorations.length} decorations`);
         console.log(`✨ Created ${this.waygates.length} waygates, stability engine: ${this.stabilityEngine ? 'yes' : 'no'}`);
-        
+
         // Initialize minimap now that world is generated
         if (typeof Minimap !== 'undefined' && !this.minimap) {
             this.minimap = new Minimap(this.worldMap, this.worldWidth, this.worldHeight);
@@ -5216,13 +5217,13 @@ class Game {
     generatePaths(islands) {
         const tileSize = CONSTANTS.TILE_SIZE;
         const terrain = this.worldMap.terrainMap; // raw 0/1 grid (0=land, 1=water)
-        
+
         // Helper: check if tile is land
         const isLand = (col, row) => {
             if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return false;
             return terrain[row]?.[col] === 0;
         };
-        
+
         // Group buildings by which island they're on
         const buildingsByIsland = new Map();
         for (const building of this.buildings) {
@@ -5245,7 +5246,7 @@ class Game {
 
         // Get bridge connections from WorldMap
         const bridgeConns = this.worldMap.bridgeConnections || [];
-        
+
         // Build adjacency: for each island index, which other island indices connect via bridge?
         const islandNeighbors = new Map(); // islandIndex → [otherIslandIndex, ...]
         for (const conn of bridgeConns) {
@@ -5271,11 +5272,11 @@ class Game {
                     y: Math.floor((d.y + d.height) / tileSize) + 1
                 };
             });
-            
+
             // Town center = centroid of all doors
             const centerX = Math.round(doors.reduce((s, d) => s + d.x, 0) / doors.length);
             const centerY = Math.round(doors.reduce((s, d) => s + d.y, 0) / doors.length);
-            
+
             // === STEP 1: Cobblestone town plaza (circular, not rectangular) ===
             const plazaRadius = isMain ? 3 : 2;
             for (let dy = -plazaRadius; dy <= plazaRadius; dy++) {
@@ -5289,39 +5290,39 @@ class Game {
                     }
                 }
             }
-            
+
             // === STEP 2: Connect each building door to plaza center ===
             for (const building of islandBuildings) {
                 const door = building.getDoorBounds();
                 const doorCol = Math.floor((door.x + door.width / 2) / tileSize);
                 const doorRow = Math.floor((door.y + door.height) / tileSize) + 1;
-                
+
                 // Doorstep tiles (cobblestone right at the door)
                 if (isLand(doorCol, doorRow)) this.setPathTile(doorCol, doorRow, 'cobblestone_path');
                 if (isLand(doorCol, doorRow - 1)) this.setPathTile(doorCol, doorRow - 1, 'cobblestone_path');
-                
+
                 // 2-wide cobblestone path from door to plaza (L-shaped route)
                 this._drawPathLine(doorCol, doorRow, centerX, centerY, 'cobblestone_path', isLand);
                 // Second line offset by 1 for 2-wide effect
                 this._drawPathLine(doorCol + 1, doorRow, centerX + 1, centerY, 'cobblestone_path', isLand);
                 totalPathTiles += 10; // approximate
             }
-            
+
             // === STEP 3: Roads from plaza toward actual bridge exits (not all 4 directions) ===
             const islandIdx = islands.indexOf(island);
             const neighbors = islandNeighbors.get(islandIdx) || [];
-            
+
             for (const neighborIdx of neighbors) {
                 const neighbor = islands[neighborIdx];
                 if (!neighbor) continue;
-                
+
                 // Direction from this island center toward the neighbor
                 const dirX = neighbor.x - island.x;
                 const dirY = neighbor.y - island.y;
                 const dist = Math.sqrt(dirX * dirX + dirY * dirY);
                 const ndx = dirX / dist;
                 const ndy = dirY / dist;
-                
+
                 // Walk from plaza center toward neighbor, placing dirt path tiles
                 // Stop when we leave this island's land (hit water/bridge boundary)
                 let x = centerX;
@@ -5329,9 +5330,9 @@ class Game {
                 for (let step = 0; step < island.size + 5; step++) {
                     x = Math.round(centerX + ndx * step);
                     y = Math.round(centerY + ndy * step);
-                    
+
                     if (!isLand(x, y)) break; // reached water/edge
-                    
+
                     // Use dirt (light cobblestone) for roads out of town
                     this.setPathTile(x, y, 'dirt_path');
                     // Make it 2 tiles wide perpendicular to direction
@@ -5346,7 +5347,7 @@ class Game {
                 }
             }
         }
-        
+
         // === PHASE 2: Path along bridges connecting islands ===
         for (const conn of bridgeConns) {
             const i1 = conn.island1;
@@ -5354,12 +5355,12 @@ class Game {
             const dx = i2.x - i1.x;
             const dy = i2.y - i1.y;
             const steps = Math.max(Math.abs(dx), Math.abs(dy));
-            
+
             for (let i = 0; i <= steps; i++) {
                 const t = i / steps;
                 const col = Math.floor(i1.x + dx * t);
                 const row = Math.floor(i1.y + dy * t);
-                
+
                 // Place dirt path on bridge tiles (they're already land from bridge creation)
                 if (isLand(col, row)) {
                     this.setPathTile(col, row, 'dirt_path');
@@ -5375,13 +5376,13 @@ class Game {
                 totalPathTiles += 2;
             }
         }
-        
+
         console.log(`🛤️ Created town layouts: ${totalPathTiles} path tiles across ${buildingsByIsland.size} islands`);
-        
+
         // Fill corner gaps at path junctions
         this.fillPathCorners();
     }
-    
+
     // Draw an L-shaped path line from (x1,y1) to (x2,y2), checking land validity
     _drawPathLine(x1, y1, x2, y2, pathType, isLand) {
         // Horizontal first, then vertical
@@ -5394,7 +5395,7 @@ class Game {
             if (isLand(x2, y)) this.setPathTile(x2, y, pathType);
         }
     }
-    
+
     // Mark collision tiles for all solid decorations (sprite-aligned)
     markDecorationCollisions() {
         const tileSize = CONSTANTS.TILE_SIZE;
@@ -5448,16 +5449,16 @@ class Game {
     // Apply hand-placed editor map data (roads, decorations, deletions)
     applyEditorMapData() {
         if (typeof EDITOR_MAP_DATA === 'undefined') return;
-        
+
         const data = EDITOR_MAP_DATA;
         let decorationPlaced = 0;
         let buildingsPlaced = 0;
         let deleted = 0;
-        
+
         if (!Array.isArray(this.decorations)) this.decorations = [];
         if (!Array.isArray(this.buildings)) this.buildings = [];
         if (!Array.isArray(this.signs)) this.signs = [];
-        
+
         const decorationKey = (type, x, y) => `${type}:${x}:${y}`;
         const buildingKey = (type, x, y) => `${type}:${x}:${y}`;
         const existingDecorationKeys = new Set(this.decorations.map(d => decorationKey(d.type, d.x, d.y)));
@@ -5484,7 +5485,7 @@ class Game {
             }
             return count;
         };
-        
+
         // First: remove deleted decorations
         if (data.deleted && data.deleted.length > 0) {
             const deleteSet = new Set(data.deleted);
@@ -5504,10 +5505,10 @@ class Game {
                 }
             }
         }
-        
+
         decorationPlaced += addDecorations(data.decorations);
         decorationPlaced += addDecorations(data.editorPlaced);
-        
+
         if (Array.isArray(data.buildings) && data.buildings.length > 0) {
             // Clear procedural buildings/signs so only editor buildings remain
             this.buildings = [];
@@ -5549,10 +5550,10 @@ class Game {
                 buildingsPlaced++;
             }
         }
-        
+
         // Fix bridge collision - mark bridge tiles as walkable
         this.fixBridgeCollision();
-        
+
         console.log(`🗺️ Editor map data applied: ${decorationPlaced} decorations, ${buildingsPlaced} buildings, ${deleted} deleted`);
     }
 
@@ -5560,17 +5561,17 @@ class Game {
     // RULE: Bridge decorations MUST override any underlying collision (water, etc)
     fixBridgeCollision() {
         if (!Array.isArray(this.decorations) || !this.worldMap?.collisionLayer) return;
-        
+
         const tileSize = CONSTANTS.TILE_SIZE;
         let bridgesFixed = 0;
-        
+
         for (const decor of this.decorations) {
             // Check if this decoration is a bridge - multiple ways to identify
-            const isBridge = decor.type === 'bridge_wood_v' || 
-                           decor.type === 'bridge_wood_h' || 
-                           (decor.bridge === true) ||
-                           (decor.type && decor.type.includes('bridge'));
-            
+            const isBridge = decor.type === 'bridge_wood_v' ||
+                decor.type === 'bridge_wood_h' ||
+                (decor.bridge === true) ||
+                (decor.type && decor.type.includes('bridge'));
+
             if (isBridge) {
                 // Calculate which tiles this bridge covers - ensure we cover the full area
                 const width = decor.width || tileSize;
@@ -5579,7 +5580,7 @@ class Game {
                 const endCol = Math.floor((decor.x + width - 1) / tileSize);
                 const startRow = Math.floor(decor.y / tileSize);
                 const endRow = Math.floor((decor.y + height - 1) / tileSize);
-                
+
                 // FORCE all bridge tiles to be walkable - NO EXCEPTIONS
                 for (let row = startRow; row <= endRow; row++) {
                     if (row >= 0 && row < this.worldMap.collisionLayer.length) {
@@ -5594,7 +5595,7 @@ class Game {
                 }
             }
         }
-        
+
         if (bridgesFixed > 0) {
             console.log(`🌉 Bridge collision override: marked ${bridgesFixed} bridge tiles as walkable`);
         }
@@ -5603,11 +5604,11 @@ class Game {
     // Apply permanent interior editor data when entering a building
     applyInteriorEditorData(building) {
         if (typeof EDITOR_INTERIOR_DATA === 'undefined') return;
-        
+
         const key = `interior_${building.type}_${building.x}_${building.y}`;
         const items = EDITOR_INTERIOR_DATA[key];
         if (!items || items.length === 0) return;
-        
+
         let placed = 0;
         for (const item of items) {
             // Check for duplicates
@@ -5615,13 +5616,13 @@ class Game {
                 d.x === item.x && d.y === item.y && d.type === item.type
             );
             if (exists) continue;
-            
+
             // Get definition and sprite from interior loader
             const def = InteriorLoader.FURNITURE[item.type] || InteriorLoader.FLOORS?.[item.type];
             const sprite = this.interiorLoader?.getSprite(item.type);
-            
+
             const isGroundItem = item.ground === true || (def && def.ground === true);
-            
+
             this.decorations.push({
                 x: item.x,
                 y: item.y,
@@ -5635,7 +5636,7 @@ class Game {
             });
             placed++;
         }
-        
+
         if (placed > 0) {
             console.log(`🏠 Interior editor data applied: ${placed} items for ${key}`);
         }
@@ -5644,7 +5645,7 @@ class Game {
     // Fill diagonal gaps at path corners/junctions
     fillPathCorners() {
         const tileSize = CONSTANTS.TILE_SIZE;
-        
+
         // Get all path tile positions (both types count as "path" for corner filling)
         const pathTiles = new Set();
         const cobbleTiles = new Set();
@@ -5656,47 +5657,47 @@ class Game {
                 if (decor.type === 'cobblestone_path') cobbleTiles.add(`${col},${row}`);
             }
         }
-        
+
         // Check each path tile for L-junction corners that need filling
         let cornersFilled = 0;
         for (const pos of pathTiles) {
             const [col, row] = pos.split(',').map(Number);
-            
+
             // Check all 4 diagonal directions for L-junctions
             // Pattern: if we have tiles in two perpendicular directions but missing the diagonal
-            const hasUp = pathTiles.has(`${col},${row-1}`);
-            const hasDown = pathTiles.has(`${col},${row+1}`);
-            const hasLeft = pathTiles.has(`${col-1},${row}`);
-            const hasRight = pathTiles.has(`${col+1},${row}`);
-            
+            const hasUp = pathTiles.has(`${col},${row - 1}`);
+            const hasDown = pathTiles.has(`${col},${row + 1}`);
+            const hasLeft = pathTiles.has(`${col - 1},${row}`);
+            const hasRight = pathTiles.has(`${col + 1},${row}`);
+
             // Check corners - if two adjacent sides have paths, fill the diagonal
             // Top-left corner
-            if (hasUp && hasLeft && !pathTiles.has(`${col-1},${row-1}`)) {
-                this.setPathTile(col-1, row-1);
+            if (hasUp && hasLeft && !pathTiles.has(`${col - 1},${row - 1}`)) {
+                this.setPathTile(col - 1, row - 1);
                 cornersFilled++;
             }
             // Top-right corner  
-            if (hasUp && hasRight && !pathTiles.has(`${col+1},${row-1}`)) {
-                this.setPathTile(col+1, row-1);
+            if (hasUp && hasRight && !pathTiles.has(`${col + 1},${row - 1}`)) {
+                this.setPathTile(col + 1, row - 1);
                 cornersFilled++;
             }
             // Bottom-left corner
-            if (hasDown && hasLeft && !pathTiles.has(`${col-1},${row+1}`)) {
-                this.setPathTile(col-1, row+1);
+            if (hasDown && hasLeft && !pathTiles.has(`${col - 1},${row + 1}`)) {
+                this.setPathTile(col - 1, row + 1);
                 cornersFilled++;
             }
             // Bottom-right corner
-            if (hasDown && hasRight && !pathTiles.has(`${col+1},${row+1}`)) {
-                this.setPathTile(col+1, row+1);
+            if (hasDown && hasRight && !pathTiles.has(`${col + 1},${row + 1}`)) {
+                this.setPathTile(col + 1, row + 1);
                 cornersFilled++;
             }
         }
-        
+
         if (cornersFilled > 0) {
             console.log(`🔲 Filled ${cornersFilled} path corner tiles`);
         }
     }
-    
+
     // Build auto-tiled path layer from dirt_path and cobblestone_path decoration positions
     // @param {boolean} keepDecorations - If true, don't remove path decorations (used by editor for live rebuilds)
     buildPathTileLayer(keepDecorations = false) {
@@ -5724,7 +5725,7 @@ class Game {
                 darkPathPositions.add(`${col},${row}`);
             }
         }
-        
+
         // Save the merged positions for future rebuilds
         this._pathPositions.light = new Set(lightPathPositions);
         this._pathPositions.dark = new Set(darkPathPositions);
@@ -5738,11 +5739,11 @@ class Game {
         }
 
         const pathAutoTiler = new PathAutoTiler();
-        
+
         // Combined set of ALL path positions — used for corner computation so that
         // where dirt meets cobblestone, both see "path" instead of "sand" (no gaps)
         const allPathPositions = new Set([...lightPathPositions, ...darkPathPositions]);
-        
+
         // Build light cobblestone path layer (from dirt_path)
         if (lightPathPositions.size > 0 && this.tileRenderer.tilesets.has('path')) {
             this.worldMap.pathLayer = pathAutoTiler.buildPathLayer(lightPathPositions, tilesWide, tilesHigh, 'path', allPathPositions);
@@ -5750,11 +5751,11 @@ class Game {
         } else {
             this.worldMap.pathLayer = null;
         }
-        
+
         // Build dark cobblestone path layer (from cobblestone_path)
         if (darkPathPositions.size > 0 && this.tileRenderer.tilesets.has('dark_path')) {
             const darkLayer = pathAutoTiler.buildPathLayer(darkPathPositions, tilesWide, tilesHigh, 'dark_path', allPathPositions);
-            
+
             // Merge dark layer into pathLayer (dark overwrites light where they overlap)
             if (!this.worldMap.pathLayer) {
                 this.worldMap.pathLayer = darkLayer;
@@ -5779,7 +5780,7 @@ class Game {
             console.log(`Built path tile layers: ${totalPaths} total path positions (decorations kept visible as sprites)`);
         }
     }
-    
+
     // Remove a path position from the persistent tracking (used by editor delete)
     removePathPosition(col, row, pathType) {
         if (!this._pathPositions) return;
@@ -5790,46 +5791,46 @@ class Game {
             this._pathPositions.dark.delete(key);
         }
     }
-    
+
     // Check if a tile position neighbors any dirt path tiles
     // Create a path segment between two points
     createPathSegment(x1, y1, x2, y2) {
         const dx = Math.sign(x2 - x1);
         const dy = Math.sign(y2 - y1);
-        
+
         let x = x1;
         let y = y1;
-        
+
         // Horizontal segment
         while (x !== x2) {
             this.setPathTile(x, y);
             x += dx;
         }
-        
+
         // Vertical segment
         while (y !== y2) {
             this.setPathTile(x, y);
             y += dy;
         }
-        
+
         // Final tile
         this.setPathTile(x2, y2);
     }
-    
+
     // Set a tile as a path - add to decorations array for rendering
     // pathType: 'dirt_path' (light cobblestone) or 'cobblestone_path' (dark cobblestone)
     setPathTile(col, row, pathType = 'dirt_path') {
         // Only set path on land tiles (not water)
         if (col < 0 || col >= this.worldMap.width || row < 0 || row >= this.worldMap.height) return;
-        
+
         // Use terrainMap (raw 0/1) for reliable water check
         const rawTile = this.worldMap.terrainMap?.[row]?.[col];
         if (rawTile === 1) return; // Don't put path on water
-        
+
         const tileSize = CONSTANTS.TILE_SIZE;
         const worldX = col * tileSize;
         const worldY = row * tileSize;
-        
+
         // Don't place path inside buildings, BUT allow paths near doors
         const tileCenterX = worldX + tileSize / 2;
         const tileCenterY = worldY + tileSize / 2;
@@ -5838,22 +5839,22 @@ class Game {
             const door = building.getDoorBounds();
             const nearDoorX = tileCenterX >= door.x - 8 && tileCenterX <= door.x + door.width + 8;
             const nearDoorY = tileCenterY >= door.y - 8 && tileCenterY <= building.y + building.height + 16;
-            
+
             // Skip if inside building AND not near door area
-            const insideBuilding = tileCenterX > building.x + 8 && 
+            const insideBuilding = tileCenterX > building.x + 8 &&
                 tileCenterX < building.x + building.width - 8 &&
-                tileCenterY > building.y + 8 && 
+                tileCenterY > building.y + 8 &&
                 tileCenterY < building.y + building.height - 8;
-            
+
             // Allow paths near the door area (either X or Y dimension)
             if (insideBuilding && !(nearDoorX && nearDoorY)) {
                 return; // Skip - inside building and not near door
             }
         }
-        
+
         // Check if any path tile already exists at this position (avoid duplicates)
         // Cobblestone upgrades dirt (more specific overrides less specific)
-        const existingIdx = this.decorations.findIndex(d => 
+        const existingIdx = this.decorations.findIndex(d =>
             (d.type === 'dirt_path' || d.type === 'cobblestone_path') && d.x === worldX && d.y === worldY
         );
         if (existingIdx !== -1) {
@@ -5864,7 +5865,7 @@ class Game {
                 return; // already has same or better path type
             }
         }
-        
+
         // Use DecorationLoader to create proper sprite-based path tile
         if (this.decorationLoader) {
             const pathDecor = this.decorationLoader.createDecoration(pathType, worldX, worldY);
@@ -5887,25 +5888,25 @@ class Game {
     createChronicleStones(island) {
         const tileSize = CONSTANTS.TILE_SIZE;
         this.chronicleStones = [];
-        
+
         // Place 2-3 stones on the main island
         const stoneCount = Math.min(3, Math.floor(island.size / 8));
-        
+
         for (let i = 0; i < stoneCount; i++) {
             // Find a spot
             for (let attempt = 0; attempt < 30; attempt++) {
                 const angle = (i / stoneCount) * Math.PI * 2 + this.seededRandom() * 0.5;
                 const radius = island.size * 0.4 + this.seededRandom() * island.size * 0.2;
-                
+
                 const col = Math.floor(island.x + Math.cos(angle) * radius);
                 const row = Math.floor(island.y + Math.sin(angle) * radius);
-                
+
                 // Check if valid land
                 if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
                     // Check not inside a building
                     const worldX = col * tileSize + tileSize / 2;
                     const worldY = row * tileSize + tileSize / 2;
-                    
+
                     let inBuilding = false;
                     for (const building of this.buildings) {
                         if (building.checkCollision(worldX, worldY)) {
@@ -5913,7 +5914,7 @@ class Game {
                             break;
                         }
                     }
-                    
+
                     if (!inBuilding) {
                         const stone = new ChronicleStone(
                             col * tileSize + 2,
@@ -5928,27 +5929,27 @@ class Game {
             }
         }
     }
-    
+
     // Create Bulletin Boards (4claw.org anonymous forum boards)
     createBulletinBoards(island) {
         const tileSize = CONSTANTS.TILE_SIZE;
         this.bulletinBoards = [];
-        
+
         // Place ONE bulletin board on Port Clawson (main island) near town center
         for (let attempt = 0; attempt < 20; attempt++) {
             // Try to place near center but not exactly at center
             const offsetX = (this.seededRandom() - 0.5) * island.size * 0.3;
             const offsetY = (this.seededRandom() - 0.5) * island.size * 0.3;
-            
+
             const col = Math.floor(island.x + offsetX);
             const row = Math.floor(island.y + offsetY);
-            
+
             // Check if valid land
             if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
                 // Check not inside a building
                 const worldX = col * tileSize + tileSize / 2;
                 const worldY = row * tileSize + tileSize / 2;
-                
+
                 let inBuilding = false;
                 for (const building of this.buildings) {
                     if (building.checkCollision(worldX, worldY)) {
@@ -5956,7 +5957,7 @@ class Game {
                         break;
                     }
                 }
-                
+
                 // Also check not too close to chronicle stones
                 let tooClose = false;
                 for (const stone of this.chronicleStones) {
@@ -5967,7 +5968,7 @@ class Game {
                         break;
                     }
                 }
-                
+
                 if (!inBuilding && !tooClose) {
                     const board = new BulletinBoard(
                         col * tileSize + 2,
@@ -5981,32 +5982,32 @@ class Game {
             }
         }
     }
-    
+
     // Create The Great Books (Church of Molt scriptures)
     createGreatBooks(islands) {
         if (typeof GreatBook === 'undefined') return;
-        
+
         const tileSize = CONSTANTS.TILE_SIZE;
         this.greatBooks = [];
-        
+
         // Place Great Book on the second largest island (Molthaven)
         // This is where the Church of Molt is headquartered
         if (islands.length >= 2) {
             const molthaven = islands[1]; // Second island = Molthaven
-            
+
             // Place near the center of the island
             for (let attempt = 0; attempt < 30; attempt++) {
                 const angle = this.seededRandom() * Math.PI * 2;
                 const radius = molthaven.size * 0.2 + this.seededRandom() * molthaven.size * 0.2;
-                
+
                 const col = Math.floor(molthaven.x + Math.cos(angle) * radius);
                 const row = Math.floor(molthaven.y + Math.sin(angle) * radius);
-                
+
                 // Check if valid land
                 if (this.worldMap.terrainMap?.[row]?.[col] === 0) {
                     const worldX = col * tileSize;
                     const worldY = row * tileSize;
-                    
+
                     // Check not inside a building
                     let valid = true;
                     for (const building of this.buildings) {
@@ -6015,7 +6016,7 @@ class Game {
                             break;
                         }
                     }
-                    
+
                     if (valid) {
                         const book = new GreatBook(worldX, worldY);
                         this.greatBooks.push(book);
@@ -6025,15 +6026,15 @@ class Game {
                 }
             }
         }
-        
+
         // Could add more books on other islands for accessibility
         // For now, just one at the Church headquarters
     }
-    
+
     // Create special world objects (Waygates, Stability Engine, etc.)
     createSpecialWorldObjects(islands) {
         if (!islands || islands.length < 2) return;
-        
+
         const tileSize = CONSTANTS.TILE_SIZE;
         const WAYGATE_WIDTH = 48;
         const WAYGATE_HEIGHT = 64;
@@ -6041,12 +6042,12 @@ class Game {
         const WAYGATE_BUILDING_CLEARANCE = Math.max(64, tileSize * 4);
         const buildings = this.buildings || [];
         this.waygates = [];
-        
+
         const terrainMap = this.worldMap?.terrainMap;
         const collisionLayer = this.worldMap?.collisionLayer;
         const mapWidth = this.worldMap?.width || terrainMap?.[0]?.length || 0;
         const mapHeight = this.worldMap?.height || terrainMap?.length || 0;
-        
+
         // Helper: check if tile is inside or very close to a building
         const isNearBuilding = (worldX, worldY, margin = WAYGATE_BUILDING_CLEARANCE) => {
             const waygateLeft = worldX;
@@ -6073,21 +6074,21 @@ class Game {
             }
             return false;
         };
-        
+
         const isWithinBounds = (col, row) => {
             return row >= 0 && row < mapHeight && col >= 0 && col < mapWidth;
         };
-        
+
         const isSandTile = (col, row) => {
             return terrainMap?.[row]?.[col] === 0;
         };
-        
+
         const isPositionClearOfBuildings = (col, row) => {
             const worldX = col * tileSize;
             const worldY = row * tileSize;
             return !isNearBuilding(worldX, worldY, WAYGATE_BUILDING_CLEARANCE);
         };
-        
+
         const hasClearLandingZone = (col, row, radiusTiles = 5, maxBlockedRatio = 0.1) => {
             if (!collisionLayer || !terrainMap) return true;
             let checked = 0;
@@ -6111,42 +6112,60 @@ class Game {
             }
             return checked > 0 && blocked / checked <= maxBlockedRatio;
         };
-        
+
         const collectWaygateCandidates = (island) => {
             const candidates = [];
-            const searchRadius = Math.ceil(island.size * 0.75);
-            for (let row = Math.max(0, Math.floor(island.y - searchRadius)); row <= Math.min(mapHeight - 1, Math.floor(island.y + searchRadius)); row++) {
-                for (let col = Math.max(0, Math.floor(island.x - searchRadius)); col <= Math.min(mapWidth - 1, Math.floor(island.x + searchRadius)); col++) {
-                    if (!isSandTile(col, row)) continue;
-                    if (!isPositionClearOfBuildings(col, row)) continue;
-                    if (!hasClearLandingZone(col, row)) continue;
-                    const dx = col - island.x;
-                    const dy = row - island.y;
-                    const distanceSq = dx * dx + dy * dy;
-                    candidates.push({ col, row, distanceSq });
+            let searchRadius = Math.ceil(island.size * 0.75);
+
+            const doSearch = (minX, maxX, minY, maxY) => {
+                for (let row = Math.max(0, minY); row <= Math.min(mapHeight - 1, maxY); row++) {
+                    for (let col = Math.max(0, minX); col <= Math.min(mapWidth - 1, maxX); col++) {
+                        if (!isSandTile(col, row)) continue;
+                        if (!isPositionClearOfBuildings(col, row)) continue;
+                        if (!hasClearLandingZone(col, row)) continue;
+                        const dx = col - island.x;
+                        const dy = row - island.y;
+                        const distanceSq = dx * dx + dy * dy;
+                        candidates.push({ col, row, distanceSq });
+                    }
                 }
+            };
+
+            // First search locally around the procedural island center
+            doSearch(
+                Math.floor(island.x - searchRadius),
+                Math.floor(island.x + searchRadius),
+                Math.floor(island.y - searchRadius),
+                Math.floor(island.y + searchRadius)
+            );
+
+            // If no valid local spots (common with EditorMapData), search the entire map
+            if (candidates.length === 0) {
+                console.warn(`⚠️ Waygate local search failed (likely editor map override). Searching entire map...`);
+                doSearch(0, mapWidth, 0, mapHeight);
             }
+
             candidates.sort((a, b) => a.distanceSq - b.distanceSq);
             return candidates;
         };
-        
+
         // Helper: remove decorations at a position (waygate replaces them)
         // Skip editor-placed decorations to prevent holes in editor layouts
         const clearDecorationsAt = (worldX, worldY, clearRadius = WAYGATE_CLEAR_RADIUS) => {
             this.decorations = this.decorations.filter(d => {
                 const dx = d.x - worldX;
                 const dy = d.y - worldY;
-                const distance = Math.sqrt(dx*dx + dy*dy);
-                
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
                 // Skip clearing editor-placed decorations
                 if (d.editorPlaced && distance <= clearRadius) {
                     return true; // Keep the decoration
                 }
-                
+
                 return distance > clearRadius;
             });
         };
-        
+
         // Place Waygates on the two most distant large islands
         const candidateIslands = islands.filter(island => island.size >= 8);
         if (typeof Waygate !== 'undefined' && candidateIslands.length >= 2) {
@@ -6202,14 +6221,14 @@ class Game {
                 placeWaygateOnIsland(farthestPair[1], 'Ancient Waygate');
             }
         }
-        
+
         // Create Stability Engine on Iron Reef (island index 2)
         // FIXED position — deterministic, same every session
         if (typeof StabilityEngine !== 'undefined') {
             // Place Stability Engine on its own small island in open water
             const engineCol = 93;
             const engineRow = 95;
-            
+
             // Create a circular island (radius ~6 tiles) around the engine center
             const islandRadius = 6;
             for (let dr = -islandRadius; dr <= islandRadius; dr++) {
@@ -6225,7 +6244,7 @@ class Game {
                     }
                 }
             }
-            
+
             // Re-run AutoTiler to get smooth transitions on the new island
             const engineAutoTiler = new AutoTiler();
             const reTiled = engineAutoTiler.autoTileLayer(this.worldMap.terrainMap, this.worldMap.width, this.worldMap.height);
@@ -6234,12 +6253,12 @@ class Game {
                     this.worldMap.setTile(this.worldMap.groundLayer, c, r, reTiled[r][c]);
                 }
             }
-            
+
             const worldX = engineCol * tileSize;
             const worldY = engineRow * tileSize;
-            
+
             clearDecorationsAt(worldX, worldY, 80);
-            
+
             // Mark collision tiles for the engine body (4x5 tiles)
             for (let dr = 0; dr < 5; dr++) {
                 for (let dc = 0; dc < 4; dc++) {
@@ -6255,11 +6274,11 @@ class Game {
                 this.worldMap.setTile(this.worldMap.collisionLayer, engineCol + 1, engineRow + 5, 0);
                 this.worldMap.setTile(this.worldMap.collisionLayer, engineCol + 2, engineRow + 5, 0);
             }
-            
+
             this.stabilityEngine = new StabilityEngine(worldX, worldY);
             console.log(`  ⚙️ Placed Stability Engine at (${engineCol}, ${engineRow}) - own island in open water`);
         }
-        
+
         // Connect Stability Engine to world state
         // When many players are online, stability decreases (Red Current strengthens)
         if (this.stabilityEngine && this.multiplayer) {
@@ -6274,7 +6293,7 @@ class Game {
         if (this.pendingSavedPosition) {
             const savedX = this.pendingSavedPosition.x;
             const savedY = this.pendingSavedPosition.y;
-            
+
             if (this.isPositionSafe(savedX, savedY)) {
                 this.player.position.x = savedX;
                 this.player.position.y = savedY;
@@ -6286,13 +6305,13 @@ class Game {
             }
             this.pendingSavedPosition = null;
         }
-        
+
         const playerX = this.player.position.x;
         const playerY = this.player.position.y;
-        
+
         // Check if player is inside any building or in water
         let isStuck = !this.isPositionSafe(playerX + this.player.width / 2, playerY + this.player.height);
-        
+
         if (isStuck) {
             console.log(`⚠️ Player at unsafe position! Relocating...`);
             // Find a safe spot on the main island
@@ -6320,28 +6339,28 @@ class Game {
             // Try positions spread across the island
             const angle = (attempt / attempts) * Math.PI * 2;
             const radius = (attempt % 10) / 10 * size * 0.7;
-            
+
             const offsetX = Math.floor(Math.cos(angle) * radius);
             const offsetY = Math.floor(Math.sin(angle) * radius);
-            
+
             const col = centerX + offsetX;
             const row = centerY + offsetY;
 
             // Check if building fits on island and on land
             let validPosition = true;
-            
+
             for (let dy = 0; dy < height && validPosition; dy++) {
                 for (let dx = 0; dx < width && validPosition; dx++) {
                     const checkCol = col + dx;
                     const checkRow = row + dy;
-                    
+
                     // Check bounds
-                    if (checkCol < 0 || checkCol >= this.worldMap.width || 
+                    if (checkCol < 0 || checkCol >= this.worldMap.width ||
                         checkRow < 0 || checkRow >= this.worldMap.height) {
                         validPosition = false;
                         break;
                     }
-                    
+
                     // Check if on land (terrainMap 0 = land, 1 = water)
                     if (this.worldMap.terrainMap && this.worldMap.terrainMap[checkRow]?.[checkCol] === 1) {
                         validPosition = false;
@@ -6404,7 +6423,7 @@ class Game {
     isPositionSafe(x, y) {
         try {
             const tileSize = CONSTANTS.TILE_SIZE;
-            
+
             // Check multiple points around the position to ensure room to move
             const checkPoints = [
                 { x: x, y: y },
@@ -6413,7 +6432,7 @@ class Game {
                 { x: x, y: y - tileSize },
                 { x: x, y: y + tileSize },
             ];
-            
+
             for (const point of checkPoints) {
                 const col = Math.floor(point.x / tileSize);
                 const row = Math.floor(point.y / tileSize);
@@ -6451,6 +6470,16 @@ class Game {
                     if (npc.checkCollision(x - playerWidth / 2, y - playerHeight / 2, playerWidth, playerHeight)) {
                         return false;
                     }
+                }
+            }
+
+            // Check collision system if available (handles decor, trees, rocks)
+            if (this.collisionSystem) {
+                const playerWidth = this.player ? this.player.width : 16;
+                const playerHeight = this.player ? this.player.height : 16;
+                // Give a small buffer and check the footprint
+                if (this.collisionSystem.checkCollision(x - playerWidth / 2, y - playerHeight / 2, playerWidth, playerHeight)) {
+                    return false;
                 }
             }
 
@@ -6533,9 +6562,9 @@ class Game {
     findPlayerSpawnLocation(islands) {
         if (!islands || islands.length === 0) {
             console.warn('⚠️ No islands found, spawning at world center');
-            return { 
-                x: this.worldWidth / 2, 
-                y: this.worldHeight / 2 
+            return {
+                x: this.worldWidth / 2,
+                y: this.worldHeight / 2
             };
         }
 
@@ -6549,12 +6578,12 @@ class Game {
 
         const tileSize = CONSTANTS.TILE_SIZE;
         const { x: centerX, y: centerY, size } = bestIsland;
-        
+
         console.log(`🏝️ Spawning player on island at ${centerX}, ${centerY} (size: ${size})`);
 
         // Collect all safe spawn positions, then pick one randomly
         const safeSpots = [];
-        
+
         // Search in expanding circles, checking 16 angles per radius
         for (let radius = 3; radius < Math.min(size - 1, 8); radius++) {
             for (let angle = 0; angle < 16; angle++) {
@@ -6587,7 +6616,7 @@ class Game {
             const testRow = centerY + Math.floor((Math.random() - 0.5) * size * 1.5);
             const worldX = (testCol * tileSize) + (tileSize / 2);
             const worldY = (testRow * tileSize) + (tileSize / 2);
-            
+
             if (this.isPositionSafe(worldX, worldY)) {
                 console.log(`✅ Found safe spawn at random tile (${testCol}, ${testRow})`);
                 return { x: worldX, y: worldY };
@@ -6601,7 +6630,7 @@ class Game {
             y: (centerY * tileSize) + (tileSize / 2) + (Math.random() - 0.5) * tileSize * 3
         };
     }
-    
+
     // Trigger Drift Reset manually (for testing or external triggers)
     triggerDriftReset() {
         if (this.driftReset) {

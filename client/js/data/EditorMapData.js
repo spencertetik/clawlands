@@ -1,4 +1,3 @@
-// Editor map data generated from /Users/spencertetik/Downloads/clawlands_map_outdoor_2026-02-12.json on 2026-02-13T15:16:49.869Z
 const EDITOR_MAP_DATA = {
   "buildings": [
     {
@@ -7220,8 +7219,8 @@ const EDITOR_MAP_DATA = {
       "x": 1281.2263755804051,
       "y": 2052.4426083585445,
       "type": "buoy",
-      "width": 23,
-      "height": 28,
+      "width": 12,
+      "height": 14,
       "ground": false,
       "editorPlaced": true
     },
@@ -7463,8 +7462,8 @@ const EDITOR_MAP_DATA = {
       "x": 1107.342344285614,
       "y": 2623.4962830615677,
       "type": "message_bottle",
-      "width": 12,
-      "height": 16,
+      "width": 4,
+      "height": 6,
       "ground": false,
       "editorPlaced": true
     },
@@ -38382,8 +38381,8 @@ const EDITOR_MAP_DATA = {
       "x": 2144,
       "y": 928,
       "type": "bush_flower2",
-      "width": 16,
-      "height": 16,
+      "width": 24,
+      "height": 21,
       "layer": 0,
       "ground": false,
       "editorPlaced": true
@@ -167275,6 +167274,6 @@ const EDITOR_MAP_DATA = {
   "terrainHeight": 200
 };
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined') {
   module.exports = EDITOR_MAP_DATA;
 }

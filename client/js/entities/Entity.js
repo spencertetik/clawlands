@@ -49,3 +49,6 @@ class Entity {
         );
     }
 }
+
+// Make globally available
+window.Entity = Entity;

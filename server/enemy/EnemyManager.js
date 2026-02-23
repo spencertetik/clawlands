@@ -12,14 +12,14 @@ const ENEMY_MOVE_EPSILON = 2;
 class EnemyManager {
     constructor(options = {}) {
         this.players = options.players || (typeof options.getPlayers === 'function' ? options.getPlayers() : new Map());
-        this.broadcast = options.broadcast || (() => {});
+        this.broadcast = options.broadcast || (() => { });
         this.collisionSystem = options.collisionSystem || { checkCollision: () => false };
         this.terrainData = options.terrainData;
         this.buildings = options.buildings || [];
         this.worldWidth = options.worldWidth || 3200;
         this.worldHeight = options.worldHeight || 3200;
-        this.maxEnemies = options.maxEnemies || 8;
-        this.spawnIntervalMs = options.spawnIntervalMs || 7000;
+        this.maxEnemies = options.maxEnemies || 3;
+        this.spawnIntervalMs = options.spawnIntervalMs || 15000;
         this.tickRateMs = options.tickRateMs || 400;
         this.weaponDamage = options.weaponDamage || DEFAULT_WEAPON_DAMAGE;
         this.speedMultiplier = options.speedMultiplier || 1;
@@ -50,11 +50,12 @@ class EnemyManager {
                 this._lastSpawnAt = now;
             }
         }
-        this.updateEnemies(this.tickRateMs / 1000);
+        this.updateEnemies(this.tickRateMs / 1000, now);
     }
 
     spawnEnemy() {
-        const typeKey = 'SKITTER'; // Tier 1 baseline for now
+        const keys = Object.keys(DRIFT_FAUNA_TYPES);
+        const typeKey = keys[Math.floor(Math.random() * keys.length)];
         const typeData = DRIFT_FAUNA_TYPES[typeKey];
         if (!typeData) return false;
 
@@ -76,7 +77,8 @@ class EnemyManager {
             targetPlayerId: null,
             state: 'wandering',
             lastBroadcastX: spawnPos.x,
-            lastBroadcastY: spawnPos.y
+            lastBroadcastY: spawnPos.y,
+            nextAttackTime: 0
         };
 
         this.enemies.set(enemy.id, enemy);
@@ -163,7 +165,7 @@ class EnemyManager {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    updateEnemies(dtSeconds) {
+    updateEnemies(dtSeconds, now = Date.now()) {
         const moveEnemies = [];
         for (const enemy of this.enemies.values()) {
             const target = this.findNearestPlayer(enemy);
@@ -171,6 +173,7 @@ class EnemyManager {
                 enemy.state = 'chasing';
                 enemy.targetPlayerId = target.id;
                 enemy.heading = Math.atan2((target.y + PLAYER_HEIGHT / 2) - (enemy.y + enemy.height / 2), (target.x + PLAYER_WIDTH / 2) - (enemy.x + enemy.width / 2));
+                this.tryDamagePlayer(enemy, target, now);
             } else {
                 enemy.state = 'wandering';
                 enemy.targetPlayerId = null;
@@ -339,6 +342,53 @@ class EnemyManager {
             }
         }
         return closest;
+    }
+
+    tryDamagePlayer(enemy, target, now = Date.now()) {
+        if (!enemy || !target || !this.players.has(target.id)) return;
+        const playerEntry = this.players.get(target.id);
+        const playerData = playerEntry?.data || playerEntry;
+        if (!playerData || playerData.isSpectator) return;
+        if ((playerData.shellIntegrity ?? 100) <= 0) return;
+
+        const cooldown = enemy.data?.attackCooldown || 1000;
+        enemy.nextAttackTime = enemy.nextAttackTime || 0;
+        if (now < enemy.nextAttackTime) {
+            return;
+        }
+
+        const attackRange = enemy.data?.attackRange || Math.max(24, enemy.width + 6);
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        const px = playerData.x + PLAYER_WIDTH / 2;
+        const py = playerData.y + PLAYER_HEIGHT / 2;
+        const dx = px - ex;
+        const dy = py - ey;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > attackRange) {
+            return;
+        }
+
+        const damage = Math.max(1, Math.round(enemy.data?.damage || 4));
+        const currentShell = typeof playerData.shellIntegrity === 'number' ? playerData.shellIntegrity : 100;
+        const newShell = Math.max(0, currentShell - damage);
+        playerData.shellIntegrity = newShell;
+        playerData.shellIntegrityMax = playerData.shellIntegrityMax || 100;
+        playerData.lastCombatTime = now;
+        enemy.nextAttackTime = now + cooldown;
+        enemy.state = 'attacking';
+
+        const payload = {
+            type: 'player_damage',
+            playerId: target.id,
+            amount: damage,
+            shellIntegrity: newShell,
+            maxShellIntegrity: playerData.shellIntegrityMax,
+            enemyId: enemy.id,
+            enemyType: enemy.type,
+            enemyName: enemy.data?.name
+        };
+        this.broadcast(payload);
     }
 
     distanceToEnemyCenter(hitbox, enemy) {

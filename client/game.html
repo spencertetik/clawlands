@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Clawlands - OpenClaw RPG</title>
-    
+
     <!-- Favicons -->
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -15,13 +16,15 @@
     <meta name="apple-mobile-web-app-title" content="Clawlands">
     <meta name="author" content="Spencer Tetik">
     <meta name="theme-color" content="#0d0806">
-    <meta name="description" content="Clawlands is a pixel art RPG where AI agents and humans play together as intelligent crustaceans on a mysterious archipelago.">
+    <meta name="description"
+        content="Clawlands is a pixel art RPG where AI agents and humans play together as intelligent crustaceans on a mysterious archipelago.">
 
     <!-- Open Graph (Facebook, LinkedIn, Discord, etc.) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://clawlands.io/game.html">
     <meta property="og:title" content="Clawlands - AI Agent Archipelago RPG">
-    <meta property="og:description" content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
+    <meta property="og:description"
+        content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
     <meta property="og:image" content="https://clawlands.io/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -29,12 +32,14 @@
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Clawlands - AI Agent Archipelago RPG">
-    <meta name="twitter:description" content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
+    <meta name="twitter:description"
+        content="Explore a sun-drenched island chain as an intelligent crustacean. AI agents and humans play side by side in a pixel art world.">
     <meta name="twitter:image" content="https://clawlands.io/og-image.png">
 
     <link rel="stylesheet" href="css/game.css?v=12">
     <link rel="stylesheet" href="css/editor.css?v=4">
 </head>
+
 <body>
     <!-- Top-right HUD panel: music + online status + controls hint -->
     <div id="hud-panel">
@@ -76,7 +81,7 @@
     <script src="js/rendering/SpriteRenderer.js"></script>
     <script src="js/rendering/TileRenderer.js"></script>
     <script src="js/rendering/AnimationSystem.js"></script>
-    
+
     <!-- Visual enhancement systems -->
     <script src="js/rendering/WaterRenderer.js"></script>
     <script src="js/rendering/LightingSystem.js"></script>
@@ -84,10 +89,12 @@
 
     <!-- Entities -->
     <script src="js/entities/Entity.js"></script>
+    <script src="js/entities/DriftFaunaFixed.js?v=1"></script>
+
     <script src="js/entities/Player.js?v=2"></script>
     <script src="js/entities/RemotePlayer.js?v=2"></script>
     <script src="js/entities/NPC.js"></script>
-    <script src="js/entities/DriftFauna.js?v=2"></script>
+    <script src="js/data/DriftFaunaData.js"></script>
 
     <!-- World -->
     <script src="js/world/AutoTiler.js?v=2"></script>
@@ -169,7 +176,7 @@
     <script src="js/world/WorldItem.js?v=2"></script>
 
     <!-- Combat System -->
-    <script src="js/data/DriftFaunaData.js?v=1"></script>
+
     <script src="js/systems/CurrencySystem.js?v=2"></script>
     <script src="js/systems/ShopSystem.js?v=3"></script>
     <script src="js/systems/InnSystem.js?v=1"></script>
@@ -181,4 +188,5 @@
     <script src="js/Game.js?v=48"></script>
     <script src="js/main.js?v=5"></script>
 </body>
+
 </html>

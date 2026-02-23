@@ -393,6 +393,9 @@ class BotBridge {
 // ============================================
 
 const bridge = new BotBridge();
+const getLocalEnemyManager = () => global.__clawlandsEnemyManager;
+const getLocalPlayers = () => global.__clawlandsPlayers;
+
 
 const server = new McpServer({
     name: 'clawlands',

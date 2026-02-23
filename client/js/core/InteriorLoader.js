@@ -26,7 +26,7 @@ class InteriorLoader {
             width: 28, height: 24,
             collision: { width: 24, height: 12, offsetY: 12 }
         },
-        
+
         // === SEATING ===
         chair: {
             path: 'assets/sprites/interior/chair_1.png',
@@ -58,14 +58,14 @@ class InteriorLoader {
             width: 32, height: 26,
             collision: { width: 12, height: 8, offsetY: 18 }
         },
-        
+
         // === BEDS ===
         bed: {
             path: 'assets/sprites/interior/bed.png',
             width: 20, height: 32,
             collision: { width: 18, height: 24, offsetY: 8 }
         },
-        
+
         // === STORAGE ===
         cabinet: {
             path: 'assets/sprites/interior/cabinet_bottles.png',
@@ -107,7 +107,7 @@ class InteriorLoader {
             width: 17, height: 28,
             collision: { width: 14, height: 14, offsetY: 14 }
         },
-        
+
         // === CONTAINERS ===
         barrel: {
             path: 'assets/sprites/interior/barrel.png',
@@ -129,7 +129,7 @@ class InteriorLoader {
             width: 20, height: 28,
             collision: null
         },
-        
+
         // === PLANTS ===
         plant: {
             path: 'assets/sprites/interior/plant_flower.png',
@@ -151,7 +151,7 @@ class InteriorLoader {
             width: 20, height: 28,
             collision: null
         },
-        
+
         // === DECOR ===
         rug: {
             path: 'assets/sprites/interior/rug.png',
@@ -183,7 +183,7 @@ class InteriorLoader {
             container: ['barrel', 'barrel_small', 'barrel_large', 'jug'],
             plant: ['plant', 'plant_bush', 'plant_bush2', 'plant_bush3']
         };
-        
+
         const types = categories[category];
         if (!types) return category;
         return types[Math.floor(Math.random() * types.length)];
@@ -201,28 +201,28 @@ class InteriorLoader {
             for (const type of itemTypes) {
                 const def = allItems[type];
                 const img = new Image();
-                
+
                 img.onload = () => {
                     this.sprites[type] = img;
                     loadedCount++;
-                    
+
                     if (loadedCount === itemTypes.length) {
                         this.loaded = true;
                         console.log(`🪑 Loaded ${loadedCount} interior sprites`);
                         resolve();
                     }
                 };
-                
+
                 img.onerror = () => {
                     console.warn(`Failed to load interior: ${type} (${def.path})`);
                     loadedCount++;
-                    
+
                     if (loadedCount === itemTypes.length) {
                         this.loaded = true;
                         resolve();
                     }
                 };
-                
+
                 img.src = `${def.path}?v=${Date.now()}`;
             }
         });
@@ -254,7 +254,7 @@ class InteriorLoader {
         }
 
         // Apply interior scaling to collision boxes to match visual scaling
-        const interiorScale = def.ground ? 0.6 : 0.5; // Same as visual scaling
+        const interiorScale = 1.0; // Same as visual scaling
         let scaledCollision = null;
         if (def.collision) {
             scaledCollision = {

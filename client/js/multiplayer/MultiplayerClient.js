@@ -62,7 +62,7 @@ class MultiplayerClient {
                 this.connected = false;
                 this.stopPositionSync();
                 if (this.pingInterval) { clearInterval(this.pingInterval); this.pingInterval = null; }
-                
+
                 // Try to reconnect
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.reconnectAttempts++;
@@ -135,7 +135,7 @@ class MultiplayerClient {
                     console.log(`   Position: ${msg.player.x}, ${msg.player.y}`);
                     console.log(`   Species: ${msg.player.species}, Color: ${msg.player.color}`);
                     this.addRemotePlayer(msg.player);
-                    
+
                     // Show join message in game
                     if (this.game.showNotification) {
                         this.game.showNotification(`${msg.player.name} joined!`);
@@ -156,6 +156,26 @@ class MultiplayerClient {
                     this._moveLogCount++;
                 }
                 this.updateRemotePlayer(msg.playerId, msg);
+                break;
+
+            case 'player_damage':
+                if (msg.playerId === this.playerId) {
+                    if (this.game.combatSystem) {
+                        this.game.combatSystem.showDamageNumber(this.game.player.position.x, this.game.player.position.y - 10, msg.amount, true);
+                    }
+                    if (this.game.player) {
+                        this.game.player.shellIntegrity = Math.max(0, msg.shellIntegrity);
+                        this.game.player.shellIntegrityMax = msg.maxShellIntegrity || this.game.player.shellIntegrityMax;
+                        this.game.player.damageFlashTimer = 200;
+                        this.game.player.lastCombatTime = Date.now();
+                    }
+                    if (this.game.sfx) this.game.sfx.play('player_hit');
+                } else {
+                    const remotePlayer = this.remotePlayers.get(msg.playerId);
+                    if (remotePlayer && this.game.combatSystem) {
+                        this.game.combatSystem.showDamageNumber(remotePlayer.position.x, remotePlayer.position.y - 10, msg.amount, true);
+                    }
+                }
                 break;
 
             case 'chat':
@@ -269,20 +289,20 @@ class MultiplayerClient {
 
         const player = this.game.player;
         const config = this.game.characterConfig || {};
-        
+
         // Get character name - try multiple sources
-        const charName = this.game.characterName || 
-                        config.name ||
-                        this.game.customizationData?.name ||
-                        player.name || 
-                        'Adventurer';
-        
+        const charName = this.game.characterName ||
+            config.name ||
+            this.game.customizationData?.name ||
+            player.name ||
+            'Adventurer';
+
         // Get species from characterConfig or customization data
-        const species = config.species || 
-                       player.species || 
-                       this.game.customizationData?.species ||
-                       'lobster';
-        
+        const species = config.species ||
+            player.species ||
+            this.game.customizationData?.species ||
+            'lobster';
+
         // Get color from characterConfig (hueShift maps to color name)
         const colorMap = {
             0: 'red', 30: 'orange', 50: 'yellow', 120: 'green',
@@ -290,10 +310,10 @@ class MultiplayerClient {
         };
         const hueShift = config.hueShift || 0;
         const color = colorMap[hueShift] || player.colorName || 'red';
-        
+
         console.log(`🎮 Joining multiplayer as: ${charName} (${species}, ${color})${this.game.spectateMode ? ' [SPECTATOR]' : ''}`);
         console.log(`   characterConfig:`, config);
-        
+
         const joinMsg = {
             type: 'join',
             name: charName,
@@ -302,12 +322,12 @@ class MultiplayerClient {
             x: player.position.x,
             y: player.position.y
         };
-        
+
         // Spectators join invisibly — not shown to other players
         if (this.game.spectateMode) {
             joinMsg.spectator = true;
         }
-        
+
         this.send(joinMsg);
     }
 
@@ -352,10 +372,10 @@ class MultiplayerClient {
             const moving = this.game.player.isMoving;
 
             // Only send if position changed
-            if (pos.x !== this.lastSentPosition.x || 
+            if (pos.x !== this.lastSentPosition.x ||
                 pos.y !== this.lastSentPosition.y ||
                 moving) {
-                
+
                 this.send({
                     type: 'move',
                     x: pos.x,
@@ -442,7 +462,7 @@ class MultiplayerClient {
             console.log(`🎨 Rendering ${this.remotePlayers.size} remote players, ${this.serverEnemies.size} server enemies`);
             this._renderLogCount++;
         }
-        
+
         // Render all remote players
         this.remotePlayers.forEach(player => {
             player.render(ctx, camera);
@@ -495,10 +515,10 @@ class MultiplayerClient {
         for (const enemyData of enemies) {
             if (!enemyData || !enemyData.id) continue;
             console.log(`🦾 Enemy spawned: ${enemyData.name} (${enemyData.id}) at (${enemyData.x}, ${enemyData.y})`);
-            
+
             const enemy = new RemoteEnemy(this.game, enemyData);
             this.serverEnemies.set(enemyData.id, enemy);
-            
+
             // Notify combat system about server enemy
             if (this.game.combatSystem?.addServerEnemy) {
                 this.game.combatSystem.addServerEnemy(enemy);
@@ -572,16 +592,16 @@ class RemotePlayer {
         this.species = data.species || 'lobster';
         this.color = data.color || 'red';
         this.hueShift = this.getHueShiftFromColor(this.color);
-        
+
         this.position = { x: data.x || 0, y: data.y || 0 };
         this.targetPosition = { x: data.x || 0, y: data.y || 0 };
         this.direction = data.direction || 'south';
         this.isMoving = false;
-        
+
         this.currentLocation = data.location || 'outdoor';
         this.currentBuildingType = data.buildingType || null;
         this.currentBuildingName = data.buildingName || null;
-        
+
         // Sprites for each direction (will be hue-shifted)
         this.sprites = {};
         this.rawSprites = {}; // Original unshifted sprites
@@ -589,10 +609,10 @@ class RemotePlayer {
         this.currentSprite = null;
         this.animFrame = 0;
         this.animTimer = 0;
-        
+
         this.speechText = null;
         this.speechTimer = 0;
-        
+
         // Mock stats for spectator mode (TODO: get from server)
         this.health = 80 + Math.floor(Math.random() * 20); // Random health 80-100
         this.maxHealth = 100;
@@ -600,7 +620,7 @@ class RemotePlayer {
         this.kills = Math.floor(Math.random() * 25); // Random kills 0-25
         this.faction = this.isBot ? ['Iron Shell', 'Tide Runners', 'Deep Current', 'None'][Math.floor(Math.random() * 4)] : 'None';
         this.inventory = this.generateMockInventory();
-        
+
         this.loadSprites();
     }
 
@@ -625,10 +645,10 @@ class RemotePlayer {
             'Driftwood', 'Sea Glass', 'Barnacle', 'Kelp Wrap', 'Sand Dollar',
             'Tide Pool Water', 'Sea Salt', 'Starfish', 'Anemone', 'Crab Claw'
         ];
-        
+
         const inventory = [];
         const itemCount = Math.floor(Math.random() * 6); // 0-5 items
-        
+
         for (let i = 0; i < itemCount; i++) {
             const item = itemPool[Math.floor(Math.random() * itemPool.length)];
             const count = Math.floor(Math.random() * 5) + 1; // 1-5 quantity
@@ -637,7 +657,7 @@ class RemotePlayer {
                 count: count
             });
         }
-        
+
         return inventory;
     }
 
@@ -646,10 +666,10 @@ class RemotePlayer {
         const directions = ['south', 'north', 'east', 'west'];
         let loadedCount = 0;
         const totalToLoad = directions.length * 2; // idle + walk for each direction
-        
+
         // Walk sprite strips (3 frames of 24x24 in a 72x24 image)
         this.walkSprites = {};
-        
+
         directions.forEach(dir => {
             // Load idle sprite
             const img = new Image();
@@ -670,7 +690,7 @@ class RemotePlayer {
             };
             img.src = `${basePath}/${dir}.png`;
             this.rawSprites[dir] = img;
-            
+
             // Load walk sprite strip (3 frames)
             const walkImg = new Image();
             walkImg.onload = () => {
@@ -698,7 +718,7 @@ class RemotePlayer {
         const frameH = stripImage.height;
         const numFrames = Math.floor(stripImage.width / frameW);
         const frames = [];
-        
+
         for (let i = 0; i < numFrames; i++) {
             const canvas = document.createElement('canvas');
             canvas.width = frameW;
@@ -707,66 +727,66 @@ class RemotePlayer {
             ctx.drawImage(stripImage, i * frameW, 0, frameW, frameH, 0, 0, frameW, frameH);
             frames.push(this.applyHueShift(canvas));
         }
-        
+
         return frames;
     }
 
     applyHueShift(image) {
         if (this.hueShift === 0) return image;
-        
+
         const canvas = document.createElement('canvas');
         canvas.width = image.width;
         canvas.height = image.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(image, 0, 0);
-        
+
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
-        
+
         for (let i = 0; i < data.length; i += 4) {
-            const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+            const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
             if (a === 0) continue;
-            
+
             // Convert to HSL
             const max = Math.max(r, g, b) / 255;
             const min = Math.min(r, g, b) / 255;
             const l = (max + min) / 2;
-            
+
             if (max === min) continue; // Gray, skip
-            
+
             const d = max - min;
             const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            
+
             let h;
-            const rn = r/255, gn = g/255, bn = b/255;
+            const rn = r / 255, gn = g / 255, bn = b / 255;
             if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
             else if (max === gn) h = ((bn - rn) / d + 2) / 6;
             else h = ((rn - gn) / d + 4) / 6;
-            
+
             // Only shift reddish colors
             if (h > 0.1 && h < 0.9) continue;
-            
+
             // Apply shift
             h = (h + this.hueShift / 360) % 1;
-            
+
             // Convert back to RGB
             const hue2rgb = (p, q, t) => {
                 if (t < 0) t += 1;
                 if (t > 1) t -= 1;
-                if (t < 1/6) return p + (q - p) * 6 * t;
-                if (t < 1/2) return q;
-                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
                 return p;
             };
-            
+
             const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
             const p = 2 * l - q;
-            
-            data[i] = Math.round(hue2rgb(p, q, h + 1/3) * 255);
-            data[i+1] = Math.round(hue2rgb(p, q, h) * 255);
-            data[i+2] = Math.round(hue2rgb(p, q, h - 1/3) * 255);
+
+            data[i] = Math.round(hue2rgb(p, q, h + 1 / 3) * 255);
+            data[i + 1] = Math.round(hue2rgb(p, q, h) * 255);
+            data[i + 2] = Math.round(hue2rgb(p, q, h - 1 / 3) * 255);
         }
-        
+
         ctx.putImageData(imageData, 0, 0);
         return canvas;
     }
@@ -776,14 +796,14 @@ class RemotePlayer {
         const dx = Math.abs(x - this.targetPosition.x);
         const dy = Math.abs(y - this.targetPosition.y);
         const posChanged = dx > 0.5 || dy > 0.5;
-        
+
         this.targetPosition = { x, y };
         // Map direction names
         if (direction) {
             const dirMap = { 'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east' };
             this.direction = dirMap[direction] || direction;
         }
-        
+
         // Use server's isMoving flag, but also detect movement from position changes
         // This prevents animation flickering when the flag briefly drops between ticks
         if (isMoving || posChanged) {
@@ -805,7 +825,7 @@ class RemotePlayer {
         const speed = this._spectated ? 0.5 : 0.2;
         this.position.x += (this.targetPosition.x - this.position.x) * speed;
         this.position.y += (this.targetPosition.y - this.position.y) * speed;
-        
+
         // Tick down movement grace timer (in ms)
         const dtMs = deltaTime * 1000; // deltaTime is in seconds, convert to ms
         if (this._moveGraceTimer > 0) {
@@ -820,7 +840,7 @@ class RemotePlayer {
                 }
             }
         }
-        
+
         // Animation (timers in ms)
         if (this.isMoving) {
             this.animTimer += dtMs;
@@ -831,7 +851,7 @@ class RemotePlayer {
         } else {
             this.animFrame = 0;
         }
-        
+
         // Speech timer (in ms)
         if (this.speechTimer > 0) {
             this.speechTimer -= dtMs;
@@ -844,22 +864,22 @@ class RemotePlayer {
     render(ctx, camera) {
         // Get display scale
         const scale = window.CONSTANTS?.DISPLAY_SCALE || 4;
-        
+
         // Position is top-left of collision box (16x24)
         // Convert to feet position (bottom-center) for rendering
         const collisionW = 16;
         const collisionH = 24;
         const feetX = this.position.x + collisionW / 2;
         const feetY = this.position.y + collisionH;
-        
+
         // Calculate screen position from feet
         const screenX = (feetX - (camera?.x || 0)) * scale;
         const screenY = (feetY - (camera?.y || 0)) * scale;
-        
+
         // Get correct sprite for direction
         const dirMap = { 'up': 'north', 'down': 'south', 'left': 'west', 'right': 'east' };
         const spriteDir = dirMap[this.direction] || this.direction || 'south';
-        
+
         // Use walk frame if moving and walk sprites loaded, otherwise idle sprite
         let sprite;
         if (this.isMoving && this.walkSprites[spriteDir] && this.walkSprites[spriteDir].length > 0) {
@@ -868,23 +888,23 @@ class RemotePlayer {
         } else {
             sprite = this.sprites[spriteDir] || this.sprites['south'];
         }
-        
+
         // Sprite dimensions (24x24 pixels, scaled)
         const spriteW = 24 * scale;
         const spriteH = 24 * scale;
-        
+
         // Draw shadow
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
         ctx.ellipse(screenX, screenY, 8 * scale, 4 * scale, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Draw sprite if loaded (sprite may be Image or Canvas)
         const spriteReady = sprite && (
             (sprite instanceof HTMLCanvasElement) ||
             (sprite.complete && sprite.naturalWidth > 0)
         );
-        
+
         if (spriteReady) {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(
@@ -904,7 +924,7 @@ class RemotePlayer {
             ctx.lineWidth = 2;
             ctx.stroke();
         }
-        
+
         // Name label above
         ctx.fillStyle = '#FFFFFF';
         ctx.strokeStyle = '#000000';
@@ -913,13 +933,13 @@ class RemotePlayer {
         ctx.textAlign = 'center';
         ctx.strokeText(this.displayName, screenX, screenY - spriteH - 4 * scale);
         ctx.fillText(this.displayName, screenX, screenY - spriteH - 4 * scale);
-        
+
         // Speech bubble if speaking (offset to the right side)
         if (this.speechText) {
             this.renderSpeechBubble(ctx, screenX + spriteW / 2 + 10 * scale, screenY - spriteH / 2, scale);
         }
     }
-    
+
     getSpeciesColor() {
         const colors = {
             lobster: '#E53935',
@@ -935,13 +955,13 @@ class RemotePlayer {
         const text = this.speechText;
         const fontSize = Math.max(14, 4 * scale); // Bigger font
         ctx.font = `bold ${fontSize}px monospace`;
-        
+
         // Word wrap long messages
         const maxWidth = 70 * scale;
         const words = text.split(' ');
         const lines = [];
         let currentLine = '';
-        
+
         words.forEach(word => {
             const testLine = currentLine ? `${currentLine} ${word}` : word;
             if (ctx.measureText(testLine).width > maxWidth) {
@@ -952,18 +972,18 @@ class RemotePlayer {
             }
         });
         if (currentLine) lines.push(currentLine);
-        
+
         // Limit to 3 lines
         if (lines.length > 3) {
             lines.length = 3;
             lines[2] = lines[2].slice(0, -3) + '...';
         }
-        
+
         const lineHeight = fontSize + 6;
         const padding = 10 * (scale / 4);
         const width = Math.min(maxWidth, Math.max(...lines.map(l => ctx.measureText(l).width))) + padding * 2;
         const height = lines.length * lineHeight + padding * 2;
-        
+
         const bubbleX = x;
         const bubbleY = y - height / 2;
 
@@ -972,7 +992,7 @@ class RemotePlayer {
         ctx.beginPath();
         ctx.roundRect(bubbleX + 3, bubbleY + 3, width, height, 8);
         ctx.fill();
-        
+
         ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
         ctx.strokeStyle = '#1a1a2e';
         ctx.lineWidth = 3;
@@ -980,7 +1000,7 @@ class RemotePlayer {
         ctx.roundRect(bubbleX, bubbleY, width, height, 8);
         ctx.fill();
         ctx.stroke();
-        
+
         // Little triangle pointing left (toward character)
         ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
         ctx.beginPath();
@@ -1022,6 +1042,11 @@ class RemotePlayer {
         }
     }
 
+    setEnemyDelegate(delegate) {
+        this.enemyDelegate = delegate;
+        console.log('🦾 Enemy delegate registered');
+    }
+
     destroy() {
         // Cleanup
         this.sprite = null;
@@ -1030,42 +1055,30 @@ class RemotePlayer {
 
 /**
  * RemoteEnemy - Represents a server-managed enemy in the world
+ * Extends DriftFauna to use identical rendering and particle logic
  */
-class RemoteEnemy {
+class RemoteEnemy extends window.DriftFauna {
     constructor(game, data) {
+        const typeData = window.DRIFT_FAUNA_TYPES && window.DRIFT_FAUNA_TYPES[data.type] ?
+            window.DRIFT_FAUNA_TYPES[data.type] :
+            (window.DRIFT_FAUNA_TYPES ? window.DRIFT_FAUNA_TYPES.SKITTER : { size: 10, shellIntegrity: 15 });
+
+        super(data.x, data.y, typeData);
         this.game = game;
         this.id = data.id;
         this.type = data.type;
-        this.typeData = window.DRIFT_FAUNA_TYPES?.[this.type] || window.DRIFT_FAUNA_TYPES?.SKITTER;
-        const defaultSize = this.typeData?.size || 10;
-        const defaultShell = this.typeData?.shellIntegrity || 1;
+        this.networkControlled = true;
 
         this.name = data.name || this.typeData?.name || this.type;
-        this.x = data.x;
-        this.y = data.y;
-        this.width = data.width || defaultSize;
-        this.height = data.height || defaultSize;
-        this.shellIntegrity = data.shellIntegrity ?? data.health ?? defaultShell;
-        this.maxShellIntegrity = data.maxShellIntegrity ?? data.maxHealth ?? defaultShell;
+        this.shellIntegrity = data.shellIntegrity ?? data.health ?? this.maxShellIntegrity;
+        this.maxShellIntegrity = data.maxShellIntegrity ?? data.maxHealth ?? this.maxShellIntegrity;
         this.state = data.state || 'idle';
         this.zoneId = data.zoneId;
 
         // Visual properties
-        this.targetX = this.x;
-        this.targetY = this.y;
+        this.targetX = data.x;
+        this.targetY = data.y;
         this.isDead = false;
-        this.deathTimer = 0;
-        this.flashTimer = 0;
-
-        if (this.typeData) {
-            this.color = this.typeData.color;
-            this.flashColor = this.typeData.flashColor;
-            this.aiType = this.typeData.aiType;
-        } else {
-            this.color = '#8b1a1a';
-            this.flashColor = '#ff4444';
-            this.aiType = 'skitter';
-        }
     }
 
     updatePosition(x, y) {
@@ -1080,137 +1093,58 @@ class RemoteEnemy {
         if (typeof maxHealth === 'number') {
             this.maxShellIntegrity = maxHealth;
         }
-        this.flashTimer = 200; // Flash for 200ms
+
+        if (this.state !== 'dying' && this.state !== 'dissolved') {
+            this.state = 'hurt';
+            this.hurtTimer = 0;
+            this.renderColor = '#ffffff';
+
+            // Spawn hit particles
+            for (let i = 0; i < 4; i++) {
+                this.particles.push({
+                    x: this.position.x + this.width / 2,
+                    y: this.position.y + this.height / 2,
+                    vx: (Math.random() - 0.5) * 60,
+                    vy: (Math.random() - 0.5) * 60,
+                    life: 0.2 + Math.random() * 0.2,
+                    maxLife: 0.4,
+                    size: 1 + Math.random() * 2,
+                    color: '#ffffff'
+                });
+            }
+        }
     }
 
     die() {
         this.isDead = true;
         this.state = 'dying';
-        this.deathTimer = 0;
+        this.dyingTimer = 0;
+        this.flashCount = 0;
     }
 
-    update(deltaTime) {
-        const dt = deltaTime;
-        const dtMs = dt * 1000;
+    updateNetworkControlled(deltaTime) {
+        super.updateNetworkControlled(deltaTime);
 
         // Smooth interpolation to target position
         const speed = 0.3; // Interpolation factor
-        this.x += (this.targetX - this.x) * speed;
-        this.y += (this.targetY - this.y) * speed;
-
-        // Update flash timer
-        if (this.flashTimer > 0) {
-            this.flashTimer = Math.max(0, this.flashTimer - dtMs);
-        }
-
-        // Update death timer
-        if (this.isDead) {
-            this.deathTimer += dtMs;
-        }
+        this.position.x += (this.targetX - this.position.x) * speed;
+        this.position.y += (this.targetY - this.position.y) * speed;
     }
 
-    render(renderer) {
-        if (!renderer || this.deathTimer > 600) return; // Don't render after 600ms death timer
-
-        const x = Math.floor(this.x);
-        const y = Math.floor(this.y);
-        const w = this.width;
-        const h = this.height;
-        const self = this;
-
-        // Add enemy to ENTITIES layer
-        renderer.addToLayer(CONSTANTS.LAYER.ENTITIES, (ctx) => {
-            ctx.save();
-
-            // Death fade
-            if (self.isDead) {
-                ctx.globalAlpha = Math.max(0, 1 - (self.deathTimer / 600));
-            }
-
-            // Flash when taking damage
-            const isFlashing = self.flashTimer > 0 && Math.floor(self.flashTimer / 100) % 2 === 0;
-            const renderColor = isFlashing ? self.flashColor : self.color;
-
-            // Render based on AI type (simplified versions of client rendering)
-            switch (self.aiType) {
-                case 'skitter':
-                    self.renderSkitter(ctx, x, y, w, h, renderColor);
-                    break;
-                case 'haze':
-                    self.renderHaze(ctx, x, y, w, h, renderColor);
-                    break;
-                case 'loop':
-                    self.renderLoopling(ctx, x, y, w, h, renderColor);
-                    break;
-                default:
-                    self.renderDefault(ctx, x, y, w, h, renderColor);
-            }
-
-            // Health bar (only when damaged)
-            if (self.shellIntegrity < self.maxShellIntegrity && !self.isDead) {
-                const barWidth = w + 4;
-                const barHeight = 2;
-                const barX = x - 2;
-                const barY = y - 4;
-                const healthPct = self.shellIntegrity / self.maxShellIntegrity;
-
-                ctx.fillStyle = '#1a0000';
-                ctx.fillRect(barX, barY, barWidth, barHeight);
-                ctx.fillStyle = healthPct > 0.5 ? '#cc3333' : healthPct > 0.25 ? '#cc6600' : '#cc0000';
-                ctx.fillRect(barX, barY, barWidth * healthPct, barHeight);
-                ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 0.5;
-                ctx.strokeRect(barX, barY, barWidth, barHeight);
-            }
-
-            ctx.restore();
-        });
-    }
-
-    renderSkitter(ctx, x, y, w, h, color) {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
-        // Simple skitter representation
-        ctx.fillStyle = '#000';
-        ctx.fillRect(x + 2, y + 2, 2, 2); // Eyes
-    }
-
-    renderHaze(ctx, x, y, w, h, color) {
-        ctx.fillStyle = color;
-        ctx.globalAlpha *= 0.7; // Semi-transparent
-        ctx.fillRect(x, y, w, h);
-    }
-
-    renderLoopling(ctx, x, y, w, h, color) {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
-        // Simple spikes
-        ctx.fillStyle = '#666';
-        ctx.fillRect(x - 1, y + h/2, 2, 1);
-        ctx.fillRect(x + w - 1, y + h/2, 2, 1);
-    }
-
-    renderDefault(ctx, x, y, w, h, color) {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
+    update(deltaTime) {
+        // Just call base update, which will funnel into updateNetworkControlled
+        super.update(deltaTime);
     }
 
     // Compatibility with DriftFauna interface
     isAlive() {
-        return !this.isDead && this.shellIntegrity > 0;
-    }
-
-    distanceTo(entity) {
-        if (!entity || !entity.position) return Infinity;
-        const dx = entity.position.x + (entity.width || 0) / 2 - (this.x + this.width / 2);
-        const dy = entity.position.y + (entity.height || 0) / 2 - (this.y + this.height / 2);
-        return Math.sqrt(dx * dx + dy * dy);
+        return this.state !== 'dying' && this.state !== 'dissolved';
     }
 
     getBounds() {
         return {
-            x: this.x,
-            y: this.y,
+            x: this.position.x,
+            y: this.position.y,
             width: this.width,
             height: this.height
         };

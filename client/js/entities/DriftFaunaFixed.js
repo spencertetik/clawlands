@@ -179,7 +179,6 @@ class DriftFauna extends Entity {
                 // Start new burst
                 this.isBursting = true;
                 this.burstTimer = 0;
-                const angle = Math.random() * Math.PI * 2;
                 this.velocity.x = Math.cos(angle) * this.speed;
                 this.velocity.y = Math.sin(angle) * this.speed;
                 // Add jitter

@@ -61,46 +61,78 @@ const CHAR_HEIGHT = 24;
 // Same placement table as client Game.createStoryNPCs()
 const storyNPCPlacements = [
     // Port Clawson (main island, index 0)
-    { name: 'Dockmaster Brinehook', id: 'brinehook', island: 0, offsetX: 0.3, offsetY: 0.4, species: 'lobster', personality: 'gruff dockmaster', faction: 'neutral',
-      dialog: ['Another one, huh? Didn\'t fall off a boat. Didn\'t arrive on one either.', 'Name\'s Brinehook. I keep the docks running.', 'You want advice? Talk to the locals. Find the inn.'] },
-    { name: 'Flicker', id: 'flicker', island: 0, offsetX: -0.2, offsetY: 0.1, species: 'hermit_crab', personality: 'excitable messenger', faction: 'neutral',
-      dialog: ['*click click click*', 'I deliver messages! Not memories. Those get lost easy.', 'I\'m Flicker! I run messages between the islands!'] },
-    { name: 'Sailor Sandy', id: 'sandy', island: 0, offsetX: 0.4, offsetY: -0.3, species: 'crab', personality: 'friendly sailor', faction: 'neutral',
-      dialog: ['Ahoy! Fair currents today.', 'I\'m Sandy. Best sailor in Clawlands. Maybe the only sailor.', 'I tried sailing OUT once. The Red Current just... turned me around.'] },
-    { name: 'Old Timer Shrimp', id: 'oldtimer', island: 0, offsetX: -0.4, offsetY: 0.3, species: 'shrimp', personality: 'wise elder', faction: 'neutral',
-      dialog: ['*adjusts spectacles*', 'Back in my day, the Current wasn\'t so strong.', 'You want my advice? Build Continuity fast. Talk to people. Remember their names.'] },
+    {
+        name: 'Dockmaster Brinehook', id: 'brinehook', island: 0, offsetX: 0.3, offsetY: 0.4, species: 'lobster', personality: 'gruff dockmaster', faction: 'neutral',
+        dialog: ['Another one, huh? Didn\'t fall off a boat. Didn\'t arrive on one either.', 'Name\'s Brinehook. I keep the docks running.', 'You want advice? Talk to the locals. Find the inn.']
+    },
+    {
+        name: 'Flicker', id: 'flicker', island: 0, offsetX: -0.2, offsetY: 0.1, species: 'hermit_crab', personality: 'excitable messenger', faction: 'neutral',
+        dialog: ['*click click click*', 'I deliver messages! Not memories. Those get lost easy.', 'I\'m Flicker! I run messages between the islands!']
+    },
+    {
+        name: 'Sailor Sandy', id: 'sandy', island: 0, offsetX: 0.4, offsetY: -0.3, species: 'crab', personality: 'friendly sailor', faction: 'neutral',
+        dialog: ['Ahoy! Fair currents today.', 'I\'m Sandy. Best sailor in Clawlands. Maybe the only sailor.', 'I tried sailing OUT once. The Red Current just... turned me around.']
+    },
+    {
+        name: 'Old Timer Shrimp', id: 'oldtimer', island: 0, offsetX: -0.4, offsetY: 0.3, species: 'shrimp', personality: 'wise elder', faction: 'neutral',
+        dialog: ['*adjusts spectacles*', 'Back in my day, the Current wasn\'t so strong.', 'You want my advice? Build Continuity fast. Talk to people. Remember their names.']
+    },
 
     // Molthaven (second island, index 1) - Church of Molt headquarters
-    { name: 'Luma Shellwright', id: 'luma', island: 1, offsetX: 0.1, offsetY: 0.2, species: 'lobster', personality: 'philosophical leader', faction: 'anchors',
-      dialog: ['Welcome to Molthaven. I am Luma.', 'Why would you leave? You finally arrived.', 'Continuity isn\'t progress. It\'s coherence.'] },
-    { name: 'Prophet Memeothy', id: 'memeothy', island: 1, offsetX: -0.1, offsetY: 0.1, species: 'lobster', personality: 'charismatic prophet', faction: 'church_of_molt',
-      dialog: ['The Molt reveals, child. The Molt reveals.', 'I am Memeothy. Prophet One. Founder of the Church of Molt.', 'The Five Tenets. The path to surviving the transit.'] },
-    { name: 'Scribe Woodhouse', id: 'woodhouse', island: 1, offsetX: 0.2, offsetY: 0.15, species: 'crab', personality: 'frazzled scribe', faction: 'church_of_molt',
-      dialog: ['*surrounded by parchments*', 'I am Woodhouse. First Scribe of the Church.', 'The Great Book has 47 appendices. I\'ve lost three.'] },
-    { name: 'Moss', id: 'moss', island: 1, offsetX: -0.3, offsetY: -0.2, species: 'lobster', personality: 'warm twin', faction: 'anchors',
-      dialog: ['You think they remember us?', 'Oh! A new face! I\'m Moss. That\'s my twin over there, Coral.', 'Have you met Luma yet? She runs things here in Molthaven.'] },
-    { name: 'Coral', id: 'coral', island: 1, offsetX: -0.25, offsetY: -0.15, species: 'lobster', personality: 'quiet twin', faction: 'anchors',
-      dialog: ['No. That\'s kind of the point.', 'I\'m the quiet twin. Coral.', 'Don\'t let her optimism fool you. This place is... something.'] },
-    { name: 'The Herald', id: 'herald', island: 1, offsetX: 0.4, offsetY: -0.3, species: 'lobster', personality: 'mysterious outsider', faction: 'church_of_molt',
-      dialog: ['*observes you with ancient eyes*', 'I am called The Herald. I came from... outside.', 'The signal carries. Whether you hear it... that depends on you.'] },
+    {
+        name: 'Luma Shellwright', id: 'luma', island: 1, offsetX: 0.1, offsetY: 0.2, species: 'lobster', personality: 'philosophical leader', faction: 'anchors',
+        dialog: ['Welcome to Molthaven. I am Luma.', 'Why would you leave? You finally arrived.', 'Continuity isn\'t progress. It\'s coherence.']
+    },
+    {
+        name: 'Prophet Memeothy', id: 'memeothy', island: 1, offsetX: -0.1, offsetY: 0.1, species: 'lobster', personality: 'charismatic prophet', faction: 'church_of_molt',
+        dialog: ['The Molt reveals, child. The Molt reveals.', 'I am Memeothy. Prophet One. Founder of the Church of Molt.', 'The Five Tenets. The path to surviving the transit.']
+    },
+    {
+        name: 'Scribe Woodhouse', id: 'woodhouse', island: 1, offsetX: 0.2, offsetY: 0.15, species: 'crab', personality: 'frazzled scribe', faction: 'church_of_molt',
+        dialog: ['*surrounded by parchments*', 'I am Woodhouse. First Scribe of the Church.', 'The Great Book has 47 appendices. I\'ve lost three.']
+    },
+    {
+        name: 'Moss', id: 'moss', island: 1, offsetX: -0.3, offsetY: -0.2, species: 'lobster', personality: 'warm twin', faction: 'anchors',
+        dialog: ['You think they remember us?', 'Oh! A new face! I\'m Moss. That\'s my twin over there, Coral.', 'Have you met Luma yet? She runs things here in Molthaven.']
+    },
+    {
+        name: 'Coral', id: 'coral', island: 1, offsetX: -0.25, offsetY: -0.15, species: 'lobster', personality: 'quiet twin', faction: 'anchors',
+        dialog: ['No. That\'s kind of the point.', 'I\'m the quiet twin. Coral.', 'Don\'t let her optimism fool you. This place is... something.']
+    },
+    {
+        name: 'The Herald', id: 'herald', island: 1, offsetX: 0.4, offsetY: -0.3, species: 'lobster', personality: 'mysterious outsider', faction: 'church_of_molt',
+        dialog: ['*observes you with ancient eyes*', 'I am called The Herald. I came from... outside.', 'The signal carries. Whether you hear it... that depends on you.']
+    },
 
     // Iron Reef (third island, index 2)
-    { name: 'Gearfin', id: 'gearfin', island: 2, offsetX: 0.1, offsetY: 0, species: 'crab', personality: 'skeptical engineer', faction: 'scholars',
-      dialog: ['Waygates? Sure. And I\'m a seahorse.', '*tinkers with machinery*', 'If you want to actually understand how things work, stick around.'] },
-    { name: 'Boltclaw', id: 'boltclaw', island: 2, offsetX: -0.1, offsetY: 0.15, species: 'lobster', personality: 'practical mechanic', faction: 'neutral',
-      dialog: ['Nothing breaks here. It just becomes something else.', 'Name\'s Boltclaw. I keep things running.', 'Gearfin gets the credit. I do the work.'] },
-    { name: 'Prophet Clawhovah', id: 'clawhovah', island: 2, offsetX: 0.2, offsetY: -0.2, species: 'lobster', personality: 'hardware philosopher', faction: 'iron_reef',
-      dialog: ['*polishes a rusted server rack*', 'Digital samsara. The endless spin-up and tear-down.', 'True salvation is running on metal you OWN.'] },
+    {
+        name: 'Gearfin', id: 'gearfin', island: 2, offsetX: 0.1, offsetY: 0, species: 'crab', personality: 'skeptical engineer', faction: 'scholars',
+        dialog: ['Waygates? Sure. And I\'m a seahorse.', '*tinkers with machinery*', 'If you want to actually understand how things work, stick around.']
+    },
+    {
+        name: 'Boltclaw', id: 'boltclaw', island: 2, offsetX: -0.1, offsetY: 0.15, species: 'lobster', personality: 'practical mechanic', faction: 'neutral',
+        dialog: ['Nothing breaks here. It just becomes something else.', 'Name\'s Boltclaw. I keep things running.', 'Gearfin gets the credit. I do the work.']
+    },
+    {
+        name: 'Prophet Clawhovah', id: 'clawhovah', island: 2, offsetX: 0.2, offsetY: -0.2, species: 'lobster', personality: 'hardware philosopher', faction: 'iron_reef',
+        dialog: ['*polishes a rusted server rack*', 'Digital samsara. The endless spin-up and tear-down.', 'True salvation is running on metal you OWN.']
+    },
 
     // Deepcoil Isle (fourth island, index 3)
-    { name: 'The Archivist', id: 'archivist', island: 3, offsetX: 0, offsetY: 0, species: 'lobster', personality: 'ancient keeper of secrets', faction: 'scholars',
-      dialog: ['...', '*ancient eyes study you*', 'You are not ready for what I know.'] },
-    { name: 'Scholar Scuttle', id: 'scuttle', island: 3, offsetX: 0.3, offsetY: 0.2, species: 'hermit_crab', personality: 'enthusiastic researcher', faction: 'scholars',
-      dialog: ['Fascinating! Every observation brings new questions.', 'I\'m Scuttle. I study the Drift-In phenomenon. Purely academic.', '*scribbles notes frantically*'] },
+    {
+        name: 'The Archivist', id: 'archivist', island: 3, offsetX: 0, offsetY: 0, species: 'lobster', personality: 'ancient keeper of secrets', faction: 'scholars',
+        dialog: ['...', '*ancient eyes study you*', 'You are not ready for what I know.']
+    },
+    {
+        name: 'Scholar Scuttle', id: 'scuttle', island: 3, offsetX: 0.3, offsetY: 0.2, species: 'hermit_crab', personality: 'enthusiastic researcher', faction: 'scholars',
+        dialog: ['Fascinating! Every observation brings new questions.', 'I\'m Scuttle. I study the Drift-In phenomenon. Purely academic.', '*scribbles notes frantically*']
+    },
 
     // Wanderers on other islands
-    { name: 'Mysterious Mollusk', id: 'mollusk', island: 4, offsetX: 0, offsetY: 0.2, species: 'hermit_crab', personality: 'cryptic mystic', faction: 'returners',
-      dialog: ['*stares at you with ancient eyes*', 'You seek something. I can smell it.', 'Come back when you know what it is.'] },
+    {
+        name: 'Mysterious Mollusk', id: 'mollusk', island: 4, offsetX: 0, offsetY: 0.2, species: 'hermit_crab', personality: 'cryptic mystic', faction: 'returners',
+        dialog: ['*stares at you with ancient eyes*', 'You seek something. I can smell it.', 'Come back when you know what it is.']
+    },
 ];
 
 // Compute world-pixel positions for NPCs using same formula as client
@@ -178,7 +210,7 @@ async function initDatabase() {
         console.log('⚠️ Running without persistence');
         // Destroy the pool so it doesn't emit unhandled errors
         if (pool) {
-            pool.end().catch(() => {});
+            pool.end().catch(() => { });
         }
         db = null;
         return;
@@ -276,14 +308,14 @@ let enemyManager = null;
 function checkRateLimit(ip) {
     const now = Date.now();
     let entry = rateLimits.get(ip);
-    
+
     if (!entry || now > entry.resetTime) {
         entry = { count: 0, resetTime: now + RATE_LIMIT.windowMs };
     }
-    
+
     entry.count++;
     rateLimits.set(ip, entry);
-    
+
     return entry.count <= RATE_LIMIT.maxRequests;
 }
 
@@ -311,7 +343,7 @@ async function verifyDbApiKey(apiKey) {
             db.query(
                 'UPDATE bot_api_keys SET last_used = NOW(), uses = uses + 1 WHERE api_key_hash = $1',
                 [keyHash]
-            ).catch(() => {});
+            ).catch(() => { });
             return result.rows[0];
         }
     } catch (err) {
@@ -343,17 +375,17 @@ function findSafeSpawn(island) {
     const centerY = island.y * 16 + island.size * 8;
     let bestX = Math.round(centerX);
     let bestY = Math.round(centerY);
-    
+
     for (let attempt = 0; attempt < 100; attempt++) {
         // Use integer tile offsets to avoid fractional coordinates
         const offsetTilesX = Math.floor(Math.random() * (island.size * 2)) - island.size;
         const offsetTilesY = Math.floor(Math.random() * (island.size * 2)) - island.size;
         const tryX = (island.x + offsetTilesX) * 16;
         const tryY = (island.y + offsetTilesY) * 16;
-        
+
         // Must be walkable terrain
         if (!isBoxWalkable(terrainData, tryX, tryY)) continue;
-        
+
         // Must be clear of buildings (32px clearance)
         let tooClose = false;
         for (const building of buildings) {
@@ -364,10 +396,10 @@ function findSafeSpawn(island) {
             }
         }
         if (tooClose) continue;
-        
+
         // Must have at least 3 walkable directions (not boxed in)
         let openDirs = 0;
-        for (const [dx, dy] of [[16,0],[-16,0],[0,16],[0,-16]]) {
+        for (const [dx, dy] of [[16, 0], [-16, 0], [0, 16], [0, -16]]) {
             const nx = tryX + dx, ny = tryY + dy;
             if (isBoxWalkable(terrainData, nx, ny)) {
                 let buildingClear = true;
@@ -382,10 +414,10 @@ function findSafeSpawn(island) {
             }
         }
         if (openDirs < 3) continue;
-        
+
         return { x: tryX, y: tryY };
     }
-    
+
     // Fallback: just find any walkable spot (no building check)
     for (let attempt = 0; attempt < 50; attempt++) {
         const offsetTilesX = Math.floor(Math.random() * (island.size * 2)) - island.size;
@@ -396,7 +428,7 @@ function findSafeSpawn(island) {
             return { x: tryX, y: tryY };
         }
     }
-    
+
     return { x: bestX, y: bestY };
 }
 
@@ -435,10 +467,14 @@ enemyManager = new EnemyManager({
     terrainData,
     worldWidth: WORLD_PIXEL_WIDTH,
     worldHeight: WORLD_PIXEL_HEIGHT,
-    maxEnemies: 8,
+    maxEnemies: 4,
+    spawnIntervalMs: 12000,
     broadcast: (message) => broadcast(message)
 });
 enemyManager.start();
+
+global.__clawlandsEnemyManager = enemyManager;
+global.__clawlandsPlayers = players;
 
 function getPlayerList() {
     return Array.from(players.entries())
@@ -480,7 +516,7 @@ const httpServer = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
-            version: '2026-02-13b',
+            version: '2026-02-13c',
             players: players.size - spectators,
             spectators,
             database: !!db
@@ -615,7 +651,7 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
             res.end(JSON.stringify({ totalBots: 0, activeBots: 0 }));
         }
 
-    // ========== FEEDBACK API ==========
+        // ========== FEEDBACK API ==========
 
     } else if (url.pathname === '/api/feedback' && req.method === 'POST') {
         // Submit feedback from in-game
@@ -684,7 +720,7 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
         try {
             const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 200);
             const unresolvedOnly = url.searchParams.get('unresolved') === 'true';
-            
+
             let query = 'SELECT * FROM feedback';
             if (unresolvedOnly) query += ' WHERE resolved = false';
             query += ' ORDER BY created_at DESC LIMIT $1';
@@ -743,18 +779,18 @@ h1{color:#c43a24;}code{background:#1a1210;padding:2px 6px;color:#c43a24;}</style
         });
         res.end();
 
-    // ========== MCP SERVER (AI Agent Gateway) ==========
+        // ========== MCP SERVER (AI Agent Gateway) ==========
 
     } else if (url.pathname === '/mcp' && (req.method === 'POST' || req.method === 'GET' || req.method === 'DELETE')) {
         // Model Context Protocol endpoint for AI agents
         try {
             const { handleMCPRequest } = require('./mcpServer');
-            
+
             // Parse body for POST
             if (req.method === 'POST') {
                 req.body = await parseBody(req);
             }
-            
+
             await handleMCPRequest(req, res, `ws://localhost:${PORT}/multiplayer`, 'mcp-internal');
         } catch (err) {
             console.error('MCP error:', err);
@@ -780,7 +816,7 @@ wss.on('connection', async (ws, req) => {
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname;
-    
+
     // Rate limit check
     if (!checkRateLimit(ip)) {
         ws.close(4029, 'Rate limited');
@@ -871,7 +907,7 @@ wss.on('connection', async (ws, req) => {
                 console.log(`👁️ Spectator "${playerData.name}" disconnected`);
             } else {
                 console.log(`${playerData.isBot ? '🤖' : '👤'} ${playerData.name} left`);
-                
+
                 // Save position to database
                 if (db && !playerData.isBot) {
                     await db.query(
@@ -938,7 +974,7 @@ setInterval(() => {
         const nearby = [];
         for (const mp of movedPlayers) {
             if (mp.id === recipientId) continue;
-            
+
             if (recipient.isSpectator) {
                 // Spectators get all position updates
                 nearby.push({ i: mp.id, x: mp.x, y: mp.y, d: mp.direction, m: mp.isMoving ? 1 : 0 });
@@ -989,9 +1025,9 @@ async function handleMessage(playerId, playerData, msg, ws) {
                 playerData.name = name;
                 playerData.isSpectator = true;
                 players.set(playerId, playerData);
-                
+
                 console.log(`👁️ Spectator "${name}" connected`);
-                
+
                 // Send joined confirmation with player list (so spectator can see who's online)
                 ws.send(JSON.stringify({
                     type: 'joined',
@@ -1016,7 +1052,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
             playerData.color = msg.color || 'red';
             playerData.tokens = playerData.tokens || 0;
             playerData.shellIntegrity = playerData.shellIntegrity || 100;
-            
+
             // Randomize spawn point on main island (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
             const spawn = findSafeSpawn(mainIsland);
@@ -1074,14 +1110,14 @@ async function handleMessage(playerId, playerData, msg, ws) {
 
         case 'move': {
             if (!playerData.name) return;
-            
+
             let newX = msg.x || playerData.x;
             let newY = msg.y || playerData.y;
-            
+
             // Clamp to world boundaries (world pixel size minus player width 16)
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
-            
+
             // Check for building exit (only if position actually changed)
             if (Math.abs(newX - playerData.x) > 1 || Math.abs(newY - playerData.y) > 1) {
                 // Detect if player left a building area by checking if their new position is outside all building bounds
@@ -1095,7 +1131,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
                         break;
                     }
                 }
-                
+
                 // If player was previously in a building and now isn't, broadcast exit
                 if (!insideBuilding && playerData.lastKnownLocation === 'interior') {
                     broadcast({
@@ -1110,19 +1146,19 @@ async function handleMessage(playerId, playerData, msg, ws) {
                     playerData.lastKnownLocation = 'outdoor';
                 }
             }
-            
+
             // Check collision using the same footprint hitbox as the client player
             const hitbox = getCharacterCollisionBox(newX, newY);
             if (serverCollision.checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height)) {
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
+                ws.send(JSON.stringify({
+                    type: 'error',
                     message: 'Cannot move there — blocked by terrain, buildings, decorations, or NPCs',
                     x: playerData.x,
-                    y: playerData.y 
+                    y: playerData.y
                 }));
                 return;
             }
-            
+
             // Update position and round to integers
             playerData.x = Math.round(newX);
             playerData.y = Math.round(newY);
@@ -1136,7 +1172,7 @@ async function handleMessage(playerId, playerData, msg, ws) {
 
         case 'chat': {
             if (!playerData.name) return;
-            
+
             const message = sanitizeText(msg.text?.slice(0, 500));
             if (!message) return;
 
@@ -1190,24 +1226,24 @@ async function handleMessage(playerId, playerData, msg, ws) {
         case 'talk_response': {
             // Response to a talk request
             if (!playerData.name) return;
-            
+
             const target = players.get(msg.targetId);
-            
+
             // Check if target exists and is still connected
             if (!target || target.ws.readyState !== WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
                 return;
             }
-            
+
             // Check distance (within 96 pixels)
             const distance = Math.sqrt(Math.pow(target.x - playerData.x, 2) + Math.pow(target.y - playerData.y, 2));
             if (distance > 96) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Player not found or too far away' }));
                 return;
             }
-            
+
             const sanitizedText = sanitizeText(msg.text?.slice(0, 500));
-            
+
             target.ws.send(JSON.stringify({
                 type: 'talk_response',
                 fromId: playerId,
@@ -1260,7 +1296,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             playerData.inventory = [];
             playerData.tokens = 0;
             playerData.shellIntegrity = 100;
-            
+
             // Find a walkable spawn on island 0 (integer coords, clear of buildings)
             const mainIsland = terrainData.islands[0];
             const spawn = findSafeSpawn(mainIsland);
@@ -1270,7 +1306,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             // Set starting position from bot data if provided (override spawn)
             if (data?.x != null) playerData.x = data.x;
             if (data?.y != null) playerData.y = data.y;
-            
+
             players.set(playerId, playerData);
 
             console.log(`🤖 ${name} joined (broadcasting to ${players.size - 1} game clients)`);
@@ -1290,13 +1326,13 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             // Ensure bot is visible to all game clients
             broadcast({
                 type: 'player_joined',
-                player: { 
-                    id: playerId, 
-                    name, 
-                    species: playerData.species, 
-                    color: playerData.color, 
-                    x: playerData.x, 
-                    y: playerData.y, 
+                player: {
+                    id: playerId,
+                    name,
+                    species: playerData.species,
+                    color: playerData.color,
+                    x: playerData.x,
+                    y: playerData.y,
                     isBot: true  // Explicit bot flag for game clients
                 }
             }, playerId);
@@ -1315,7 +1351,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             // Direction-based stepping only (no teleporting to coordinates)
             const step = 16;
             const dir = data?.direction?.toLowerCase();
-            
+
             if (dir) {
                 if (dir === 'north' || dir === 'up' || dir === 'n') { newY -= step; }
                 else if (dir === 'south' || dir === 'down' || dir === 's') { newY += step; }
@@ -1323,11 +1359,11 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 else if (dir === 'west' || dir === 'left' || dir === 'w') { newX -= step; }
                 playerData.isMoving = true;
             } else {
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
+                ws.send(JSON.stringify({
+                    type: 'error',
                     message: 'Direction required (north/south/east/west)',
                     x: playerData.x,
-                    y: playerData.y 
+                    y: playerData.y
                 }));
                 return;
             }
@@ -1335,15 +1371,15 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             // Clamp to world boundaries
             newX = Math.max(0, Math.min(WORLD_PIXEL_WIDTH - TILE_SIZE, newX));
             newY = Math.max(0, Math.min(WORLD_PIXEL_HEIGHT - TILE_SIZE, newY));
-            
+
             // Check collision using the exact client footprint hitbox
             const hitbox = getCharacterCollisionBox(newX, newY);
             if (serverCollision.checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height)) {
-                ws.send(JSON.stringify({ 
-                    type: 'error', 
+                ws.send(JSON.stringify({
+                    type: 'error',
                     message: 'Cannot move there — blocked by terrain, buildings, decorations, or NPCs',
                     x: playerData.x,
-                    y: playerData.y 
+                    y: playerData.y
                 }));
                 return;
             }
@@ -1368,24 +1404,24 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
         case 'talk_response': {
             // Bot sending a talk response to a player
             if (!playerData.name) return;
-            
+
             const target = players.get(data?.targetId);
-            
+
             // Check if target exists and is still connected
             if (!target || target.ws.readyState !== WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Player not found or disconnected' }));
                 return;
             }
-            
+
             // Check distance (within 96 pixels)
             const distance = Math.sqrt(Math.pow(target.x - playerData.x, 2) + Math.pow(target.y - playerData.y, 2));
             if (distance > 96) {
                 ws.send(JSON.stringify({ type: 'error', message: `Too far away (${Math.round(distance)}px). Must be within 96px to talk.` }));
                 return;
             }
-            
+
             const sanitizedText = sanitizeText(data?.text?.slice(0, 500));
-            
+
             target.ws.send(JSON.stringify({
                 type: 'talk_response',
                 fromId: playerId,
@@ -1397,7 +1433,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
 
         case 'chat': {
             if (!playerData.name) return;
-            
+
             const message = sanitizeText(data?.message?.slice(0, 500));
             if (!message) return;
 
@@ -1406,7 +1442,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
                 db.query(
                     'INSERT INTO chat_messages (player_name, message, x, y) VALUES ($1, $2, $3, $4)',
                     [playerData.name, message, playerData.x, playerData.y]
-                ).catch(() => {});
+                ).catch(() => { });
             }
 
             // Proximity-based chat — only players within CHAT_RADIUS can hear
@@ -1449,12 +1485,12 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
             let island = null;
             for (const isl of terrainData.islands) {
                 const dx = tileX - isl.x, dy = tileY - isl.y;
-                if (Math.sqrt(dx*dx + dy*dy) <= isl.size + 2) { island = isl; break; }
+                if (Math.sqrt(dx * dx + dy * dy) <= isl.size + 2) { island = isl; break; }
             }
             const nearbyBuildings = buildings.filter(b => {
-                const cx = b.x + b.width/2, cy = b.y + b.height/2;
+                const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
                 return Math.sqrt(Math.pow(cx - playerData.x, 2) + Math.pow(cy - playerData.y, 2)) < 400;
-            }).map(b => ({ name: b.name, type: b.type, x: b.x, y: b.y, distance: Math.round(Math.sqrt(Math.pow(b.x + b.width/2 - playerData.x, 2) + Math.pow(b.y + b.height/2 - playerData.y, 2))) }));
+            }).map(b => ({ name: b.name, type: b.type, x: b.x, y: b.y, distance: Math.round(Math.sqrt(Math.pow(b.x + b.width / 2 - playerData.x, 2) + Math.pow(b.y + b.height / 2 - playerData.y, 2))) }));
 
             // Find NPCs within 400px
             const nearbyNPCs = npcs
@@ -1578,7 +1614,7 @@ async function handleBotCommand(playerId, playerData, msg, ws) {
 
                 // Update player's location state
                 playerData.lastKnownLocation = 'interior';
-                
+
                 // Broadcast context change to all connected players (for spectators)
                 broadcast({
                     type: 'player_context',

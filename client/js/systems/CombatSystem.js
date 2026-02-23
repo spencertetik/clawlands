@@ -5,11 +5,11 @@ class CombatSystem {
     constructor(game) {
         this.game = game;
         this.enemies = [];
-        this.maxEnemies = 8;
+        this.maxEnemies = 4;
 
         // Spawn settings
         this.spawnTimer = 0;
-        this.spawnInterval = 4000; // ms between spawn checks
+        this.spawnInterval = 8000; // ms between spawn checks
         this.spawnMargin = 200; // px outside camera to spawn
         this.despawnDistance = 600; // px from player to despawn
         this.spawnExclusionRadius = 120; // enemies never spawn closer than this to player
@@ -60,7 +60,7 @@ class CombatSystem {
         // Track if this is first spawn (delay initial spawn)
         this.initialDelay = 5000; // 5 seconds before first enemies appear
         this.totalTime = 0;
-        
+
         // Spawn protection after respawn
         this.spawnProtectionTimer = 0;
         this.spawnProtectionDuration = 4000; // 4 seconds of no spawns after respawn
@@ -70,12 +70,8 @@ class CombatSystem {
         this.stats = this.loadStats();
 
         // Multiplayer integration
-        this.serverEnemies = new Map(); // enemyId -> RemoteEnemy from server
-        this.isMultiplayer = false;
-
-        // Multiplayer integration
+        this.serverEnemies = new Map(); // enemyId -> RemoteEnemy
         this.multiplayerClient = null;
-        this.multiplayerEnemies = new Map(); // enemyId -> enemy data
     }
 
     update(deltaTime) {
@@ -178,10 +174,10 @@ class CombatSystem {
             // Update multiplayer enemies (network-controlled)
             if (this.isMultiplayerActive()) {
                 const toRemove = [];
-                for (const [id, enemy] of this.multiplayerEnemies) {
-                    if (!enemy) { 
-                        toRemove.push(id); 
-                        continue; 
+                for (const [id, enemy] of this.serverEnemies) {
+                    if (!enemy) {
+                        toRemove.push(id);
+                        continue;
                     }
 
                     try {
@@ -194,19 +190,23 @@ class CombatSystem {
 
                     // Clean up dissolved enemies
                     if (enemy.state === 'dissolved' && (!enemy.particles || enemy.particles.length === 0)) {
+                        if (this.pendingResolve === enemy && this.resolveUI && this.resolveUI.isVisible) {
+                            continue;
+                        }
                         toRemove.push(id);
                     }
                 }
 
                 // Remove dead multiplayer enemies
                 for (const id of toRemove) {
-                    this.multiplayerEnemies.delete(id);
+                    this.serverEnemies.delete(id);
                 }
             }
 
             // Clear pending resolve when enemy is fully gone
             if (this.pendingResolve && (!this.resolveUI || !this.resolveUI.isVisible) &&
-                (this.pendingResolve.state === 'dissolved' || !this.enemies.includes(this.pendingResolve))) {
+                (this.pendingResolve.state === 'dissolved' ||
+                    (!this.enemies.includes(this.pendingResolve) && !Array.from(this.serverEnemies.values()).includes(this.pendingResolve)))) {
                 this.pendingResolve = null;
             }
 
@@ -216,8 +216,15 @@ class CombatSystem {
             }
 
             // Spawn enemies (with initial delay and spawn protection)
-            // Only spawn locally if not connected to multiplayer server
-            if (!this.isMultiplayerActive() && this.totalTime > this.initialDelay && this.game.currentLocation === 'outdoor' && this.spawnProtectionTimer <= 0) {
+            // Spawn locally if: not multiplayer, OR multiplayer is active but
+            // server hasn't sent any enemies (fallback so the world isn't empty)
+            const serverHasEnemies = this.isMultiplayerActive() && this.serverEnemies.size > 0;
+            const shouldSpawnLocally = !serverHasEnemies
+                && this.totalTime > this.initialDelay
+                && this.game.currentLocation === 'outdoor'
+                && this.spawnProtectionTimer <= 0;
+
+            if (shouldSpawnLocally) {
                 this.spawnTimer += dtMs;
                 if (this.spawnTimer >= this.spawnInterval) {
                     this.spawnTimer = 0;
@@ -282,7 +289,7 @@ class CombatSystem {
                     targetEnemyIds.push(enemy.id);
                 }
             }
-            
+
             if (this.multiplayerClient && typeof this.multiplayerClient.sendAttack === 'function') {
                 this.multiplayerClient.sendAttack({
                     direction: player.direction || 'down',
@@ -326,9 +333,9 @@ class CombatSystem {
 
     checkHitboxCollision(a, b) {
         return !(a.x + a.width < b.x ||
-                a.x > b.x + b.width ||
-                a.y + a.height < b.y ||
-                a.y > b.y + b.height);
+            a.x > b.x + b.width ||
+            a.y + a.height < b.y ||
+            a.y > b.y + b.height);
     }
 
     trySpawnEnemies() {
@@ -393,7 +400,7 @@ class CombatSystem {
                     if (tile !== null && tile >= 3) {
                         // Make sure it's not inside the camera view (spawn off-screen)
                         const inCamera = spawnX >= camLeft && spawnX <= camRight &&
-                                         spawnY >= camTop && spawnY <= camBottom;
+                            spawnY >= camTop && spawnY <= camBottom;
                         if (!inCamera) {
                             valid = true;
                         } else if (attempts > 20) {
@@ -612,7 +619,7 @@ class CombatSystem {
 
     render(renderer) {
         if (!renderer) return;
-        
+
         // Render local enemies (single-player mode)
         for (const enemy of this.enemies) {
             try {
@@ -621,8 +628,8 @@ class CombatSystem {
         }
 
         // Render multiplayer enemies
-        if (this.multiplayerEnemies) {
-            for (const enemy of this.multiplayerEnemies.values()) {
+        if (this.serverEnemies) {
+            for (const enemy of this.serverEnemies.values()) {
                 try {
                     if (enemy) enemy.render(renderer);
                 } catch (e) { console.warn('Multiplayer enemy render error:', e); }
@@ -807,22 +814,22 @@ class CombatSystem {
 
         // Calculate layout heights
         let y = boxY + pad;
-        
+
         // Row 1: Health bar + "Shell XX/XX" label below it
         const healthBarY = y;
         y += 22; // health bar (8) + text below (10) + padding (4)
         y += 6;  // gap between health and tokens
-        
+
         // Row 2: Tokens (coin icon + number)
         const tokenY = y;
         y += 14;
         y += 6; // gap
-        
+
         // Row 3: Continuity tier + bar
         const contY = y;
         y += 18;
         y += pad;
-        
+
         const boxHeight = y - boxY;
 
         // Dark background with rounded feel
@@ -836,31 +843,31 @@ class CombatSystem {
         const healthPct = player.shellIntegrity / player.shellIntegrityMax;
         const isHit = player.isInvulnerable && !player.spawnProtectionActive;
         const flashOn = isHit && Math.floor(Date.now() / 80) % 2 === 0;
-        
+
         // Health bar background
         const barX = boxX + pad;
         const barW = boxWidth - pad * 2;
         const barH = 8;
         const barY = healthBarY + 2;
-        
+
         ctx.fillStyle = '#1a0e0a';
         ctx.fillRect(barX, barY, barW, barH);
-        
+
         // Health bar fill — color changes with health level
         let barColor;
         if (flashOn) barColor = '#ff4444';
         else if (healthPct > 0.6) barColor = '#44aa44';
         else if (healthPct > 0.3) barColor = '#ccaa33';
         else barColor = '#cc3333';
-        
+
         ctx.fillStyle = barColor;
         ctx.fillRect(barX + 1, barY + 1, Math.max(0, (barW - 2) * healthPct), barH - 2);
-        
+
         // Border
         ctx.strokeStyle = '#5a3028';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(barX, barY, barW, barH);
-        
+
         // Health text (right-aligned percentage or fraction)
         const shellVal = Math.ceil(player.shellIntegrity);
         const shellMax = player.shellIntegrityMax;
@@ -868,7 +875,7 @@ class CombatSystem {
         ctx.font = 'bold 9px monospace';
         ctx.textAlign = 'right';
         ctx.fillText(`${shellVal}/${shellMax}`, barX + barW, barY + barH + 10);
-        
+
         // "Shell" label (left-aligned)
         ctx.textAlign = 'left';
         ctx.fillStyle = '#8a7068';
@@ -877,12 +884,12 @@ class CombatSystem {
         // --- TOKENS (coin icon + number) ---
         if (this.game.currencySystem) {
             const tokenCount = this.game.currencySystem.getTokens();
-            
+
             // Draw coin icon (small circle with T)
             const coinX = barX + 5;
             const coinY = tokenY + 5;
             const coinR = 5;
-            
+
             // Coin outer
             ctx.beginPath();
             ctx.arc(coinX, coinY, coinR, 0, Math.PI * 2);
@@ -891,14 +898,14 @@ class CombatSystem {
             ctx.strokeStyle = '#c49520';
             ctx.lineWidth = 0.8;
             ctx.stroke();
-            
+
             // Coin inner detail
             ctx.beginPath();
             ctx.arc(coinX, coinY, coinR - 1.5, 0, Math.PI * 2);
             ctx.strokeStyle = '#d4a82a';
             ctx.lineWidth = 0.5;
             ctx.stroke();
-            
+
             // Token count next to coin
             ctx.fillStyle = '#fbbf24';
             ctx.font = 'bold 10px monospace';
@@ -928,7 +935,7 @@ class CombatSystem {
         ctx.font = 'bold 9px monospace';
         ctx.textAlign = 'left';
         ctx.fillText(contTier.charAt(0).toUpperCase() + contTier.slice(1), barX, contY + 8);
-        
+
         // Continuity percentage
         ctx.fillStyle = '#e8d5cc';
         ctx.textAlign = 'right';
@@ -1037,18 +1044,18 @@ class CombatSystem {
         ctx.save();
         ctx.fillStyle = '#8a7068';
         // Shield outline
-        ctx.fillRect(x+1, y, 6, 8);
-        ctx.fillRect(x, y+1, 8, 6);
-        ctx.fillRect(x+1, y+7, 6, 1);
-        
+        ctx.fillRect(x + 1, y, 6, 8);
+        ctx.fillRect(x, y + 1, 8, 6);
+        ctx.fillRect(x + 1, y + 7, 6, 1);
+
         ctx.fillStyle = '#e8d5cc';
         // Shield inner
-        ctx.fillRect(x+2, y+1, 4, 5);
-        ctx.fillRect(x+1, y+2, 6, 3);
-        
+        ctx.fillRect(x + 2, y + 1, 4, 5);
+        ctx.fillRect(x + 1, y + 2, 6, 3);
+
         ctx.fillStyle = '#c43a24';
         // Shield highlight
-        ctx.fillRect(x+3, y+2, 2, 2);
+        ctx.fillRect(x + 3, y + 2, 2, 2);
         ctx.restore();
     }
 
@@ -1056,16 +1063,16 @@ class CombatSystem {
         ctx.save();
         ctx.fillStyle = '#8a7068';
         // Sword handle
-        ctx.fillRect(x+3, y+6, 2, 3);
-        ctx.fillRect(x+2, y+9, 4, 1);
-        
+        ctx.fillRect(x + 3, y + 6, 2, 3);
+        ctx.fillRect(x + 2, y + 9, 4, 1);
+
         // Sword blade
-        ctx.fillRect(x+4, y, 1, 7);
-        ctx.fillRect(x+3, y+1, 3, 1);
-        
+        ctx.fillRect(x + 4, y, 1, 7);
+        ctx.fillRect(x + 3, y + 1, 3, 1);
+
         ctx.fillStyle = '#e8d5cc';
         // Sword highlight
-        ctx.fillRect(x+4, y+1, 1, 5);
+        ctx.fillRect(x + 4, y + 1, 1, 5);
         ctx.restore();
     }
 
@@ -1073,17 +1080,17 @@ class CombatSystem {
         ctx.save();
         ctx.fillStyle = '#8a7068';
         // Coin outline
-        ctx.fillRect(x+1, y, 6, 8);
-        ctx.fillRect(x, y+1, 8, 6);
-        
+        ctx.fillRect(x + 1, y, 6, 8);
+        ctx.fillRect(x, y + 1, 8, 6);
+
         ctx.fillStyle = '#f5c542';
         // Coin interior
-        ctx.fillRect(x+1, y+1, 6, 6);
-        ctx.fillRect(x+2, y, 4, 8);
-        
+        ctx.fillRect(x + 1, y + 1, 6, 6);
+        ctx.fillRect(x + 2, y, 4, 8);
+
         ctx.fillStyle = '#8a7068';
         // Coin center mark
-        ctx.fillRect(x+3, y+2, 2, 4);
+        ctx.fillRect(x + 3, y + 2, 2, 4);
         ctx.restore();
     }
 
@@ -1094,7 +1101,7 @@ class CombatSystem {
     setMultiplayerClient(client) {
         this.multiplayerClient = client;
         console.log('🎮 CombatSystem: Multiplayer client set');
-        
+
         if (client) {
             // Clear local enemies when connecting to multiplayer
             if (client.connected) {
@@ -1105,7 +1112,12 @@ class CombatSystem {
                     this.resolveUI.hide();
                 }
             }
-            
+
+            // Share the same enemy map to ensure perfect synchronization
+            if (client.serverEnemies) {
+                this.serverEnemies = client.serverEnemies;
+            }
+
             // Set up enemy delegate if the method exists
             if (typeof client.setEnemyDelegate === 'function') {
                 client.setEnemyDelegate(this);
@@ -1148,7 +1160,7 @@ class CombatSystem {
         // Handle attack result from server
         if (msg.hit) {
             console.log(`⚔️ Server attack hit: ${msg.enemyName || 'Enemy'} for ${msg.damage || 0} damage`);
-            
+
             // Play hit sound
             if (this.game.sfx) {
                 this.game.sfx.play('enemy_hit');
@@ -1212,7 +1224,7 @@ class CombatSystem {
     // Multiplayer enemy event handlers
     handleEnemySnapshot(enemies) {
         // Clear existing multiplayer enemies
-        this.multiplayerEnemies.clear();
+        this.serverEnemies.clear();
 
         // Create DriftFauna instances for each server enemy
         for (const enemyData of enemies) {
@@ -1225,18 +1237,29 @@ class CombatSystem {
         this.createMultiplayerEnemy(enemyData);
     }
 
-    handleEnemyMove(enemyData) {
-        const enemy = this.multiplayerEnemies.get(enemyData.id);
-        if (enemy) {
-            // Update position smoothly
-            enemy.position.x = enemyData.x;
-            enemy.position.y = enemyData.y;
-            enemy.state = enemyData.state || enemy.state;
+    handleEnemyMove(payload) {
+        // Handle both single enemy and array of enemies
+        const enemies = Array.isArray(payload) ? payload : (payload.enemies || [payload]);
+
+        for (const enemyData of enemies) {
+            if (!enemyData || !enemyData.id) continue;
+            const enemy = this.serverEnemies.get(enemyData.id);
+            if (enemy) {
+                // Update position smoothly (using RemoteEnemy.updatePosition)
+                if (typeof enemy.updatePosition === 'function') {
+                    enemy.updatePosition(enemyData.x, enemyData.y);
+                } else {
+                    enemy.position.x = enemyData.x;
+                    enemy.position.y = enemyData.y;
+                }
+                enemy.state = enemyData.state || enemy.state;
+                if (enemyData.shellIntegrity !== undefined) enemy.shellIntegrity = enemyData.shellIntegrity;
+            }
         }
     }
 
     handleEnemyDamage(msg) {
-        const enemy = this.multiplayerEnemies.get(msg.enemyId);
+        const enemy = this.serverEnemies.get(msg.enemyId);
         if (enemy) {
             const oldHealth = enemy.shellIntegrity;
             const newHealth = Math.max(0, (msg.shellIntegrity ?? msg.health ?? enemy.shellIntegrity ?? 0));
@@ -1245,7 +1268,7 @@ class CombatSystem {
             if (newMax != null) {
                 enemy.maxShellIntegrity = newMax;
             }
-            
+
             // Visual feedback for damage
             enemy.state = 'hurt';
             enemy.hurtTimer = 0;
@@ -1276,19 +1299,58 @@ class CombatSystem {
     }
 
     handleEnemyDeath(msg) {
-        const enemy = this.multiplayerEnemies.get(msg.enemyId);
+        const enemy = this.serverEnemies.get(msg.enemyId);
         if (enemy) {
-            enemy.state = 'dying';
-            enemy.dyingTimer = 0;
+            if (typeof enemy.die === 'function') {
+                enemy.die();
+            } else {
+                enemy.state = 'dying';
+                enemy.dyingTimer = 0;
+            }
 
             // Play death sound
             if (this.game.sfx) {
                 this.game.sfx.play('enemy_death');
             }
 
+            // Show ResolveUI if the local player killed it
+            if (msg.killerId === this.multiplayerClient?.playerId) {
+                if (this.resolveUI && !this.pendingResolve) {
+                    this.pendingResolve = enemy;
+                    // Add loot drop info
+                    const typeData = typeof DRIFT_FAUNA_TYPES !== 'undefined' ? DRIFT_FAUNA_TYPES[enemy.type] :
+                        (window.DRIFT_FAUNA_TYPES && window.DRIFT_FAUNA_TYPES[enemy.type]);
+                    if (typeData) {
+                        enemy.loot = typeData.loot || [];
+                        enemy.typeData = typeData;
+                    }
+
+                    setTimeout(() => {
+                        try {
+                            if (this.pendingResolve === enemy && this.resolveUI) {
+                                this.resolveUI.show(enemy);
+                            }
+                        } catch (e) {
+                            console.warn('Resolve show error:', e);
+                        }
+                    }, 300);
+                }
+            }
+
             // Remove from map after death animation
             setTimeout(() => {
-                this.multiplayerEnemies.delete(msg.enemyId);
+                // Wait if it's the pending resolve target
+                const attemptDelete = () => {
+                    if (this.pendingResolve === enemy && this.resolveUI && this.resolveUI.isVisible) {
+                        setTimeout(attemptDelete, 500);
+                        return;
+                    }
+                    this.serverEnemies.delete(msg.enemyId);
+                    if (this.pendingResolve === enemy) {
+                        this.pendingResolve = null;
+                    }
+                };
+                attemptDelete();
             }, 1000);
         }
     }
@@ -1296,20 +1358,20 @@ class CombatSystem {
     createMultiplayerEnemy(enemyData) {
         if (!enemyData || !enemyData.id || !enemyData.type) return;
 
-        const typeData = window.DRIFT_FAUNA_TYPES && window.DRIFT_FAUNA_TYPES[enemyData.type];
-        if (!typeData) {
-            console.warn(`Unknown enemy type: ${enemyData.type}`);
+        // Use RemoteEnemy for correct rendering and interpolation
+        if (typeof window.RemoteEnemy === 'undefined') {
+            console.warn('RemoteEnemy not found, falling back to DriftFauna');
+            const typeData = window.DRIFT_FAUNA_TYPES && window.DRIFT_FAUNA_TYPES[enemyData.type];
+            if (!typeData) return;
+            const enemy = new DriftFauna(enemyData.x, enemyData.y, typeData);
+            enemy.networkControlled = true;
+            enemy.serverId = enemyData.id;
+            this.serverEnemies.set(enemyData.id, enemy);
             return;
         }
 
-        const enemy = new DriftFauna(enemyData.x, enemyData.y, typeData);
-        enemy.networkControlled = true;
-        enemy.shellIntegrity = enemyData.shellIntegrity ?? enemyData.health ?? typeData.shellIntegrity;
-        enemy.maxShellIntegrity = enemyData.maxShellIntegrity ?? enemyData.maxHealth ?? typeData.shellIntegrity;
-        enemy.serverId = enemyData.id;
-        enemy.state = enemyData.state || 'wandering';
-
-        this.multiplayerEnemies.set(enemyData.id, enemy);
+        const enemy = new window.RemoteEnemy(this.game, enemyData);
+        this.serverEnemies.set(enemyData.id, enemy);
     }
 
     // Duplicate render method removed - handled in main render method above

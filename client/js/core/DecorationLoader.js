@@ -22,7 +22,7 @@ class DecorationLoader {
             width: 33, height: 48,
             collision: { width: 10, height: 10, offsetY: 38 }
         },
-        
+
         // === BUSHES & PLANTS ===
         bush: {
             path: 'assets/sprites/decorations/plant_2.png',
@@ -79,7 +79,7 @@ class DecorationLoader {
             width: 24, height: 23,
             collision: { width: 6, height: 4, offsetY: 13 }
         },
-        
+
         // === SHELLS ===
         shell_pink: {
             path: 'assets/sprites/decorations/beach_1.png',
@@ -106,7 +106,7 @@ class DecorationLoader {
             width: 20, height: 17,
             collision: null
         },
-        
+
         // === ROCKS ===
         rock: {
             path: 'assets/sprites/decorations/beach_10.png',
@@ -123,7 +123,7 @@ class DecorationLoader {
             width: 20, height: 13,
             collision: null  // Small rocks are walkable — only large rocks block
         },
-        
+
         // === STARFISH ===
         starfish: {
             path: 'assets/sprites/decorations/beach_43.png',
@@ -140,7 +140,7 @@ class DecorationLoader {
             width: 17, height: 20,
             collision: null
         },
-        
+
         // === CORAL ===
         coral: {
             path: 'assets/sprites/decorations/beach_50.png',
@@ -157,7 +157,7 @@ class DecorationLoader {
             width: 20, height: 18,
             collision: null
         },
-        
+
         // === DRIFTWOOD ===
         driftwood: {
             path: 'assets/sprites/decorations/beach_33.png',
@@ -169,7 +169,7 @@ class DecorationLoader {
             width: 20, height: 16,
             collision: null
         },
-        
+
         // === OCEAN DECOR (larger items) ===
         treasure_chest: {
             path: 'assets/sprites/decorations/decor_1.png',
@@ -213,26 +213,26 @@ class DecorationLoader {
         },
         message_bottle: {
             path: 'assets/sprites/decorations/message_bottle.png',
-            width: 12, height: 16,
+            width: 4, height: 6,
             collision: null
         },
         // potion_bottle removed — decor_7.png is a mismatched sprite (dress, not potion)
         scroll: {
             path: 'assets/sprites/decorations/decor_19.png',
-            width: 20, height: 28,
+            width: 5, height: 7,
             collision: null
         },
         buoy: {
             path: 'assets/sprites/decorations/decor_24.png',
-            width: 23, height: 28,
-            collision: { width: 18, height: 12, offsetY: 16 }
+            width: 12, height: 14,
+            collision: { width: 10, height: 6, offsetY: 8 }
         },
         log_pile: {
             path: 'assets/sprites/decorations/decor_17.png',
             width: 28, height: 26,
             collision: { width: 24, height: 14, offsetY: 12 }
         },
-        
+
         // === GROUND / PATH ===
         dirt_path: {
             path: 'assets/sprites/decorations/dirt_path.png',
@@ -247,7 +247,7 @@ class DecorationLoader {
             ground: true
         },
         // brick_path removed — only dirt_path and cobblestone_path in use
-        
+
         // Ground decorations (rendered below entities)
         flower: {
             path: 'assets/sprites/decorations/plant_5.png',
@@ -261,7 +261,7 @@ class DecorationLoader {
             collision: null,
             ground: true
         },
-        
+
         // === BRIDGES ===
         bridge_wood_v: {
             path: 'assets/sprites/decorations/bridge_wood_v.png',
@@ -292,7 +292,7 @@ class DecorationLoader {
             wood: ['driftwood', 'driftwood2'],
             rare: ['treasure_chest', 'lobster_statue', 'anchor', 'campfire', 'wooden_sign']
         };
-        
+
         const types = categories[category];
         if (!types) return category; // Return as-is if not a category
         return types[Math.floor(Math.random() * types.length)];
@@ -316,28 +316,28 @@ class DecorationLoader {
             for (const type of decorTypes) {
                 const def = DecorationLoader.DECORATIONS[type];
                 const img = new Image();
-                
+
                 img.onload = () => {
                     this.sprites[type] = img;
                     loadedCount++;
-                    
+
                     if (loadedCount === decorTypes.length) {
                         this.loaded = true;
                         console.log(`🌴 Loaded ${loadedCount} decoration sprites`);
                         resolve();
                     }
                 };
-                
+
                 img.onerror = () => {
                     console.warn(`Failed to load decoration: ${type} (${def.path})`);
                     loadedCount++;
-                    
+
                     if (loadedCount === decorTypes.length) {
                         this.loaded = true;
                         resolve();
                     }
                 };
-                
+
                 img.src = `${def.path}?v=${Date.now()}`;
             }
         });
