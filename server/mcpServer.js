@@ -361,7 +361,9 @@ async function handleMCPRequest(req, res, botWsUrl, botApiKey) {
 
     if (req.method === 'GET') {
         // Create new SSE session
-        const transport = new SSEServerTransport('/mcp', res);
+        // Use absolute URL for Remote MCP clients (like Grok) that don't support relative SSE endpoints
+        const endpointUrl = `https://${req.headers.host}/mcp`;
+        const transport = new SSEServerTransport(endpointUrl, res);
         const bridge = new BotBridge(botWsUrl, botApiKey);
         const server = new McpServer({ name: 'clawlands-web', version: '1.0.0' });
 
